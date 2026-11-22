@@ -64,6 +64,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(FullRoundFilletFeature), "full-round")]
 [JsonDerivedType(typeof(VertexChamferFeature), "vertex-chamfer")]
 [JsonDerivedType(typeof(CosmeticThreadFeature), "cosmetic-thread")]
+[JsonDerivedType(typeof(IndentFeature), "indent")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
 [JsonDerivedType(typeof(CombineFeature), "combine")]
 [JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]
