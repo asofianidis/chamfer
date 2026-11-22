@@ -84,6 +84,9 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Freeform", "Reshape a flat face by pulling control points in or out", new RelayCommand(() => StartFeature(new FreeformFeature { Face = Selection.FirstOrDefault(s => s.Kind == SelectionKind.Face)?.Ref })), "≋"),
             new("Mate Reference", "Faces this part mates by automatically when inserted", new RelayCommand(StartMateReference), "⫘"),
             new("Plane", "Reference plane", new RelayCommand(() => StartFeature(new ReferencePlaneFeature { Base = SelectedPlane() ?? PlaneRef.Front })), "▱"),
+            new("Axis", "Reference axis from an edge, cylinder, two planes or two points", new RelayCommand(() => StartFeature(new ReferenceAxisFeature { Along = Selection.Select(s => s.AsAxis()).FirstOrDefault(a => a is not null) })), "╱"),
+            new("Point", "Reference point at coordinates, a face centre, an arc centre or an edge midpoint", new RelayCommand(StartReferencePoint), "•"),
+            new("Coordinate System", "Origin and axes for mass properties and exports", new RelayCommand(() => StartFeature(new CoordinateSystemFeature())), "⊹"),
             new("3D Sketch", "Polyline or spline through points in space, for sweep paths", new RelayCommand(() => StartFeature(new Sketch3DFeature
             {
                 Points = [new(0, 0, 0), new(0, 0, 50), new(50, 0, 50)],
@@ -1413,12 +1416,41 @@ public sealed partial class MainViewModel : ViewModelBase
     private bool _measuring;
     private bool _massPanel;
 
+    private void StartReferencePoint()
+    {
+        var pick = Selection.FirstOrDefault(s => s.Kind is SelectionKind.Face or SelectionKind.Edge);
+        StartFeature(pick switch
+        {
+            { Kind: SelectionKind.Face } => new ReferencePointFeature { Kind = PointKind.FaceCenter, Face = pick.Ref },
+            { Kind: SelectionKind.Edge } => new ReferencePointFeature { Kind = PointKind.ArcCenter, Edge = pick.Ref },
+            _ => new ReferencePointFeature(),
+        });
+    }
+
+    /// <summary>The coordinate system mass properties are reported in (null: the model origin).</summary>
+    private string? _massFrame;
+
     [RelayCommand]
     private void ShowMassProperties()
     {
         CancelEditor();
         var panel = FeatureEditor.Info("Mass Properties");
-        var m = Document.MassProperties();
+        var frames = Document.Features.OfType<CoordinateSystemFeature>().Where(f => Document.State.Frames.ContainsKey(f.Id)).ToList();
+        if (_massFrame is not null && frames.All(f => f.Id != _massFrame))
+        {
+            _massFrame = null;
+        }
+
+        if (frames.Count > 0)
+        {
+            panel.AddInfo(new ChoiceField("Relative to", ["Model origin", .. frames.Select(f => f.Name)], _massFrame is null ? 0 : frames.FindIndex(f => f.Id == _massFrame) + 1, i =>
+            {
+                _massFrame = i == 0 ? null : frames[i - 1].Id;
+                ShowMassProperties();
+            }));
+        }
+
+        var m = _massFrame is null ? Document.MassProperties() : Document.MassProperties(_massFrame);
         var inv = CultureInfo.InvariantCulture;
         panel.AddInfo(new InfoField("Material", $"{Document.Material.Name} ({Document.Material.Density.ToString("0", inv)} kg/m³)"));
         panel.AddInfo(new InfoField("Mass", $"{(m.Mass * 1000).ToString("0.###", inv)} g"));

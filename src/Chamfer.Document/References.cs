@@ -21,7 +21,8 @@ public sealed record AxisRef(
     PlaneRef? PlaneNormal = null,
     string? SketchId = null,
     int SketchEntityId = 0,
-    string? StandardAxis = null)
+    string? StandardAxis = null,
+    string? AxisId = null)
 {
     public static AxisRef X { get; } = new(StandardAxis: "x");
     public static AxisRef Y { get; } = new(StandardAxis: "y");

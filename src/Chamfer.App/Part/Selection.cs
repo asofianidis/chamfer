@@ -33,6 +33,7 @@ public sealed record SelectionItem(SelectionKind Kind, TopoRef? Ref = null, stri
     /// <summary>The plane reference this selection stands for, if it's a plane or planar face.</summary>
     public PlaneRef? AsPlane() => Kind switch
     {
+        SelectionKind.Plane when PlaneId?.StartsWith("axis:", StringComparison.Ordinal) == true => null,
         SelectionKind.Plane => new PlaneRef(PlaneId),
         SelectionKind.Face => new PlaneRef(Face: Ref),
         _ => null,
@@ -42,7 +43,8 @@ public sealed record SelectionItem(SelectionKind Kind, TopoRef? Ref = null, stri
     {
         SelectionKind.Edge => new AxisRef(Edge: Ref),
         SelectionKind.Face => new AxisRef(Face: Ref),
-        SelectionKind.Plane when PlaneId?.StartsWith("axis:", StringComparison.Ordinal) == true => new AxisRef(StandardAxis: PlaneId[5..]),
+        SelectionKind.Plane when PlaneId?.StartsWith("axis:", StringComparison.Ordinal) == true =>
+            PlaneId[5..] is "x" or "y" or "z" ? new AxisRef(StandardAxis: PlaneId[5..]) : new AxisRef(AxisId: PlaneId[5..]),
         SelectionKind.Plane => new AxisRef(PlaneNormal: new PlaneRef(PlaneId)),
         _ => null,
     };

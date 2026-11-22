@@ -15,14 +15,51 @@ public sealed class ReferencePlaneFeature : Feature
     /// <summary>Offset to the other side and flip the normal.</summary>
     public bool Flip { get; set; }
 
-    public override IEnumerable<string> Dependencies => Base.PlaneId is { } id ? [id] : [];
+    /// <summary>Tilts the plane about this axis (after the offset) by <see cref="Angle"/> degrees.</summary>
+    public AxisRef? AngleAxis { get; set; }
+
+    public double Angle { get; set; }
+
+    /// <summary>Three reference points the plane passes through, instead of a base plane.</summary>
+    public List<string>? ThroughPoints { get; set; }
+
+    public override IEnumerable<string> Dependencies =>
+        new[] { Base.PlaneId, AngleAxis?.AxisId, AngleAxis?.SketchId }.Concat(ThroughPoints ?? [])
+            .OfType<string>().Where(id => id is not ("front" or "top" or "right"));
 
     public override void Execute(RebuildContext ctx)
     {
         ArgumentNullException.ThrowIfNull(ctx);
-        var b = ctx.ResolvePlane(Base);
-        var p = b.Offset(Flip ? -Offset : Offset);
-        ctx.Planes[Id] = Flip ? new Plane3(p.Origin, -p.Normal, p.XDirection) : p;
+        if (ThroughPoints is { Count: > 0 } ids)
+        {
+            if (ids.Count != 3)
+            {
+                throw new FeatureException("A plane through points needs three points.");
+            }
+
+            var (a, b, c) = (ctx.ResolvePoint(ids[0]), ctx.ResolvePoint(ids[1]), ctx.ResolvePoint(ids[2]));
+            var n = Vec3.Cross(b - a, c - a);
+            if (n.LengthSquared < 1e-12)
+            {
+                throw new FeatureException("The three points are in a line.");
+            }
+
+            var through = new Plane3(a, n.Normalized(), (b - a).Normalized());
+            ctx.Planes[Id] = Flip ? new Plane3(through.Origin, -through.Normal, through.XDirection) : through;
+            return;
+        }
+
+        var basePlane = ctx.ResolvePlane(Base);
+        var p = basePlane.Offset(Flip ? -Offset : Offset);
+        p = Flip ? new Plane3(p.Origin, -p.Normal, p.XDirection) : p;
+        if (AngleAxis is { } axisRef && Math.Abs(Angle) > 1e-12)
+        {
+            var (origin, dir) = ctx.ResolveAxis(axisRef);
+            var r = Transform3.Rotation(origin, dir, Angle * Math.PI / 180);
+            p = new Plane3(r.Apply(p.Origin), r.ApplyVector(p.Normal), r.ApplyVector(p.XDirection));
+        }
+
+        ctx.Planes[Id] = p;
     }
 }
 

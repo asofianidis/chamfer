@@ -686,7 +686,108 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new SelectionField("Reference", Planes, [PlaneItem(doc, rp.Base)], items => Set(() => rp.Base = Last(items)?.AsPlane() ?? PlaneRef.Front), max: 1));
                 ed.Add(Num("Offset", "mm", rp, nameof(rp.Offset)));
                 ed.Add(new BoolField("Flip", rp.Flip, v => Set(() => rp.Flip = v)));
+                ed.Add(new SelectionField("Tilt about axis", Axes, rp.AngleAxis is { } tilt ? [AxisItem(tilt, doc)] : [],
+                    items => Set(() => rp.AngleAxis = Last(items)?.AsAxis()), max: 1));
+                ed.Add(Num("Angle", "°", rp, nameof(rp.Angle)));
+                ed.Add(new SelectionField("Or through three points", FeatureKinds, PointItems(doc, rp.ThroughPoints ?? []),
+                    items => Set(() => rp.ThroughPoints = [.. PointIds(doc, items)]), max: 3));
                 break;
+
+            case ReferenceAxisFeature ax:
+            {
+                var along = new SelectionField("Edge, cylinder, line or axis", Axes, ax.Along is { } a ? [AxisItem(a, doc)] : [],
+                    items => Set(() => ax.Along = Last(items)?.AsAxis()), max: 1);
+                var planes = new SelectionField("Two planes", Planes, new[] { ax.PlaneA, ax.PlaneB }.OfType<PlaneRef>().Select(p => PlaneItem(doc, p)),
+                    items => Set(() =>
+                    {
+                        var refs = items.Select(i => i.AsPlane()).OfType<PlaneRef>().ToList();
+                        ax.PlaneA = refs.ElementAtOrDefault(0);
+                        ax.PlaneB = refs.ElementAtOrDefault(1);
+                    }), max: 2);
+                var points = new SelectionField("Two points", FeatureKinds, PointItems(doc, new[] { ax.PointA, ax.PointB }.OfType<string>()),
+                    items => Set(() =>
+                    {
+                        var ids = PointIds(doc, items).ToList();
+                        ax.PointA = ids.ElementAtOrDefault(0);
+                        ax.PointB = ids.ElementAtOrDefault(1);
+                    }), max: 2);
+                void ShowKind()
+                {
+                    along.IsVisible = ax.Kind == AxisKind.Along;
+                    planes.IsVisible = ax.Kind == AxisKind.TwoPlanes;
+                    points.IsVisible = ax.Kind == AxisKind.TwoPoints;
+                }
+
+                ed.Add(new ChoiceField("Type", ["Along an edge, cylinder or line", "Where two planes meet", "Through two points"], (int)ax.Kind,
+                    i => Set(() =>
+                    {
+                        ax.Kind = (AxisKind)i;
+                        ShowKind();
+                    })));
+                ed.Add(along);
+                ed.Add(planes);
+                ed.Add(points);
+                ShowKind();
+                break;
+            }
+
+            case ReferencePointFeature pt:
+            {
+                var coords = new[] { Num("X", "mm", pt, nameof(pt.X)), Num("Y", "mm", pt, nameof(pt.Y)), Num("Z", "mm", pt, nameof(pt.Z)) };
+                var face = new SelectionField("Face", Faces, pt.Face is { } f ? [new SelectionItem(SelectionKind.Face, f, Label: $"Face <{f.Name}>")] : [],
+                    items => Set(() => pt.Face = Last(items)?.Ref), max: 1);
+                var edge = new SelectionField("Edge", [SelectionKind.Edge], pt.Edge is { } e ? [new SelectionItem(SelectionKind.Edge, e, Label: $"Edge <{e.Name}>")] : [],
+                    items => Set(() => pt.Edge = Last(items)?.Ref), max: 1);
+                void ShowKind()
+                {
+                    foreach (var c in coords)
+                    {
+                        c.IsVisible = pt.Kind == PointKind.Coordinates;
+                    }
+
+                    face.IsVisible = pt.Kind == PointKind.FaceCenter;
+                    edge.IsVisible = pt.Kind is PointKind.ArcCenter or PointKind.EdgeMidpoint;
+                }
+
+                ed.Add(new ChoiceField("Type", ["Coordinates", "Centre of a face", "Centre of an arc", "Midpoint of an edge"], (int)pt.Kind,
+                    i => Set(() =>
+                    {
+                        pt.Kind = (PointKind)i;
+                        ShowKind();
+                    })));
+                foreach (var c in coords)
+                {
+                    ed.Add(c);
+                }
+
+                ed.Add(face);
+                ed.Add(edge);
+                ShowKind();
+                break;
+            }
+
+            case CoordinateSystemFeature cs:
+            {
+                var coords = new[] { Num("Origin X", "mm", cs, nameof(cs.X)), Num("Origin Y", "mm", cs, nameof(cs.Y)), Num("Origin Z", "mm", cs, nameof(cs.Z)) };
+                ed.Add(new SelectionField("Origin point (or coordinates below)", FeatureKinds, PointItems(doc, cs.OriginPoint is { } o ? [o] : []),
+                    items => Set(() =>
+                    {
+                        cs.OriginPoint = PointIds(doc, items).LastOrDefault();
+                        foreach (var c in coords)
+                        {
+                            c.IsVisible = cs.OriginPoint is null;
+                        }
+                    }), max: 1));
+                foreach (var c in coords)
+                {
+                    c.IsVisible = cs.OriginPoint is null;
+                    ed.Add(c);
+                }
+
+                ed.Add(new SelectionField("Z direction", Axes, cs.ZAxis is { } z ? [AxisItem(z, doc)] : [], items => Set(() => cs.ZAxis = Last(items)?.AsAxis()), max: 1));
+                ed.Add(new SelectionField("X direction", Axes, cs.XAxis is { } x ? [AxisItem(x, doc)] : [], items => Set(() => cs.XAxis = Last(items)?.AsAxis()), max: 1));
+                break;
+            }
         }
 
         return ed;
@@ -763,6 +864,16 @@ public sealed partial class FeatureEditor : ObservableObject
             { } id => doc.Find(id)?.Name ?? id,
             _ => "Front Plane",
         });
+
+    private static IEnumerable<SelectionItem> PointItems(PartDocument doc, IEnumerable<string> ids) =>
+        ids.Select(doc.Find).OfType<ReferencePointFeature>().Select(SelectionItem.ForFeature);
+
+    private static IEnumerable<string> PointIds(PartDocument doc, IEnumerable<SelectionItem> items) =>
+        items.Select(i => i.FeatureId).OfType<string>().Where(id => doc.Find(id) is ReferencePointFeature);
+
+    private static SelectionItem AxisItem(AxisRef a, PartDocument doc) => a.AxisId is { } id
+        ? new SelectionItem(SelectionKind.Plane, PlaneId: $"axis:{id}", Label: doc.Find(id)?.Name ?? "Axis")
+        : AxisItem(a);
 
     private static SelectionItem AxisItem(AxisRef a) => a switch
     {

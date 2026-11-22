@@ -120,6 +120,37 @@ public sealed class PartScene : IPickSource
             scene.Lines.Add(new LineItem { Points = [a, b, c, d], Closed = true, Color = edgeColor, Width = IsSelected(sel) || IsHover(sel) ? 2 : 1.2, PickId = pick, ShowHidden = true });
         }
 
+        // Reference axes (picked as axes), points (picked as features) and coordinate systems.
+        foreach (var (id, (origin, direction)) in doc.State.Axes)
+        {
+            var label = doc.Find(id)?.Name ?? "Axis";
+            var sel = new SelectionItem(SelectionKind.Plane, PlaneId: $"axis:{id}", Label: label);
+            var pick = Register(new PlanePick($"axis:{id}", label));
+            var color = IsSelected(sel) ? palette.Selected : IsHover(sel) ? palette.Hover : palette.PlaneEdge;
+            scene.Lines.Add(new LineItem { Points = [origin - (direction * size / 2), origin + (direction * size / 2)], Color = color, Width = 1.4, Dashed = true, PickId = pick, ShowHidden = true });
+        }
+
+        foreach (var (id, point) in doc.State.Points)
+        {
+            if (doc.Find(id) is not { } pointFeature)
+            {
+                continue;
+            }
+
+            var sel = SelectionItem.ForFeature(pointFeature);
+            var pick = Register(new SketchPick(id));
+            scene.Points.Add(new PointItem { Position = point, Color = IsSelected(sel) ? palette.Selected : IsHover(sel) ? palette.Hover : palette.Sketch, PickId = pick });
+        }
+
+        foreach (var (_, frame) in doc.State.Frames)
+        {
+            var o = new Vec3(frame.Tx, frame.Ty, frame.Tz);
+            var len = size / 6;
+            scene.Lines.Add(new LineItem { Points = [o, o + (new Vec3(frame.M00, frame.M10, frame.M20) * len)], Color = Rgba.FromHex(0xDC2626), Width = 2, OnTop = true });
+            scene.Lines.Add(new LineItem { Points = [o, o + (new Vec3(frame.M01, frame.M11, frame.M21) * len)], Color = Rgba.FromHex(0x16A34A), Width = 2, OnTop = true });
+            scene.Lines.Add(new LineItem { Points = [o, o + (new Vec3(frame.M02, frame.M12, frame.M22) * len)], Color = Rgba.FromHex(0x2563EB), Width = 2, OnTop = true });
+        }
+
         // 3D curves (helices) are drawn and can be picked like sketches.
         foreach (var (id, curve) in doc.State.Curves)
         {

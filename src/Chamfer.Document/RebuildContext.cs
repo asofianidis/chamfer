@@ -27,6 +27,15 @@ public sealed record RebuildState(
     /// <summary>3D curves (helices and the like) by feature id, usable as sweep paths.</summary>
     public IReadOnlyDictionary<string, Shape> Curves { get; init; } = new Dictionary<string, Shape>();
 
+    /// <summary>Reference axes by feature id.</summary>
+    public IReadOnlyDictionary<string, (Vec3 Origin, Vec3 Direction)> Axes { get; init; } = new Dictionary<string, (Vec3, Vec3)>();
+
+    /// <summary>Reference points by feature id.</summary>
+    public IReadOnlyDictionary<string, Vec3> Points { get; init; } = new Dictionary<string, Vec3>();
+
+    /// <summary>Coordinate systems by feature id (local to model).</summary>
+    public IReadOnlyDictionary<string, Transform3> Frames { get; init; } = new Dictionary<string, Transform3>();
+
     public static RebuildState Initial { get; } = new([], new Dictionary<string, PlacedSketch>(),
         new Dictionary<string, Plane3>
         {
@@ -49,6 +58,9 @@ public sealed class RebuildContext
         Tools = new Dictionary<string, FeatureTool>(state.Tools);
         SheetMetal = state.SheetMetal;
         Curves = new Dictionary<string, Shape>(state.Curves);
+        Axes = new Dictionary<string, (Vec3, Vec3)>(state.Axes);
+        Points = new Dictionary<string, Vec3>(state.Points);
+        Frames = new Dictionary<string, Transform3>(state.Frames);
     }
 
     public PartDocument Document { get; }
@@ -60,7 +72,26 @@ public sealed class RebuildContext
     public List<string> Warnings { get; } = [];
 
     internal RebuildState Capture() => new([.. Bodies], new Dictionary<string, PlacedSketch>(Sketches),
-        new Dictionary<string, Plane3>(Planes), new Dictionary<string, FeatureTool>(Tools)) { SheetMetal = SheetMetal, Curves = new Dictionary<string, Shape>(Curves) };
+        new Dictionary<string, Plane3>(Planes), new Dictionary<string, FeatureTool>(Tools)) {
+        SheetMetal = SheetMetal,
+        Curves = new Dictionary<string, Shape>(Curves),
+        Axes = new Dictionary<string, (Vec3, Vec3)>(Axes),
+        Points = new Dictionary<string, Vec3>(Points),
+        Frames = new Dictionary<string, Transform3>(Frames),
+    };
+
+    /// <summary>Reference axes by feature id.</summary>
+    public Dictionary<string, (Vec3 Origin, Vec3 Direction)> Axes { get; }
+
+    /// <summary>Reference points by feature id.</summary>
+    public Dictionary<string, Vec3> Points { get; }
+
+    /// <summary>Coordinate systems by feature id.</summary>
+    public Dictionary<string, Transform3> Frames { get; }
+
+    /// <summary>A reference point by feature id.</summary>
+    public Vec3 ResolvePoint(string id) =>
+        Points.TryGetValue(id, out var p) ? p : throw new FeatureException($"Reference point '{id}' is missing.");
 
     /// <summary>3D curves by feature id.</summary>
     public Dictionary<string, Shape> Curves { get; }
@@ -154,6 +185,11 @@ public sealed class RebuildContext
     public (Vec3 Origin, Vec3 Direction) ResolveAxis(AxisRef r)
     {
         ArgumentNullException.ThrowIfNull(r);
+        if (r.AxisId is { } axisId)
+        {
+            return Axes.TryGetValue(axisId, out var axis) ? axis : throw new FeatureException($"Reference axis '{axisId}' is missing.");
+        }
+
         if (r.StandardAxis is { } std)
         {
             return std switch
