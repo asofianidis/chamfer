@@ -36,6 +36,7 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial int chf_diagnose(ShapeHandle s, double tolerance, int* out7);
     [LibraryImport(Lib)] public static partial OpHandle chf_defeature(ShapeHandle s, int count, int* faces);
     [LibraryImport(Lib)] public static partial OpHandle chf_freeform(ShapeHandle s, int face, int count, double* points);
+    [LibraryImport(Lib)] public static partial OpHandle chf_split_line(ShapeHandle s, ShapeHandle tool);
     [LibraryImport(Lib)] public static partial OpHandle chf_sweep_ex(ShapeHandle profile, ShapeHandle path, IntPtr guide, int mode, double twist);
     [LibraryImport(Lib)] public static partial ShapeHandle chf_make_wire_3d_mixed(int segCount, int* kinds, double* data9);
     [LibraryImport(Lib)] public static partial ShapeHandle chf_heal(ShapeHandle s, double tolerance);

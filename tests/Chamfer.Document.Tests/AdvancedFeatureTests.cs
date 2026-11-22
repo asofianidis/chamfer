@@ -330,6 +330,45 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void SplitLineDividesAFace()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 20));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var topIndex = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99);
+        var top = body.FaceRef(topIndex);
+        var side = body.FaceRef(Enumerable.Range(1, body.FaceCount).First(i => body.Face(i).Normal.X > 0.99));
+
+        // A circle on the top face splits it in two: a disc and the face around it.
+        var circle = new Sketch();
+        var (u, v) = body.Shape.FacePlane(topIndex)!.Value.ToLocal(new Vec3(20, 10, 10));
+        circle.AddCircle(new Vec2(u, v), 5);
+        var cf = doc.Add(new SketchFeature { Plane = new PlaneRef(Face: top), Sketch = circle });
+        var split = doc.Add(new SplitLineFeature { SketchId = cf.Id });
+        doc.Rebuild();
+        AssertOk(doc);
+        var after = doc.Bodies[0];
+        Assert.Equal(7, after.FaceCount);
+        Assert.Equal(40 * 20 * 10, Volume(doc), 1e-6); // the solid is unchanged
+        var tops = Enumerable.Range(1, after.FaceCount).Where(i => after.Face(i).Normal.Z > 0.99).Select(i => after.Face(i).Area).OrderBy(a => a).ToList();
+        Assert.Equal(Math.PI * 25, tops[0], 1e-3);
+        Assert.Equal((40 * 20) - (Math.PI * 25), tops[1], 1e-3);
+
+        // The other faces keep their names, so later features still find them.
+        Assert.True(after.HasFace(side.Name));
+
+        // Through all also splits the bottom face.
+        split.ThroughAll = true;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(8, doc.Bodies[0].FaceCount);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

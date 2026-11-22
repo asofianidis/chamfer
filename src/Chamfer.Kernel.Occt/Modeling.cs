@@ -222,6 +222,14 @@ public static unsafe class Modeling
         }
     }
 
+    /// <summary>Divides a body's faces where a tool sheet crosses them, keeping one solid (Split Line).</summary>
+    public static Operation SplitLine(Shape s, Shape tool)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(tool);
+        return new Operation(Native.chf_split_line(s.Handle, tool.Handle), "split line");
+    }
+
     /// <summary>Applies a rigid transform. Use <see cref="Mirror"/> for reflections.</summary>
     public static Operation Transform(Shape s, Transform3 t, bool copy = true)
     {
