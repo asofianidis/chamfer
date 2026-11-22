@@ -436,7 +436,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ### Phase 8: Data Exchange & Interop
 - [~] STEP AP203/AP214/AP242 import and export with colors, names, assembly structure, and PMI where possible *(export and import with product structure, names and colours)*
-- [ ] IGES, ACIS (`.sat`), Parasolid (`.x_t`, if a licensing path exists), JT
+- [~] IGES, ACIS (`.sat`), Parasolid (`.x_t`, if a licensing path exists), JT *(IGES import and export)*
 - [x] STL, 3MF, OBJ, glTF export (for 3D printing and visualization) *(STL, 3MF, OBJ, glTF binary with instancing)*
 - [~] DXF/DWG import into sketches *(ASCII DXF: lines, arcs, circles, polylines with bulges, splines as polylines, units)*
 - [x] Import diagnostics and healing (gap repair, face healing) *(open/bad/tiny edge and face checks; sewing, ShapeFix and closing shells into solids)*
