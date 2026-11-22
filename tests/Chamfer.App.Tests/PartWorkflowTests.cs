@@ -1,6 +1,7 @@
 using Chamfer.App.Editing.Tools;
 using Chamfer.App.Part;
 using Chamfer.App.ViewModels;
+using Chamfer.Document;
 using Chamfer.Document.Features;
 using Chamfer.Sketching;
 using Chamfer.Sketching.Entities;
@@ -266,5 +267,39 @@ public class PartWorkflowTests
         vm.Editor!.Fields.OfType<ChoiceField>().Single().Index = 1; // Red
         vm.AcceptEditorCommand.Execute(null);
         Assert.Equal(0xDC2626u, vm.Document.Bodies[0].Color);
+    }
+
+    [Fact]
+    public void ToolboxScrewInAssemblyAndThreadPitchDefault()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+        var size = vm.Editor!.Fields.OfType<ChoiceField>().Single(f => f.Label == "Size");
+        size.Index = Toolbox.SizeNames.ToList().IndexOf("M8");
+        vm.AcceptEditorCommand.Execute(null);
+        var screw = Assert.Single(vm.AssemblyDoc!.Components);
+        Assert.Equal("toolbox:ISO4762 M8x20", screw.Path);
+        Assert.Equal("ISO4762 M8x20<1>", screw.Name);
+        Assert.Equal("ISO 4762 M8x20", Chamfer.Assembly.AssemblyTools.BillOfMaterials(vm.AssemblyDoc).Single().PartName);
+
+        // A thread on a 10 mm shaft defaults to the M10 coarse pitch.
+        var part = new MainViewModel();
+        part.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+        part.NewSketchCommand.Execute(null);
+        var editor = part.Sketch!.Editor;
+        editor.BeginChange();
+        editor.Sketch.AddCircle(Vec2.Zero, 5);
+        editor.EndChange(solve: true);
+        part.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+        part.AcceptEditorCommand.Execute(null);
+        var body = part.Document.Bodies[0];
+        var cyl = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Surface == Kernel.Occt.SurfaceKind.Cylinder);
+        part.SetSelection([SelectionItem.Face(body, cyl)]);
+        part.FeatureCommands.Single(c => c.Label == "Thread").Command.Execute(null);
+        var thread = Assert.IsType<ThreadFeature>(part.Editor!.Feature);
+        Assert.Equal(1.5, thread.Pitch);
+        part.AcceptEditorCommand.Execute(null);
+        Assert.Equal(Document.FeatureStatus.Ok, part.Document.Results[thread.Id].Status);
     }
 }

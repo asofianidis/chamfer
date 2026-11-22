@@ -120,6 +120,23 @@ public sealed class PartScene : IPickSource
             scene.Lines.Add(new LineItem { Points = [a, b, c, d], Closed = true, Color = edgeColor, Width = IsSelected(sel) || IsHover(sel) ? 2 : 1.2, PickId = pick, ShowHidden = true });
         }
 
+        // 3D curves (helices) are drawn and can be picked like sketches.
+        foreach (var (id, curve) in doc.State.Curves)
+        {
+            if (doc.Find(id) is not { } curveFeature)
+            {
+                continue;
+            }
+
+            var sel = SelectionItem.ForFeature(curveFeature);
+            var pick = Register(new SketchPick(id));
+            var color = IsSelected(sel) ? palette.Selected : IsHover(sel) ? palette.Hover : palette.Sketch;
+            for (var e = 1; e <= curve.EdgeCount; e++)
+            {
+                scene.Lines.Add(new LineItem { Points = curve.SampleEdge(e, 0.05), Color = color, Width = 1.4, PickId = pick, OnTop = true });
+            }
+        }
+
         // Sketches that no feature has consumed stay visible, like an unused sketch in other CAD tools.
         var consumed = doc.Features.SelectMany(f => f is SketchFeature ? [] : f.Dependencies).ToHashSet();
         foreach (var f in doc.Features.OfType<SketchFeature>())

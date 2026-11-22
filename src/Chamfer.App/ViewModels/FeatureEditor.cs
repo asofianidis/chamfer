@@ -297,6 +297,23 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Bend the other way", ef.Reverse, v => Set(() => ef.Reverse = v)));
                 break;
 
+            case HelixFeature hx:
+                ed.Add(Num("Pitch", "mm", hx, nameof(hx.Pitch), 1e-6));
+                ed.Add(Num("Height", "mm", hx, nameof(hx.Height), 1e-6));
+                ed.Add(Num("Start angle", "°", hx, nameof(hx.StartAngle)));
+                ed.Add(new BoolField("Left-handed", hx.LeftHanded, v => Set(() => hx.LeftHanded = v)));
+                ed.Add(new InfoField("Diameter", "The sketch's first circle sets the diameter and position."));
+                break;
+
+            case ThreadFeature td:
+                ed.Add(new SelectionField("Cylindrical face", Faces, td.Face is { } tf ? [new SelectionItem(SelectionKind.Face, tf, Label: $"Face <{tf.Name}>")] : [],
+                    items => Set(() => td.Face = Last(items)?.Ref), max: 1));
+                ed.Add(Num("Pitch", "mm", td, nameof(td.Pitch), 1e-6));
+                ed.Add(Num("Length (0 = all)", "mm", td, nameof(td.Length), 0));
+                ed.Add(new BoolField("Start from the other end", td.FromOtherEnd, v => Set(() => td.FromOtherEnd = v)));
+                ed.Add(new BoolField("Left-handed", td.LeftHanded, v => Set(() => td.LeftHanded = v)));
+                break;
+
             case FilletFeature fil:
                 ed.Add(Num("Radius", "mm", fil, nameof(fil.Radius), 1e-6));
                 ed.Add(new SelectionField("Edges and faces", Edges,
@@ -446,7 +463,7 @@ public sealed partial class FeatureEditor : ObservableObject
     public static bool EditRolledBack(Feature f) => f is CombineFeature or KnitFeature or ThickenFeature or DeleteBodyFeature;
 
     private static IEnumerable<SelectionItem> SketchItems(PartDocument doc, IEnumerable<string> ids) =>
-        ids.Select(doc.Find).OfType<SketchFeature>().Select(SelectionItem.ForFeature);
+        ids.Select(doc.Find).Where(f => f is SketchFeature or HelixFeature).Select(f => SelectionItem.ForFeature(f!));
 
     private static SelectionItem? Last(IReadOnlyList<SelectionItem> items) => items.Count > 0 ? items[^1] : null;
 

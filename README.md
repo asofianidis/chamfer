@@ -216,7 +216,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
 | Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES, STL, 3MF or OBJ. |
 | Sketch tools | **Trim** (click the piece to remove), **Extend**, **Fillet** and **Chamfer** (click a corner; Size sets the radius or distance), **Offset** (selected curves, by Size; Reverse flips the side), **Mirror** (selection about a selected centerline), **Linear/Circular Pattern** (Count copies), **Convert Entities** (click model edges behind the sketch) and **Convert Face** (outline of the sketch face). |
-| Advanced features | **Swept Boss/Cut**: select the profile sketch, then the path sketch. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
+| Advanced features | **Helix** on a sketch circle (pitch, height, handedness) is a sweep path for springs. **Thread** models an ISO metric thread on a selected cylindrical face (pitch defaults to coarse). **Swept Boss/Cut**: select the profile sketch, then the path sketch or helix. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
 | Equations | **Equations** defines global variables (`Width = 40`, `Wall = Width / 20`). Type `=Width/2` in any number box or sketch dimension to link it. |
 | Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
 | Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids) and **Thicken**. |
@@ -232,6 +232,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Move | **Move** translates or rotates the selected component; **Fix / Float** toggles whether it can move. |
 | Evaluate | **Interference** lists overlapping components and volumes; **Bill of Materials** lists parts, quantities and masses; **Explode** spreads the components apart. |
 | Edit parts | **Open Part** edits the selected component's part; **Back to Assembly** returns. |
+| Toolbox | **Toolbox** inserts ISO socket head cap screws, hex bolts, nuts and washers (M3 to M20, standard lengths). They're generated parts, and the BOM lists them by standard. |
 
 ### Drawings
 
@@ -345,13 +346,13 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] **Lofted** Boss and Cut (guide curves, centerline, start/end constraints) *(smooth or ruled through any number of profiles; guides and end constraints not yet)*
 - [ ] **Boundary** Boss and Cut
 - [ ] 3D sketches
-- [ ] Curves: helix and spiral, projected, composite, curve through points, split line
+- [~] Curves: helix and spiral, projected, composite, curve through points, split line *(helix, usable as a sweep path)*
 - [x] Multibody parts: combine, intersect, split, move/copy body, delete body
 - [x] **Global variables and equations**
 - [x] **Configurations**, then **design tables** (spreadsheet-driven configurations)
 - [ ] Curve-driven, sketch-driven, table-driven, fill, and variable patterns
 - [ ] Wrap, dome, flex, deform, indent
-- [ ] Cosmetic threads, thread feature
+- [~] Cosmetic threads, thread feature *(modelled ISO metric threads, external and internal)*
 - [ ] Library features
 - [~] Appearances, decals, scenes *(body colours)*
 - [ ] Section view, display states
@@ -431,7 +432,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 10: Productivity, Extensibility & Ecosystem
 - [ ] **Public C# API** (`Chamfer.Api`) and plugin loading via `AssemblyLoadContext`
 - [ ] Macro recording and playback (Roslyn scripting)
-- [ ] Toolbox: standard fasteners, bearings, and hardware libraries (ANSI and ISO)
+- [~] Toolbox: standard fasteners, bearings, and hardware libraries (ANSI and ISO) *(ISO socket head cap screws, hex bolts, hex nuts and washers, M3 to M20)*
 - [ ] Design Library, favorites, templates
 - [ ] Custom properties, property tab builder
 - [ ] Photorealistic rendering (path tracer, PBR materials, HDRI environments)
@@ -476,7 +477,7 @@ A high-level tracker against SolidWorks capability areas.
 | Rendering | Visualize-style photoreal rendering | 10 | ⬜ |
 | MBD | 3D PMI | 10 | ⬜ |
 | Routing | Piping, tubing, electrical | 10 | ⬜ |
-| Toolbox | Standard hardware library | 10 | ⬜ |
+| Toolbox | Standard hardware library | 10 | 🟨 ISO screws, bolts, nuts, washers |
 | API / macros | Programmatic API, macro recorder | 10 | ⬜ |
 | PDM | Vault-style data management | 10 | ⬜ |
 

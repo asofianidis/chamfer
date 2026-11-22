@@ -79,6 +79,8 @@ public sealed partial class FeatureNode : ObservableObject
         AppearanceFeature => "◆",
         BaseFlangeFeature => "▬",
         EdgeFlangeFeature => "⌐",
+        HelixFeature => "➰",
+        ThreadFeature => "⩫",
         _ => "•",
     };
 }
