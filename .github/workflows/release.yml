@@ -1,0 +1,111 @@
+name: Release
+
+# Builds self-contained packages for Windows and macOS when a version tag is pushed,
+# and attaches them (with SHA-256 checksums) to a GitHub release.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  OCCT_VERSION: V7_9_3
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Cache OCCT
+        uses: actions/cache@v4
+        with:
+          path: artifacts/occt/${{ matrix.rid }}
+          key: occt-${{ env.OCCT_VERSION }}-${{ matrix.rid }}-${{ hashFiles('build/occt/build-occt.sh') }}
+
+      - name: Build native kernel
+        shell: bash
+        run: build/native/build-native.sh ${{ matrix.rid }} artifacts/occt/${{ matrix.rid }}
+
+      - name: Test
+        run: dotnet test --solution Chamfer.slnx --configuration Release
+
+      - name: Publish
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          dotnet publish src/Chamfer.App -c Release -r ${{ matrix.rid }} --self-contained \
+            -p:Version="$version" -o "publish/Chamfer-$version-${{ matrix.rid }}"
+
+      # Signing and notarisation run only when the certificates are configured as secrets.
+      - name: Sign (Windows)
+        if: matrix.rid == 'win-x64' && env.WINDOWS_CERT != ''
+        shell: pwsh
+        env:
+          WINDOWS_CERT: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP cert.pfx
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT))
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" | Select-Object -Last 1
+          Get-ChildItem publish -Recurse -Include Chamfer.exe, chamfer_kernel.dll | ForEach-Object {
+            & $signtool.FullName sign /f $pfx /p $env:WINDOWS_CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $_.FullName
+          }
+
+      - name: Sign and notarise (macOS)
+        if: matrix.rid == 'osx-arm64' && env.MACOS_CERT != ''
+        shell: bash
+        env:
+          MACOS_CERT: ${{ secrets.MACOS_CERT_BASE64 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          MACOS_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          echo "$MACOS_CERT" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p ci build.keychain
+          security import "$RUNNER_TEMP/cert.p12" -k build.keychain -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k ci build.keychain
+          security default-keychain -s build.keychain
+          find publish -type f \( -name '*.dylib' -o -name 'Chamfer' \) -exec codesign --force --options runtime --timestamp -s "$MACOS_IDENTITY" {} \;
+          ditto -c -k --keepParent publish/* "$RUNNER_TEMP/notarise.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarise.zip" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" --wait
+
+      - name: Package
+        shell: bash
+        run: |
+          cd publish
+          name="$(ls)"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then 7z a -tzip "$name.zip" "$name" > /dev/null; else zip -qr "$name.zip" "$name"; fi
+          (sha256sum "$name.zip" 2>/dev/null || shasum -a 256 "$name.zip") > "$name.zip.sha256"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.rid }}
+          path: publish/*.zip*
+
+  release:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" packages/* --repo "$GITHUB_REPOSITORY" --title "Chamfer $GITHUB_REF_NAME" --generate-notes
