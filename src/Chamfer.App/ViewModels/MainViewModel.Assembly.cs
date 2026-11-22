@@ -22,11 +22,11 @@ public sealed partial class MainViewModel
 
     public AssemblyScene AssemblyBuilder { get; } = new();
 
-    public bool IsAssemblyMode => AssemblyDoc is not null && Sketch is null;
-    public bool IsPartMode => AssemblyDoc is null && Sketch is null;
-    public string TreeTitle => AssemblyDoc is null ? "FEATURES" : "ASSEMBLY";
+    public bool IsAssemblyMode => AssemblyDoc is not null && Sketch is null && DrawingDoc is null;
+    public bool IsPartMode => AssemblyDoc is null && Sketch is null && DrawingDoc is null;
+    public string TreeTitle => DrawingDoc is not null ? "DRAWING" : AssemblyDoc is null ? "FEATURES" : "ASSEMBLY";
 
-    public bool CanReturnToAssembly => _returnTo is not null && AssemblyDoc is null && Sketch is null;
+    public bool CanReturnToAssembly => _returnTo is not null && AssemblyDoc is null && Sketch is null && DrawingDoc is null;
 
     [ObservableProperty]
     public partial bool Exploded { get; set; }
@@ -66,6 +66,7 @@ public sealed partial class MainViewModel
         OnPropertyChanged(nameof(CanReturnToAssembly));
         OnPropertyChanged(nameof(IsModelMode));
         OnPropertyChanged(nameof(TreeTitle));
+        OnPropertyChanged(nameof(IsDrawingMode));
     }
 
     [RelayCommand]

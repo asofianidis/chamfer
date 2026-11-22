@@ -46,6 +46,8 @@ public partial class MainWindow : Window
         Viewport.HoverChanged += (_, id) => _vm?.OnHover(id);
         Viewport.Picked += (_, e) => _vm?.OnPick(e.Id, e.Modifiers.HasFlag(KeyModifiers.Shift) || e.Modifiers.HasFlag(CommandModifier), e.ClickCount);
         Canvas.Underlay = DrawUnderlay;
+        Sheet.SheetClicked += (_, e) => _vm?.OnSheetClick(e.At, e.Owner, e.Modifiers.HasFlag(KeyModifiers.Shift) || e.Modifiers.HasFlag(CommandModifier));
+        Sheet.ViewDragged += (_, e) => _vm?.OnViewDragged(e.Owner, e.Delta, e.Finished);
         ActualThemeVariantChanged += (_, _) => ApplyTheme();
     }
 
@@ -84,6 +86,7 @@ public partial class MainWindow : Window
         vm.SceneChanged += OnSceneChanged;
         vm.PropertyChanged += OnViewModelPropertyChanged;
         vm.PickUnderlayEdge = PickUnderlayEdge;
+        Sheet.Selected = vm.DrawingSelection;
         ApplyTheme();
         Viewport.Camera.SetView(StandardView.Trimetric);
         OnSceneChanged(this, EventArgs.Empty);

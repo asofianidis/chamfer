@@ -18,6 +18,7 @@ add_library(chamfer_kernel SHARED
   src/ops.cpp
   src/mesh.cpp
   src/io.cpp
+  src/hlr.cpp
 )
 
 target_include_directories(chamfer_kernel

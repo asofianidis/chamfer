@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>2D drawings: sheets, projected/section/detail views, dimensions, notes, title blocks and PDF/SVG/DXF export.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Chamfer.Document\Chamfer.Document.csproj" />
+  </ItemGroup>
+</Project>

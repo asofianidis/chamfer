@@ -4,9 +4,13 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **Status:** Pre-alpha. You can model real parts: sketch on planes or faces, then extrude, revolve, cut, fillet, chamfer, shell, draft, add Hole Wizard holes, pattern and mirror features, measure, check mass properties, and exchange STEP/IGES/STL. The 3D view supports picking, display styles and standard views. See the [Roadmap](#roadmap).
+> **Status:** Pre-alpha. You can model real parts, put them together and draw them. Sketches have trim, extend, offset, mirror, fillet and patterns. Parts support extrude, revolve, sweep, loft, rib, fillet, chamfer, shell, draft, Hole Wizard, patterns and mirror, plus equations, configurations and design tables. Assemblies have mates, a mate solver, interference checks, BOMs and exploded views. Drawings have standard, section and detail views, associative dimensions, and PDF/SVG/DXF export. See the [Roadmap](#roadmap).
 
 ![A filleted block with a through hole in the Chamfer part modeler, with mass properties in the side panel](docs/images/part-light.png)
+
+![A pin mated concentric and flush into a plate in an assembly, with the component and mate tree](docs/images/assembly-light.png)
+
+![A drawing with front, top, right and isometric views, a hatched section A-A, dimensions and a title block](docs/images/drawing-light.png)
 
 ![The Chamfer sketcher: a fully defined, dimensioned rectangle (white) alongside under-defined geometry (blue), with the relations panel on the left](docs/images/sketcher-dark.png)
 
@@ -138,8 +142,8 @@ chamfer/
 │   ├── Chamfer.Commands/         # Interactive tools & undoable commands
 │   ├── Chamfer.Document/         # Part document, features, rebuild engine, naming ✅
 │   ├── Chamfer.Sketching/        # 2D sketch entities + constraint solver ✅
-│   ├── Chamfer.Assembly/         # Components, mates, assembly solver
-│   ├── Chamfer.Drawing/          # 2D drawings, views, annotations
+│   ├── Chamfer.Assembly/         # Components, mates, assembly solver, BOM ✅
+│   ├── Chamfer.Drawing/          # 2D drawings, views, dimensions, PDF/SVG/DXF ✅
 │   ├── Chamfer.Geometry/         # Kernel-agnostic math and mesh types ✅
 │   ├── Chamfer.Kernel.Occt/      # C# bindings to the native shim ✅
 │   ├── Chamfer.Kernel.Native/    # C++ shim over OCCT (CMake) ✅
@@ -150,6 +154,8 @@ chamfer/
 │   ├── Chamfer.Kernel.Tests/      ✅
 │   ├── Chamfer.Document.Tests/    ✅
 │   ├── Chamfer.Viewport.Tests/    ✅
+│   ├── Chamfer.Assembly.Tests/    ✅
+│   ├── Chamfer.Drawing.Tests/     ✅
 │   ├── Chamfer.IO.Tests/
 │   └── Chamfer.App.Tests/        # Avalonia.Headless UI tests ✅
 ├── samples/                      # Example parts, assemblies, drawings
@@ -209,6 +215,29 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
 | Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES or STL. |
+| Sketch tools | **Trim** (click the piece to remove), **Extend**, **Fillet** and **Chamfer** (click a corner; Size sets the radius or distance), **Offset** (selected curves, by Size; Reverse flips the side), **Mirror** (selection about a selected centerline), **Linear/Circular Pattern** (Count copies), **Convert Entities** (click model edges behind the sketch) and **Convert Face** (outline of the sketch face). |
+| Advanced features | **Swept Boss/Cut**: select the profile sketch, then the path sketch. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
+| Equations | **Equations** defines global variables (`Width = 40`, `Wall = Width / 20`). Type `=Width/2` in any number box or sketch dimension to link it. |
+| Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
+
+### Assemblies
+
+| Action | How |
+|---|---|
+| Start | **New Assembly**, then **Insert Component** for saved parts. The first component is fixed. |
+| Mate | Select a face or edge on each of two components, then **Mate**. The panel suggests a type (coincident, concentric, distance, angle, parallel, perpendicular, tangent, lock) and alignment, and previews live. The status bar shows the remaining degrees of freedom. |
+| Move | **Move** translates or rotates the selected component; **Fix / Float** toggles whether it can move. |
+| Evaluate | **Interference** lists overlapping components and volumes; **Bill of Materials** lists parts, quantities and masses; **Explode** spreads the components apart. |
+| Edit parts | **Open Part** edits the selected component's part; **Back to Assembly** returns. |
+
+### Drawings
+
+| Action | How |
+|---|---|
+| Start | With a part open, **New Drawing** creates a sheet with front, top, right and isometric views at a fitting standard scale. |
+| Views | Select a view, then **Section View** (horizontal or vertical cut, hatched) or **Detail View** (magnified circle). Drag views to move them. **Hidden Lines** toggles hidden edges. |
+| Annotate | **Auto Dimension** adds overall sizes and hole diameters to the selected view, tied to model edges, so they update when the part changes. **Note** adds text. **Sheet** sets size, scale, projection angle and title block fields. |
+| Export | **Export PDF**, **SVG** or **DXF**. Drawings save as `.chdrw`. |
 
 ### Using the sketcher
 
@@ -280,8 +309,8 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Smart Dimension: linear, angular, radial, diameter, driven/driving
 - [x] Degrees-of-freedom display: under-, fully, and over-defined coloring
 - [~] Inference lines and automatic relations while drawing *(snap relations and horizontal/vertical inference done; dotted alignment inference lines not yet)*
-- [ ] Trim, extend, offset, mirror, fillet, chamfer, linear and circular sketch patterns
-- [ ] Convert entities, intersection curves
+- [x] Trim, extend, offset, mirror, fillet, chamfer, linear and circular sketch patterns
+- [~] Convert entities, intersection curves *(convert model edges and face outlines as fixed geometry; intersection curves not yet)*
 - [x] Construction geometry
 - [ ] Sketch blocks
 - [ ] Units, document properties, and dimension display settings
@@ -291,32 +320,32 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 2: Core Part Modeling
 *Goal: model the typical machined part end to end.*
 
-- [~] Feature tree panel with rollback bar, suppress/unsuppress, reorder, rename, and folders *(rollback, suppress, delete with dependents, absorbed sketches, error/warning status; reorder, rename and folders not yet)*
+- [~] Feature tree panel with rollback bar, suppress/unsuppress, reorder, rename, and folders *(all but folders)*
 - [x] Property panel framework for every feature, with live preview
-- [~] **Extruded Boss/Base** and **Extruded Cut**: blind, through all, up to vertex, surface, or offset, mid-plane, two-direction, draft, thin feature *(blind, through all, mid-plane, two-direction, start offset, merge; up-to, draft and thin not yet)*
+- [~] **Extruded Boss/Base** and **Extruded Cut**: blind, through all, up to vertex, surface, or offset, mid-plane, two-direction, draft, thin feature *(all but up to vertex)*
 - [x] **Revolved Boss** and **Revolved Cut** *(one direction and mid-plane)*
 - [~] **Fillet**: constant radius, variable radius, face fillet, full round *(constant radius on edges and faces)*
 - [~] **Chamfer**: distance-distance, distance-angle, vertex *(equal distance, distance-distance, distance-angle)*
-- [~] **Shell**, **Draft**, **Rib** *(shell inward or outward, neutral-plane draft; rib not yet)*
+- [x] **Shell**, **Draft**, **Rib**
 - [~] **Hole Wizard**: counterbore, countersink, tapped, and pipe tap, with ANSI and ISO standards tables *(simple, counterbore, countersink and tapped, with ISO metric sizes; ANSI and pipe taps not yet)*
 - [x] **Linear Pattern**, **Circular Pattern**, **Mirror** *(of boss, cut, hole and pattern features)*
 - [~] Reference geometry: planes, axes, coordinate systems, points *(offset planes)*
 - [x] Persistent topological naming that survives parameter edits *(history-based names with geometric fallback)*
 - [x] Rebuild engine with error and warning reporting ("What's Wrong") *(incremental: unchanged prefixes are reused)*
-- [~] Materials and mass properties: mass, volume, center of mass, moments of inertia *(material library, mass, volume, area and centre of mass; inertia is computed by the kernel but not shown yet)*
+- [x] Materials and mass properties: mass, volume, center of mass, moments of inertia
 - [x] Measure tool *(sizes, radii, minimum distance)*
 - [x] Native file save/open (`.chprt`)
 - [x] STEP, IGES, and STL export; STEP and IGES import as dumb solids
 
 ### Phase 3: Advanced Part Modeling
-- [ ] **Swept** Boss and Cut (with guide curves, twist)
-- [ ] **Lofted** Boss and Cut (guide curves, centerline, start/end constraints)
+- [~] **Swept** Boss and Cut (with guide curves, twist) *(profile along a path with sharp or smooth corners; guide curves and twist not yet)*
+- [~] **Lofted** Boss and Cut (guide curves, centerline, start/end constraints) *(smooth or ruled through any number of profiles; guides and end constraints not yet)*
 - [ ] **Boundary** Boss and Cut
 - [ ] 3D sketches
 - [ ] Curves: helix and spiral, projected, composite, curve through points, split line
 - [ ] Multibody parts: combine, intersect, split, move/copy body, delete body
-- [ ] **Global variables and equations**
-- [ ] **Configurations**, then **design tables** (spreadsheet-driven configurations)
+- [x] **Global variables and equations**
+- [x] **Configurations**, then **design tables** (spreadsheet-driven configurations)
 - [ ] Curve-driven, sketch-driven, table-driven, fill, and variable patterns
 - [ ] Wrap, dome, flex, deform, indent
 - [ ] Cosmetic threads, thread feature
@@ -326,35 +355,35 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] Interactive feature editing via drag handles (Instant3D-style)
 
 ### Phase 4: Assemblies
-- [ ] Assembly document (`.chasm`), insert components, subassemblies
-- [ ] Assembly solver for 3D mate constraints
-- [ ] **Standard mates**: coincident, parallel, perpendicular, tangent, concentric, lock, distance, angle
+- [~] Assembly document (`.chasm`), insert components, subassemblies *(subassemblies not yet)*
+- [x] Assembly solver for 3D mate constraints *(Levenberg–Marquardt over component placements, with DOF from the Jacobian rank and conflict reporting)*
+- [x] **Standard mates**: coincident, parallel, perpendicular, tangent, concentric, lock, distance, angle
 - [ ] **Advanced mates**: limit distance and angle, width, symmetric, path, linear/linear coupler
 - [ ] **Mechanical mates**: gear, rack and pinion, cam, hinge, screw, universal joint, slot
 - [ ] Mate references, SmartMates (drag-to-mate)
-- [ ] Move and rotate component with collision detection
-- [ ] Interference detection, clearance verification
-- [ ] Exploded views and explode lines
+- [~] Move and rotate component with collision detection *(numeric move/rotate; drag and collision detection not yet)*
+- [~] Interference detection, clearance verification *(interference volumes)*
+- [~] Exploded views and explode lines *(automatic radial explode)*
 - [ ] Component patterns, mirror components
 - [ ] In-context (top-down) design with external references
 - [ ] Assembly features: cuts and holes
-- [ ] Bill of Materials data model
+- [x] Bill of Materials data model
 - [ ] Large-assembly mode: lightweight components, LOD, instancing, frustum culling
 - [ ] Pack and Go
 
 ### Phase 5: Drawings
-- [ ] Drawing document (`.chdrw`), sheets, sheet formats, title blocks
-- [ ] Hidden-line-removal (HLR) projection engine
-- [ ] Standard 3 views, projected, auxiliary, section, detail, broken-out section, break, crop, and alternate-position views
-- [ ] Model items import (dimensions from the model), reference dimensions
-- [ ] Ordinate, baseline, and chain dimensions; tolerances and fits
-- [ ] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target
+- [x] Drawing document (`.chdrw`), sheets, sheet formats, title blocks *(A4–A0, Letter, Tabloid; editable title block fields)*
+- [x] Hidden-line-removal (HLR) projection engine *(OCCT exact HLR: visible, tangent, silhouette and hidden edges)*
+- [~] Standard 3 views, projected, auxiliary, section, detail, broken-out section, break, crop, and alternate-position views *(standard, isometric, section with hatching, detail)*
+- [~] Model items import (dimensions from the model), reference dimensions *(auto overall and hole dimensions anchored to model edges)*
+- [~] Ordinate, baseline, and chain dimensions; tolerances and fits *(horizontal, vertical, aligned, diameter, radius; tolerance text)*
+- [~] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target *(notes)*
 - [ ] **GD&T** feature control frames (ASME Y14.5 / ISO 1101)
-- [ ] Centerlines, center marks, cosmetic threads in drawings
+- [~] Centerlines, center marks, cosmetic threads in drawings *(automatic centre marks)*
 - [ ] BOM tables, hole tables, revision tables, general tables
 - [ ] Layers, line styles, drafting standards (ANSI, ISO, DIN, JIS)
-- [ ] Export to PDF, DXF, DWG, SVG; printing
-- [ ] Associativity: drawings update when the model changes
+- [~] Export to PDF, DXF, DWG, SVG; printing *(PDF, DXF and SVG)*
+- [x] Associativity: drawings update when the model changes
 
 ### Phase 6: Surfacing
 - [ ] Extruded, revolved, swept, lofted, and boundary surfaces
@@ -427,13 +456,13 @@ A high-level tracker against SolidWorks capability areas.
 
 | Area | SolidWorks capability | Chamfer phase | Status |
 |---|---|---|---|
-| Sketching | 2D/3D sketch, relations, dimensions | 1, 3 | 🟨 2D sketcher core done |
-| Part features | Extrude, revolve, fillet, chamfer, shell, hole wizard, patterns | 2 | 🟨 Core features working |
-| Advanced part | Sweep, loft, boundary, multibody, curves | 3 | ⬜ |
-| Parametrics | Equations, global variables, configurations, design tables | 3 | ⬜ |
-| Assemblies | Standard, advanced, and mechanical mates; exploded views | 4 | ⬜ |
+| Sketching | 2D/3D sketch, relations, dimensions | 1, 3 | 🟩 2D sketching complete; 3D sketches not yet |
+| Part features | Extrude, revolve, fillet, chamfer, shell, hole wizard, patterns | 2 | 🟩 Working, with a few options missing |
+| Advanced part | Sweep, loft, boundary, multibody, curves | 3 | 🟨 Sweep, loft, rib |
+| Parametrics | Equations, global variables, configurations, design tables | 3 | 🟩 Done |
+| Assemblies | Standard, advanced, and mechanical mates; exploded views | 4 | 🟨 Standard mates, BOM, interference, explode |
 | Large assemblies | Lightweight, Large Design Review | 4, 11 | ⬜ |
-| Drawings | Views, dimensions, GD&T, BOM, tables | 5 | ⬜ |
+| Drawings | Views, dimensions, GD&T, BOM, tables | 5 | 🟨 Views, sections, details, dimensions, export |
 | Surfacing | Surface features, knit, trim, analysis | 6 | ⬜ |
 | Sheet metal | Flanges, bends, flat pattern | 7 | ⬜ |
 | Weldments | Structural members, cut lists | 7 | ⬜ |

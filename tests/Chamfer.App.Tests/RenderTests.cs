@@ -62,6 +62,48 @@ public sealed class RenderTests
         await Session.Value.Dispatch(() => RenderAssembly("light"), TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task DrawingWorkflowRenders()
+    {
+        await Session.Value.Dispatch(() => RenderDrawing("light"), TestContext.Current.CancellationToken);
+    }
+
+    private static void RenderDrawing(string theme)
+    {
+        var (window, vm) = Open(theme);
+        vm.LoadFile("plate.chprt", PlateWithHole().Save());
+        Assert.True(vm.IsPartMode);
+        vm.NewDrawingCommand.Execute(null);
+        Assert.True(vm.IsDrawingMode);
+        Assert.False(vm.IsModelMode);
+        var sheet = vm.CurrentSheet!;
+        Assert.Equal(4, sheet.Views.Count);
+
+        // Select the front view, dimension it and cut a section through the hole.
+        var front = sheet.Views[0];
+        vm.OnSheetClick(new Geometry.Point2(front.X, front.Y), front.Id, add: false);
+        vm.DrawingCommands.Single(c => c.Label == "Auto Dimension").Command.Execute(null);
+        Assert.Equal(3, sheet.Dimensions.Count); // width, height, hole diameter
+        vm.DrawingCommands.Single(c => c.Label == "Section View").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Contains(sheet.Views, v => v.Kind == Chamfer.Drawing.ViewKind.Section);
+        Assert.Contains(vm.SheetGraphics!.Items.OfType<Chamfer.Drawing.TextPrimitive>(), t => t.Text == "60");
+
+        // Dragging a view moves it; undo puts it back.
+        var x = front.X;
+        vm.OnViewDragged(front.Id, new Geometry.Point2(15, 0), finished: false);
+        vm.OnViewDragged(front.Id, default, finished: true);
+        Assert.Equal(x + 15, vm.CurrentSheet!.Views[0].X, 1e-9);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(x, vm.CurrentSheet!.Views[0].X, 1e-9);
+
+        window.FindControl<Controls.DrawingCanvas>("Sheet")!.Fit();
+        Capture(window, $"drawing-{theme}");
+        vm.CloseDrawingCommand.Execute(null);
+        Assert.True(vm.IsPartMode);
+        window.Close();
+    }
+
     private static PartDocument PlateWithHole()
     {
         var doc = new PartDocument();

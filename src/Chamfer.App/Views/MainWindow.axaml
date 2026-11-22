@@ -100,6 +100,8 @@
         <WrapPanel Orientation="Horizontal">
           <Button Classes="tool" Content="New Part" Command="{Binding NewCommand}" ToolTip.Tip="New part (Ctrl+N)" />
           <Button Classes="tool" Content="New Assembly" Command="{Binding NewAssemblyCommand}" ToolTip.Tip="New assembly" />
+          <Button Classes="tool" Content="New Drawing" Command="{Binding NewDrawingCommand}" ToolTip.Tip="New drawing of the current part" IsVisible="{Binding IsPartMode}" />
+          <Button Classes="tool" Content="Close Drawing" Command="{Binding CloseDrawingCommand}" ToolTip.Tip="Back to the part" IsVisible="{Binding IsDrawingMode}" />
           <Button Classes="tool" Content="Open" Command="{Binding OpenCommand}" ToolTip.Tip="Open a part (Ctrl+O)" />
           <Button Classes="tool" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save (Ctrl+S)" />
           <Button Classes="tool" Content="Save As" Command="{Binding SaveAsCommand}" />
@@ -120,6 +122,27 @@
           <Button Classes="tool" Content="Shaded" Command="{Binding SetDisplayStyleCommand}" CommandParameter="Shaded" IsVisible="{Binding IsModelMode}" />
           <Button Classes="tool" Content="Hidden Lines" Command="{Binding SetDisplayStyleCommand}" CommandParameter="HiddenLinesRemoved" IsVisible="{Binding IsModelMode}" />
           <Button Classes="tool" Content="Wireframe" Command="{Binding SetDisplayStyleCommand}" CommandParameter="Wireframe" IsVisible="{Binding IsModelMode}" />
+        </WrapPanel>
+
+        <!-- Drawing commands -->
+        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsDrawingMode}">
+          <ItemsControl ItemsSource="{Binding DrawingCommands}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:CommandItem">
+                <Button Classes="command" Command="{Binding Command}" ToolTip.Tip="{Binding Tooltip}">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="{Binding Glyph}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Label}" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
         </WrapPanel>
 
         <!-- Assembly commands -->
@@ -242,7 +265,7 @@
       <Panel>
         <!-- Feature tree -->
         <DockPanel IsVisible="{Binding ShowTree}">
-          <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsModelMode}">
+          <StackPanel DockPanel.Dock="Top" IsVisible="{Binding !IsSketchMode}">
             <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,6">
               <TextBlock Classes="section" Text="{Binding TreeTitle}" Margin="0" VerticalAlignment="Center" />
               <ComboBox Grid.Column="1" IsVisible="{Binding IsPartMode}" ItemsSource="{Binding ConfigurationNames}" SelectedItem="{Binding ActiveConfigurationName}"
@@ -267,7 +290,7 @@
             </ComboBox>
           </WrapPanel>
           <Panel>
-          <ListBox x:Name="FeatureTree" ItemsSource="{Binding Tree}" SelectedItem="{Binding SelectedNode}" IsVisible="{Binding IsModelMode}">
+          <ListBox x:Name="FeatureTree" ItemsSource="{Binding Tree}" SelectedItem="{Binding SelectedNode}" IsVisible="{Binding !IsSketchMode}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:FeatureNode">
                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="{Binding Indent}" Opacity="{Binding IsDimmed, Converter={x:Static c:Converters.DimOpacity}}"
@@ -418,6 +441,7 @@
     <!-- 3D view, or the sketch canvas while editing a sketch -->
     <Panel>
       <c:ModelViewport x:Name="Viewport" IsVisible="{Binding IsModelMode}" />
+      <c:DrawingCanvas x:Name="Sheet" IsVisible="{Binding IsDrawingMode}" Graphics="{Binding SheetGraphics}" />
       <c:SketchCanvas x:Name="Canvas" Editor="{Binding Sketch.Editor, FallbackValue={x:Null}}" IsVisible="{Binding IsSketchMode}" />
       <Canvas x:Name="Overlay" IsVisible="{Binding IsSketchMode}">
         <TextBox x:Name="DimensionInput" IsVisible="False" Width="110" FontSize="13"

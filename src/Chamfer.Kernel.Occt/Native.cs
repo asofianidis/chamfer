@@ -75,6 +75,12 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial void chf_mesh_counts(IntPtr m, int* out4);
     [LibraryImport(Lib)] public static partial void chf_mesh_copy(IntPtr m, float* positions, float* normals, int* triangles, int* triangleFaces, float* edgePoints, int* edgeOffsets);
 
+    // --------------------------------------------------------------- drawings
+    [LibraryImport(Lib)] public static partial IntPtr chf_hlr(ShapeHandle s, double* axis9, double deflection);
+    [LibraryImport(Lib)] public static partial void chf_lines_free(IntPtr l);
+    [LibraryImport(Lib)] public static partial void chf_lines_counts(IntPtr l, int* out2);
+    [LibraryImport(Lib)] public static partial void chf_lines_copy(IntPtr l, double* points, int* offsets, int* kinds);
+
     // -------------------------------------------------------------------- I/O
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)] public static partial int chf_write_step(ShapeHandle s, string path);
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)] public static partial ShapeHandle chf_read_step(string path);

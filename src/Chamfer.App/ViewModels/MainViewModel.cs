@@ -170,7 +170,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool Perspective { get; set; }
 
-    public bool IsModelMode => Sketch is null;
+    public bool IsModelMode => Sketch is null && DrawingDoc is null;
     public bool IsSketchMode => Sketch is not null;
     public bool ShowTree => Editor is null;
     public bool HasEditor => Editor is not null;
@@ -206,6 +206,12 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public void RebuildAndRefresh()
     {
+        if (DrawingDoc is not null)
+        {
+            RefreshDrawing();
+            return;
+        }
+
         if (AssemblyDoc is not null)
         {
             RefreshAssembly();
@@ -315,7 +321,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     // ------------------------------------------------------------- undo
 
-    private string CurrentState() => AssemblyDoc is { } asm ? "asm:" + asm.Save() : Document.Save();
+    private string CurrentState() => DrawingDoc is { } drw ? "drw:" + drw.Save() : AssemblyDoc is { } asm ? "asm:" + asm.Save() : Document.Save();
 
     private void Snapshot()
     {
@@ -328,6 +334,12 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void Restore(string json)
     {
+        if (json.StartsWith("drw:", StringComparison.Ordinal))
+        {
+            RestoreDrawing(json[4..]);
+            return;
+        }
+
         if (json.StartsWith("asm:", StringComparison.Ordinal))
         {
             AssemblyDoc?.RestoreFrom(json[4..]);
@@ -1362,6 +1374,10 @@ public sealed partial class MainViewModel : ViewModelBase
         Editor = null;
         Document = new PartDocument();
         AssemblyDoc = null;
+        DrawingDoc = null;
+        _drawingRenderer = null;
+        _drawingSource = null;
+        SheetGraphics = null;
         _returnTo = null;
         Exploded = false;
         FilePath = null;
@@ -1382,6 +1398,12 @@ public sealed partial class MainViewModel : ViewModelBase
         if (path.EndsWith("." + Chamfer.Assembly.AssemblyDocument.FileExtension, StringComparison.OrdinalIgnoreCase))
         {
             LoadAssembly(path, text);
+            return;
+        }
+
+        if (path.EndsWith("." + Chamfer.Drawing.DrawingDocument.FileExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            LoadDrawing(path, text);
             return;
         }
 
@@ -1414,7 +1436,7 @@ public sealed partial class MainViewModel : ViewModelBase
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Open",
-            FileTypeFilter = [PartFileType, AssemblyFileType, SketchFileType],
+            FileTypeFilter = [PartFileType, AssemblyFileType, DrawingFileType, SketchFileType],
             AllowMultiple = false,
         });
         if (files is not [var file])
@@ -1445,6 +1467,20 @@ public sealed partial class MainViewModel : ViewModelBase
         if (Sketch is not null)
         {
             ExitSketch();
+        }
+
+        if (DrawingDoc is not null)
+        {
+            try
+            {
+                await SaveDrawing(path is not null && path.EndsWith("." + Chamfer.Drawing.DrawingDocument.FileExtension, StringComparison.OrdinalIgnoreCase) ? path : null);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                MessageText = $"Couldn't save: {ex.Message}";
+            }
+
+            return;
         }
 
         if (AssemblyDoc is not null)
@@ -1571,6 +1607,14 @@ public sealed partial class MainViewModel : ViewModelBase
         if (Sketch is not null)
         {
             Sketch.Escape();
+            return;
+        }
+
+        if (DrawingDoc is not null && Editor is null)
+        {
+            _pendingSheetClick = null;
+            DrawingSelection.Clear();
+            RefreshDrawing();
             return;
         }
 

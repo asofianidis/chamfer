@@ -211,6 +211,21 @@ CHF_API void chf_mesh_counts(const chf_mesh* m, int* out4);
 CHF_API void chf_mesh_copy(const chf_mesh* m, float* positions, float* normals, int* triangles,
                            int* triangleFaces, float* edgePoints, int* edgeOffsets);
 
+/* ---------------------------------------------------------- drawings (HLR) */
+typedef struct chf_lines chf_lines;
+/*
+ * Hidden-line projection for a drawing view. axis9 = origin(3), direction
+ * towards the viewer(3), view X direction(3). Produces 2D polylines in view
+ * coordinates, each tagged: 0 visible sharp edge, 1 visible tangent edge,
+ * 2 visible silhouette, 3 hidden edge, 4 hidden silhouette.
+ */
+CHF_API chf_lines* chf_hlr(chf_shape* s, const double* axis9, double deflection);
+CHF_API void chf_lines_free(chf_lines* l);
+/* out2 = pointCount lineCount */
+CHF_API void chf_lines_counts(const chf_lines* l, int* out2);
+/* points: 2 doubles per point; offsets: lineCount+1; kinds: lineCount. */
+CHF_API void chf_lines_copy(const chf_lines* l, double* points, int* offsets, int* kinds);
+
 /* ------------------------------------------------------------------- I/O */
 CHF_API int chf_write_step(const chf_shape* s, const char* path);
 CHF_API chf_shape* chf_read_step(const char* path);
