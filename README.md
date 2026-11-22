@@ -353,7 +353,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] **Fillet**: constant radius, variable radius, face fillet, full round *(constant and variable radius on edges and faces)*
 - [~] **Chamfer**: distance-distance, distance-angle, vertex *(equal distance, distance-distance, distance-angle)*
 - [x] **Shell**, **Draft**, **Rib**
-- [~] **Hole Wizard**: counterbore, countersink, tapped, and pipe tap, with ANSI and ISO standards tables *(simple, counterbore, countersink and tapped, with ISO metric sizes; ANSI and pipe taps not yet)*
+- [x] **Hole Wizard**: counterbore, countersink, tapped, and pipe tap, with ANSI and ISO standards tables *(ISO metric and ANSI inch (UNC) sizes with 90°/82° countersinks; NPT pipe taps as 1:16 tapered holes)*
 - [x] **Linear Pattern**, **Circular Pattern**, **Mirror** *(of boss, cut, hole and pattern features)*
 - [x] Reference geometry: planes, axes, coordinate systems, points *(offset, angled and three-point planes; axes along edges/cylinders, between planes or points; points at coordinates or on the model; coordinate systems for mass properties)*
 - [x] Persistent topological naming that survives parameter edits *(history-based names with geometric fallback)*
