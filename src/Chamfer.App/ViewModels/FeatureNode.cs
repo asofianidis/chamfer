@@ -105,6 +105,7 @@ public sealed partial class FeatureNode : ObservableObject
         ProjectedCurveFeature => "⤵",
         CompositeCurveFeature => "∿",
         FullRoundFilletFeature => "◠",
+        VertexChamferFeature => "◸",
         ToolingSplitFeature => "⊟",
         DimpleFeature => "◉",
         DeleteFaceFeature => "⌫",
