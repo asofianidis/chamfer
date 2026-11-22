@@ -621,4 +621,37 @@ public class PartWorkflowTests
         vm.UndoCommand.Execute(null);
         Assert.Empty(vm.AssemblyDoc!.Features);
     }
+
+    [Fact]
+    public async Task ThermalStudyFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+        vm.NewSketchCommand.Execute(null);
+        var editor = vm.Sketch!.Editor;
+        editor.BeginChange();
+        editor.Sketch.AddCornerRectangle(new Vec2(0, 0), new Vec2(100, 10));
+        editor.EndChange(solve: true);
+        vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var body = vm.Document.Bodies[0];
+        int End(double sign) => Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.X * sign > 0.99);
+
+        vm.SelectTabCommand.Execute("Simulation");
+        vm.SetSelection([SelectionItem.Face(body, End(-1))]);
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Temperature").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        vm.SetSelection([SelectionItem.Face(body, End(1))]);
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Convection").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(2, vm.Thermal.Loads.Count);
+
+        var run = (CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.VisibleFeatureCommands.Single(c => c.Label == "Run Thermal").Command;
+        await run.ExecuteAsync(null);
+        Assert.NotNull(vm.ThermalResult);
+        Assert.Equal(100, vm.ThermalResult.MaxTemperature, 1e-6);
+        Assert.True(vm.ThermalResult.MinTemperature is > 20 and < 100);
+        Assert.Equal(vm.ThermalResult.MinTemperature, vm.StudyResult!.MinStress, 1e-9);
+        Assert.Equal("Thermal Study", vm.Editor!.Title);
+    }
 }

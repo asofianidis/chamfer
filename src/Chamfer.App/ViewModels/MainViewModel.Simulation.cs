@@ -33,6 +33,10 @@ public sealed partial class MainViewModel
         new("Pressure", "Apply a pressure to the selected faces", new RelayCommand(() => StartLoad(LoadKind.Pressure)), "⇊", "Simulation"),
         new("Run Study", "Solve for stress and displacement", new AsyncRelayCommand(RunStudy), "▶", "Simulation"),
         new("Frequency", "Natural frequencies and mode shapes (uses the fixtures)", new AsyncRelayCommand(RunFrequencyStudy), "∿", "Simulation"),
+        new("Temperature", "Hold the selected faces at a temperature", new RelayCommand(() => StartThermalLoad(ThermalLoadKind.Temperature)), "🌡", "Simulation"),
+        new("Heat Power", "Heat put in through the selected faces", new RelayCommand(() => StartThermalLoad(ThermalLoadKind.HeatPower)), "♨", "Simulation"),
+        new("Convection", "Selected faces exchange heat with the air", new RelayCommand(() => StartThermalLoad(ThermalLoadKind.Convection)), "≋", "Simulation"),
+        new("Run Thermal", "Solve for steady-state temperatures", new AsyncRelayCommand(RunThermalStudy), "▶", "Simulation"),
         new("Results", "Show or hide the stress plot", new RelayCommand(() => ShowResults = !ShowResults && StudyResult is not null), "◑", "Simulation"),
         new("Clear Study", "Remove fixtures, loads and results", new RelayCommand(ClearStudy), "✕", "Simulation"),
     ];
@@ -246,7 +250,8 @@ public sealed partial class MainViewModel
                 var p = mesh.Vertex(i);
                 var moved = p + (r.DisplacementAt(p) * scale);
                 (positions[3 * i], positions[(3 * i) + 1], positions[(3 * i) + 2]) = ((float)moved.X, (float)moved.Y, (float)moved.Z);
-                colors[i] = Jet(r.MaxStress > 0 ? r.StressAt(p) / r.MaxStress : 0);
+                var range = r.MaxStress - r.MinStress;
+                colors[i] = Jet(range > 0 ? (r.StressAt(p) - r.MinStress) / range : 0);
             }
 
             var deformed = new TriangleMesh(positions, mesh.Normals, mesh.Triangles, mesh.TriangleFaces, [], [0]);

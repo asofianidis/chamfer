@@ -43,6 +43,9 @@ public sealed class StudyResult
 
     public double MaxStress { get; init; }
 
+    /// <summary>Lower end of the colour scale (0 for stress; the coolest temperature for thermal plots).</summary>
+    public double MinStress { get; init; }
+
     public double MaxDisplacement { get; init; }
 
     public double YieldStrength { get; init; }
