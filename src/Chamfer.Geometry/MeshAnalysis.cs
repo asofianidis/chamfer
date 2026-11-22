@@ -240,6 +240,39 @@ public static class MeshAnalysis
         return result;
     }
 
+    /// <summary>
+    /// For each vertex, roughly how sharply the surface bends there (1/mm): the fastest the normal
+    /// turns along the triangle edges that meet at it, so the most-curved direction (1/r on a
+    /// cylinder or sphere of radius r).
+    /// </summary>
+    public static double[] Curvature(TriangleMesh mesh)
+    {
+        ArgumentNullException.ThrowIfNull(mesh);
+        var most = new double[mesh.VertexCount];
+        Vec3 P(int v) => new(mesh.Positions[3 * v], mesh.Positions[(3 * v) + 1], mesh.Positions[(3 * v) + 2]);
+        Vec3 N(int v) => new Vec3(mesh.Normals[3 * v], mesh.Normals[(3 * v) + 1], mesh.Normals[(3 * v) + 2]).Normalized();
+        for (var t = 0; t < mesh.TriangleCount; t++)
+        {
+            var c = Corners(mesh, t);
+            for (var k = 0; k < 3; k++)
+            {
+                var (a, b) = (c[k], c[(k + 1) % 3]);
+                var length = Vec3.Distance(P(a), P(b));
+                if (length < 1e-9)
+                {
+                    continue;
+                }
+
+                // The angle the normal turns over the edge, per unit length.
+                var turn = Math.Acos(Math.Clamp(Vec3.Dot(N(a), N(b)), -1, 1)) / length;
+                most[a] = Math.Max(most[a], turn);
+                most[b] = Math.Max(most[b], turn);
+            }
+        }
+
+        return most;
+    }
+
     private static int[] Corners(TriangleMesh mesh, int t) => [mesh.Triangles[3 * t], mesh.Triangles[(3 * t) + 1], mesh.Triangles[(3 * t) + 2]];
 
     /// <summary>A triangle's centre and outward normal (its geometric normal, turned to agree with its vertex normals).</summary>

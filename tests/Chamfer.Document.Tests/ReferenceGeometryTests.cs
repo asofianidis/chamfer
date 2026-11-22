@@ -154,4 +154,24 @@ public class ReferenceGeometryTests
         AssertOk(doc);
         Assert.Contains(true, MeshAnalysis.Undercuts(doc.Bodies[0].Mesh, Vec3.UnitZ));
     }
+
+    [Fact]
+    public void CurvatureOfACylinderIsOneOverItsRadius()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCircle(Vec2.Zero, 10);
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 30 });
+        doc.Rebuild();
+        var mesh = doc.Bodies[0].Mesh;
+        var k = MeshAnalysis.Curvature(mesh);
+
+        // Vertices on the side: about 1/10; on the flat ends' insides: 0.
+        var side = Enumerable.Range(0, mesh.VertexCount).Where(i => Math.Abs(mesh.Normals[(3 * i) + 2]) < 0.01).ToList();
+        Assert.NotEmpty(side);
+        Assert.All(side, i => Assert.InRange(k[i], 0.08, 0.12));
+        var caps = Enumerable.Range(0, mesh.VertexCount).Where(i => Math.Abs(mesh.Normals[(3 * i) + 2]) > 0.99).ToList();
+        Assert.All(caps, i => Assert.Equal(0, k[i], 1e-9));
+    }
 }

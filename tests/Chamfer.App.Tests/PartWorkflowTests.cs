@@ -1420,4 +1420,23 @@ public class PartWorkflowTests
         Assert.False(vm.ThicknessAnalysis);
         Assert.DoesNotContain(vm.BuildScene().Meshes.SelectMany(m => m.VertexColors!), c => c == red); // a plate has no undercuts
     }
+
+    [Fact]
+    public void DeviationAnalysisFindsSharpEdges()
+    {
+        // A block: twelve sharp edges. Fillet one: its two long edges are tangent, its two end arcs are sharp.
+        var vm = BlockOnFront(40, 20, 10);
+        var body = vm.Document.Bodies[0];
+        var edge = Enumerable.Range(1, body.EdgeCount).First(i => body.Edge(i).Curve == Chamfer.Kernel.Occt.CurveKind.Line);
+        vm.Document.Add(new FilletFeature { Edges = [body.EdgeRef(edge)], Radius = 2 });
+        vm.RebuildAndRefresh();
+        vm.ShowDeviationAnalysisCommand.Execute(null);
+        var fields = vm.Editor!.Fields.OfType<InfoField>().ToList();
+        Assert.StartsWith("2,", fields.Single(f => f.Label == "Tangent edges").Text, StringComparison.Ordinal);
+        Assert.StartsWith("13 edge(s), up to 90", fields.Single(f => f.Label == "Over the limit").Text, StringComparison.Ordinal);
+        Assert.Contains(vm.BuildScene().Meshes, m => m.EdgeColors.Count > 0);
+
+        vm.ToggleCurvatureAnalysisCommand.Execute(null);
+        Assert.All(vm.BuildScene().Meshes, m => Assert.NotNull(m.VertexColors));
+    }
 }
