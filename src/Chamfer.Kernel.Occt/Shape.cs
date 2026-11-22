@@ -227,6 +227,54 @@ public sealed unsafe class Shape : IDisposable
         }
     }
 
+    /// <summary>
+    /// Hidden-line projection onto a view plane. <paramref name="towardViewer"/> points from the
+    /// model to the eye; <paramref name="xDirection"/> is the view's right. Coordinates are in that
+    /// frame, relative to <paramref name="origin"/>.
+    /// </summary>
+    public IReadOnlyList<ProjectedLine> Project(Vec3 origin, Vec3 towardViewer, Vec3 xDirection, double deflection = 0.01)
+    {
+        var a = stackalloc double[9] { origin.X, origin.Y, origin.Z, towardViewer.X, towardViewer.Y, towardViewer.Z, xDirection.X, xDirection.Y, xDirection.Z };
+        var lines = Native.chf_hlr(Handle, a, deflection);
+        if (lines == IntPtr.Zero)
+        {
+            throw new KernelException($"projection: {Native.LastError()}");
+        }
+
+        try
+        {
+            var counts = stackalloc int[2];
+            Native.chf_lines_counts(lines, counts);
+            var points = new double[counts[0] * 2];
+            var offsets = new int[counts[1] + 1];
+            var kinds = new int[counts[1]];
+            fixed (double* pp = points)
+            fixed (int* po = offsets, pk = kinds)
+            {
+                Native.chf_lines_copy(lines, pp, po, pk);
+            }
+
+            var result = new ProjectedLine[counts[1]];
+            for (var i = 0; i < counts[1]; i++)
+            {
+                var pts = new Point2[offsets[i + 1] - offsets[i]];
+                for (var k = 0; k < pts.Length; k++)
+                {
+                    var j = offsets[i] + k;
+                    pts[k] = new Point2(points[2 * j], points[(2 * j) + 1]);
+                }
+
+                result[i] = new ProjectedLine((LineKind)kinds[i], pts);
+            }
+
+            return result;
+        }
+        finally
+        {
+            Native.chf_lines_free(lines);
+        }
+    }
+
     // ---------------------------------------------------------------- I/O
 
     public string ToBrep()

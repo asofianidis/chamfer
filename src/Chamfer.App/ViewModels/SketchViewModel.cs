@@ -4,6 +4,7 @@ using Chamfer.App.Editing.Tools;
 using Chamfer.Sketching;
 using Chamfer.Sketching.Constraints;
 using Chamfer.Sketching.Entities;
+using Chamfer.Sketching.Operations;
 using Chamfer.Sketching.Solving;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -77,7 +78,7 @@ public sealed partial class SketchViewModel : ViewModelBase
     {
     }
 
-    public SketchViewModel(SketchEditor editor)
+    public SketchViewModel(SketchEditor editor, Func<Vec2, bool>? convertAt = null)
     {
         Editor = editor;
         Tools =
@@ -95,7 +96,16 @@ public sealed partial class SketchViewModel : ViewModelBase
             MakeTool("slot", "Slot", "T", "Straight slot", () => new SlotTool()),
             MakeTool("point", "Point", "P", "Sketch point", () => new PointTool()),
             MakeTool("dimension", "Smart Dimension", "D", "Dimension lengths, distances, angles and radii", () => new DimensionTool()),
+            MakeTool("trim", "Trim", "", "Trim curves back to their intersections", () => new TrimTool()),
+            MakeTool("extend", "Extend", "", "Extend a line or arc to the next curve", () => new ExtendTool()),
+            MakeTool("sketch-fillet", "Fillet", "", "Round a corner with the radius in Size", () => new CornerTool(chamfer: false, () => OperationValue)),
+            MakeTool("sketch-chamfer", "Chamfer", "", "Bevel a corner by the distance in Size", () => new CornerTool(chamfer: true, () => OperationValue)),
         ];
+        if (convertAt is not null)
+        {
+            Tools.Add(MakeTool("convert", "Convert Entities", "", "Project model edges into the sketch", () => new ConvertTool(convertAt)));
+        }
+
         Relations = [.. RelationRules.Offered.Select(k => new RelationItem(k) { Apply = new RelayCommand(() => Editor.ApplyRelation(k)) })];
 
         Editor.Changed += (_, _) => Refresh();
@@ -116,6 +126,18 @@ public sealed partial class SketchViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial int PolygonSides { get; set; } = 6;
+
+    /// <summary>Radius, distance or spacing used by fillet, chamfer, offset and linear pattern.</summary>
+    [ObservableProperty]
+    public partial double OperationValue { get; set; } = 5;
+
+    /// <summary>Instance count for sketch patterns.</summary>
+    [ObservableProperty]
+    public partial int PatternCount { get; set; } = 4;
+
+    /// <summary>Offset to the other side (inward for closed shapes).</summary>
+    [ObservableProperty]
+    public partial bool OffsetReverse { get; set; }
 
     [ObservableProperty]
     public partial string StatusText { get; set; } = string.Empty;
@@ -282,6 +304,79 @@ public sealed partial class SketchViewModel : ViewModelBase
 
     [RelayCommand(CanExecute = nameof(HasSelection))]
     private void ToggleConstruction() => Editor.ToggleConstruction();
+
+    /// <summary>Runs an edit on the selection as one undo step, reporting argument errors.</summary>
+    private void Modify(Func<IReadOnlyList<SketchEntity>, string?> edit)
+    {
+        var selection = Editor.Selection.Select(e => e is SketchPoint { Owner: { } o } ? o : e).Distinct().ToList();
+        Editor.BeginChange();
+        try
+        {
+            if (edit(selection) is { } problem)
+            {
+                Editor.CancelChange();
+                Editor.SetMessage(problem);
+                return;
+            }
+
+            Editor.ClearSelection();
+            Editor.EndChange(solve: true);
+        }
+        catch (ArgumentException ex)
+        {
+            Editor.CancelChange();
+            Editor.SetMessage(ex.Message);
+        }
+    }
+
+    [RelayCommand]
+    private void Offset() => Modify(sel =>
+    {
+        if (!sel.Any(Curves.IsCurve))
+        {
+            return "Select lines, arcs or circles to offset.";
+        }
+
+        SketchOperations.Offset(Editor.Sketch, sel, OperationValue, OffsetReverse);
+        return null;
+    });
+
+    [RelayCommand]
+    private void Mirror() => Modify(sel =>
+    {
+        var axis = sel.OfType<SketchLine>().LastOrDefault(l => l.IsConstruction) ?? sel.OfType<SketchLine>().LastOrDefault();
+        if (axis is null || sel.Count < 2)
+        {
+            return "Select the entities to mirror and a line (ideally a centerline) to mirror about.";
+        }
+
+        SketchOperations.Mirror(Editor.Sketch, sel.Where(e => e != axis), axis);
+        return null;
+    });
+
+    [RelayCommand]
+    private void LinearPattern() => Modify(sel =>
+    {
+        if (sel.Count == 0)
+        {
+            return "Select entities to pattern along X.";
+        }
+
+        SketchOperations.LinearPattern(Editor.Sketch, sel, new Vec2(OperationValue, 0), PatternCount);
+        return null;
+    });
+
+    [RelayCommand]
+    private void CircularPattern() => Modify(sel =>
+    {
+        if (sel.Count == 0)
+        {
+            return "Select entities to pattern around the origin.";
+        }
+
+        SketchOperations.CircularPattern(Editor.Sketch, sel, Vec2.Zero, PatternCount);
+        return null;
+    });
 
     [RelayCommand]
     private void ToggleDriving()

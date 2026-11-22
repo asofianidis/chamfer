@@ -178,6 +178,12 @@ CHF_API chf_op* chf_mirror(chf_shape* s, const double* plane6, int copy);
 CHF_API chf_op* chf_sweep(chf_shape* profile, chf_shape* path, int mode);
 /* Loft through sections (wires or faces). solid != 0 builds a closed solid. */
 CHF_API chf_op* chf_loft(int count, chf_shape* const* sections, int solid, int ruled);
+/*
+ * Rib: grows an open wire lying in a plane (origin(3) normal(3)) into the base
+ * solid, thickness1 along the normal and thickness2 against it, until it meets
+ * the base. The result is the base with the rib fused on.
+ */
+CHF_API chf_op* chf_rib(chf_shape* base, chf_shape* wire, const double* plane6, double thickness1, double thickness2);
 /* Offset a face/shell into a solid of given thickness. */
 CHF_API chf_op* chf_thicken(chf_shape* s, double thickness);
 /* Sew faces/shells into a shell or solid. */
@@ -204,6 +210,21 @@ CHF_API void chf_mesh_counts(const chf_mesh* m, int* out4);
  */
 CHF_API void chf_mesh_copy(const chf_mesh* m, float* positions, float* normals, int* triangles,
                            int* triangleFaces, float* edgePoints, int* edgeOffsets);
+
+/* ---------------------------------------------------------- drawings (HLR) */
+typedef struct chf_lines chf_lines;
+/*
+ * Hidden-line projection for a drawing view. axis9 = origin(3), direction
+ * towards the viewer(3), view X direction(3). Produces 2D polylines in view
+ * coordinates, each tagged: 0 visible sharp edge, 1 visible tangent edge,
+ * 2 visible silhouette, 3 hidden edge, 4 hidden silhouette.
+ */
+CHF_API chf_lines* chf_hlr(chf_shape* s, const double* axis9, double deflection);
+CHF_API void chf_lines_free(chf_lines* l);
+/* out2 = pointCount lineCount */
+CHF_API void chf_lines_counts(const chf_lines* l, int* out2);
+/* points: 2 doubles per point; offsets: lineCount+1; kinds: lineCount. */
+CHF_API void chf_lines_copy(const chf_lines* l, double* points, int* offsets, int* kinds);
 
 /* ------------------------------------------------------------------- I/O */
 CHF_API int chf_write_step(const chf_shape* s, const char* path);

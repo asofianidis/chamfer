@@ -98,7 +98,10 @@
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,0,0,1">
       <StackPanel Spacing="4">
         <WrapPanel Orientation="Horizontal">
-          <Button Classes="tool" Content="New" Command="{Binding NewCommand}" ToolTip.Tip="New part (Ctrl+N)" />
+          <Button Classes="tool" Content="New Part" Command="{Binding NewCommand}" ToolTip.Tip="New part (Ctrl+N)" />
+          <Button Classes="tool" Content="New Assembly" Command="{Binding NewAssemblyCommand}" ToolTip.Tip="New assembly" />
+          <Button Classes="tool" Content="New Drawing" Command="{Binding NewDrawingCommand}" ToolTip.Tip="New drawing of the current part" IsVisible="{Binding IsPartMode}" />
+          <Button Classes="tool" Content="Close Drawing" Command="{Binding CloseDrawingCommand}" ToolTip.Tip="Back to the part" IsVisible="{Binding IsDrawingMode}" />
           <Button Classes="tool" Content="Open" Command="{Binding OpenCommand}" ToolTip.Tip="Open a part (Ctrl+O)" />
           <Button Classes="tool" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save (Ctrl+S)" />
           <Button Classes="tool" Content="Save As" Command="{Binding SaveAsCommand}" />
@@ -121,8 +124,51 @@
           <Button Classes="tool" Content="Wireframe" Command="{Binding SetDisplayStyleCommand}" CommandParameter="Wireframe" IsVisible="{Binding IsModelMode}" />
         </WrapPanel>
 
+        <!-- Drawing commands -->
+        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsDrawingMode}">
+          <ItemsControl ItemsSource="{Binding DrawingCommands}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:CommandItem">
+                <Button Classes="command" Command="{Binding Command}" ToolTip.Tip="{Binding Tooltip}">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="{Binding Glyph}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Label}" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </WrapPanel>
+
+        <!-- Assembly commands -->
+        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsAssemblyMode}">
+          <ItemsControl ItemsSource="{Binding AssemblyCommands}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:CommandItem">
+                <Button Classes="command" Command="{Binding Command}" ToolTip.Tip="{Binding Tooltip}">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="{Binding Glyph}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Label}" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </WrapPanel>
+
         <!-- Features -->
-        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsModelMode}">
+        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsPartMode}">
+          <Button Classes="command primary" Content="Back to Assembly" Command="{Binding ReturnToAssemblyCommand}" IsVisible="{Binding CanReturnToAssembly}" />
           <Button Classes="command" Command="{Binding NewSketchCommand}" ToolTip.Tip="Sketch on a plane or planar face">
             <StackPanel Orientation="Horizontal" Spacing="5">
               <TextBlock Text="✎" FontWeight="SemiBold" />
@@ -150,6 +196,8 @@
           <Border Classes="separator" />
           <Button Classes="command" Content="Mass Properties" Command="{Binding ShowMassPropertiesCommand}" />
           <Button Classes="command" Content="Measure" Command="{Binding MeasureCommand}" />
+          <Button Classes="command" Content="Equations" Command="{Binding ShowEquationsCommand}" ToolTip.Tip="Global variables and equations" />
+          <Button Classes="command" Content="Configurations" Command="{Binding ShowConfigurationsCommand}" ToolTip.Tip="Configurations and design tables" />
         </WrapPanel>
 
         <!-- Sketch tools -->
@@ -175,6 +223,20 @@
             <NumericUpDown Value="{Binding Sketch.PolygonSides, FallbackValue=6}" Minimum="3" Maximum="64" Increment="1"
                            FormatString="0" Width="96" ToolTip.Tip="Number of polygon sides" />
           </StackPanel>
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4" Margin="4,0">
+            <TextBlock Text="Size" VerticalAlignment="Center" FontSize="12" Opacity="0.75" />
+            <NumericUpDown Value="{Binding Sketch.OperationValue, FallbackValue=5}" Minimum="0.001" Increment="1"
+                           FormatString="0.###" Width="110" ToolTip.Tip="Fillet radius, chamfer and offset distance, pattern spacing (mm)" />
+            <TextBlock Text="Count" VerticalAlignment="Center" FontSize="12" Opacity="0.75" />
+            <NumericUpDown Value="{Binding Sketch.PatternCount, FallbackValue=4}" Minimum="2" Maximum="500" Increment="1"
+                           FormatString="0" Width="90" ToolTip.Tip="Sketch pattern instances" />
+          </StackPanel>
+          <Button Classes="tool" Content="Offset" Command="{Binding Sketch.OffsetCommand, FallbackValue={x:Null}}" ToolTip.Tip="Offset the selected curves by Size" />
+          <CheckBox Content="Reverse" IsChecked="{Binding Sketch.OffsetReverse, FallbackValue=False}" FontSize="12" Margin="0,0,6,0" ToolTip.Tip="Offset inward / to the other side" />
+          <Button Classes="tool" Content="Mirror" Command="{Binding Sketch.MirrorCommand, FallbackValue={x:Null}}" ToolTip.Tip="Mirror the selection about the selected centerline" />
+          <Button Classes="tool" Content="Linear Pattern" Command="{Binding Sketch.LinearPatternCommand, FallbackValue={x:Null}}" ToolTip.Tip="Copy the selection Count times along X, Size apart" />
+          <Button Classes="tool" Content="Circular Pattern" Command="{Binding Sketch.CircularPatternCommand, FallbackValue={x:Null}}" ToolTip.Tip="Copy the selection Count times around the origin" />
+          <Button Classes="tool" Content="Convert Face" Command="{Binding ConvertFaceCommand}" ToolTip.Tip="Project the outline of the face this sketch is on" />
           <Border Classes="separator" />
           <Button Classes="tool" Content="Construction" Command="{Binding Sketch.ToggleConstructionCommand, FallbackValue={x:Null}}"
                   ToolTip.Tip="Toggle construction geometry (X)" />
@@ -203,16 +265,22 @@
       <Panel>
         <!-- Feature tree -->
         <DockPanel IsVisible="{Binding ShowTree}">
-          <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsModelMode}">
-            <TextBlock Classes="section" Text="FEATURES" />
+          <StackPanel DockPanel.Dock="Top" IsVisible="{Binding !IsSketchMode}">
+            <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,6">
+              <TextBlock Classes="section" Text="{Binding TreeTitle}" Margin="0" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1" IsVisible="{Binding IsPartMode}" ItemsSource="{Binding ConfigurationNames}" SelectedItem="{Binding ActiveConfigurationName}"
+                        MinWidth="120" FontSize="12" ToolTip.Tip="Active configuration" />
+            </Grid>
           </StackPanel>
           <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" IsVisible="{Binding IsModelMode}">
-            <Button Classes="tool" Content="Edit" Command="{Binding EditSelectedCommand}" ToolTip.Tip="Edit the selected feature (double-click)" />
+            <Button Classes="tool" Content="Edit" Command="{Binding EditSelectedCommand}" IsVisible="{Binding IsPartMode}" ToolTip.Tip="Edit the selected feature (double-click)" />
             <Button Classes="tool" Content="Suppress" Command="{Binding ToggleSuppressCommand}" ToolTip.Tip="Suppress or unsuppress" />
             <Button Classes="tool" Content="Delete" Command="{Binding DeleteSelectedCommand}" />
-            <Button Classes="tool" Content="Roll Here" Command="{Binding RollbackHereCommand}" ToolTip.Tip="Roll back to just after this feature" />
-            <Button Classes="tool" Content="Roll Forward" Command="{Binding RollForwardCommand}" />
-            <ComboBox x:Name="MaterialBox" Margin="0,6,0,0" MinWidth="180" ItemsSource="{x:Static doc:Material.Library}" PlaceholderText="Material…"
+            <Button Classes="tool" Content="▲" IsVisible="{Binding IsPartMode}" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move the feature earlier in the history" />
+            <Button Classes="tool" Content="▼" IsVisible="{Binding IsPartMode}" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move the feature later in the history" />
+            <Button Classes="tool" Content="Roll Here" IsVisible="{Binding IsPartMode}" Command="{Binding RollbackHereCommand}" ToolTip.Tip="Roll back to just after this feature" />
+            <Button Classes="tool" Content="Roll Forward" IsVisible="{Binding IsPartMode}" Command="{Binding RollForwardCommand}" />
+            <ComboBox x:Name="MaterialBox" Margin="0,6,0,0" MinWidth="180" IsVisible="{Binding IsPartMode}" ItemsSource="{x:Static doc:Material.Library}" PlaceholderText="Material…"
                       ToolTip.Tip="Part material">
               <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="doc:Material">
@@ -222,7 +290,7 @@
             </ComboBox>
           </WrapPanel>
           <Panel>
-          <ListBox x:Name="FeatureTree" ItemsSource="{Binding Tree}" SelectedItem="{Binding SelectedNode}" IsVisible="{Binding IsModelMode}">
+          <ListBox x:Name="FeatureTree" ItemsSource="{Binding Tree}" SelectedItem="{Binding SelectedNode}" IsVisible="{Binding !IsSketchMode}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:FeatureNode">
                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="{Binding Indent}" Opacity="{Binding IsDimmed, Converter={x:Static c:Converters.DimOpacity}}"
@@ -292,9 +360,9 @@
           <StackPanel DockPanel.Dock="Top" Margin="0,8,0,8" Spacing="8">
             <TextBlock Text="{Binding Title, FallbackValue=''}" FontSize="16" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="primary" Content="OK" Width="72" IsVisible="{Binding IsFeature, FallbackValue=False}"
+              <Button Classes="primary" Content="OK" Width="72" IsVisible="{Binding HasOkCancel, FallbackValue=False}"
                       Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AcceptEditorCommand, FallbackValue={x:Null}}" />
-              <Button Content="Cancel" Width="72" IsVisible="{Binding IsFeature, FallbackValue=False}"
+              <Button Content="Cancel" Width="72" IsVisible="{Binding HasOkCancel, FallbackValue=False}"
                       Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).CancelEditorCommand, FallbackValue={x:Null}}" />
               <Button Content="Close" Width="72" IsVisible="{Binding IsInfo, FallbackValue=False}"
                       Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AcceptEditorCommand, FallbackValue={x:Null}}" />
@@ -314,6 +382,16 @@
                       </TextBox.KeyBindings>
                     </TextBox>
                     <TextBlock Grid.Column="2" Text="{Binding Unit}" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" Opacity="0.7" Width="24" />
+                  </Grid>
+                </DataTemplate>
+                <DataTemplate DataType="vm:TextField">
+                  <Grid ColumnDefinitions="120,*" Margin="0,3">
+                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="12.5" />
+                    <TextBox Grid.Column="1" Text="{Binding Text}" FontSize="12.5">
+                      <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding CommitCommand}" />
+                      </TextBox.KeyBindings>
+                    </TextBox>
                   </Grid>
                 </DataTemplate>
                 <DataTemplate DataType="vm:ChoiceField">
@@ -343,6 +421,9 @@
                     </Border>
                   </Button>
                 </DataTemplate>
+                <DataTemplate DataType="vm:ButtonField">
+                  <Button Content="{Binding Label}" Command="{Binding Command}" Margin="0,4" HorizontalAlignment="Stretch" />
+                </DataTemplate>
                 <DataTemplate DataType="vm:InfoField">
                   <StackPanel Margin="0,4" IsVisible="{Binding IsVisible}">
                     <TextBlock Text="{Binding Label}" FontSize="11" Opacity="0.65" />
@@ -360,6 +441,7 @@
     <!-- 3D view, or the sketch canvas while editing a sketch -->
     <Panel>
       <c:ModelViewport x:Name="Viewport" IsVisible="{Binding IsModelMode}" />
+      <c:DrawingCanvas x:Name="Sheet" IsVisible="{Binding IsDrawingMode}" Graphics="{Binding SheetGraphics}" />
       <c:SketchCanvas x:Name="Canvas" Editor="{Binding Sketch.Editor, FallbackValue={x:Null}}" IsVisible="{Binding IsSketchMode}" />
       <Canvas x:Name="Overlay" IsVisible="{Binding IsSketchMode}">
         <TextBox x:Name="DimensionInput" IsVisible="False" Width="110" FontSize="13"

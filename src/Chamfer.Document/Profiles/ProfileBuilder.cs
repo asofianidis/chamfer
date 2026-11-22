@@ -297,6 +297,94 @@ public static class ProfileBuilder
         return new ProfileResult(regions, open);
     }
 
+    /// <summary>
+    /// The sketch's curves as one ordered chain (open or closed), for sweep paths
+    /// and rib profiles. Returns null if the curves don't form exactly one chain
+    /// without branches.
+    /// </summary>
+    public static (IReadOnlyList<LoopSegment> Segments, bool Closed)? Chain(Sketch sketch)
+    {
+        ArgumentNullException.ThrowIfNull(sketch);
+        var curves = sketch.Entities.Where(e => !e.IsConstruction && e is SketchLine or SketchArc or SketchCircle).ToList();
+        if (curves.Count == 1 && curves[0] is SketchCircle c)
+        {
+            return ([new LoopSegment(c.Id, EntityKind.Circle, c.Center.Position, c.Center.Position, c.Center.Position, c.Radius, true, false)], true);
+        }
+
+        if (curves.Count == 0 || curves.Any(e => e is SketchCircle))
+        {
+            return null;
+        }
+
+        const double tol = 1e-6;
+        var left = curves.Select(e => ToSegment(e, false)).ToList();
+        var chain = new List<LoopSegment> { left[0] };
+        left.RemoveAt(0);
+        bool Near(Vec2 a, Vec2 b) => Vec2.Distance(a, b) < tol;
+        for (var grew = true; grew && left.Count > 0;)
+        {
+            grew = false;
+            for (var i = 0; i < left.Count; i++)
+            {
+                var s = left[i];
+                LoopSegment? add = null;
+                var atEnd = true;
+                if (Near(s.Start, chain[^1].End))
+                {
+                    add = s;
+                }
+                else if (Near(s.End, chain[^1].End))
+                {
+                    add = Flip(s);
+                }
+                else if (Near(s.End, chain[0].Start))
+                {
+                    add = s;
+                    atEnd = false;
+                }
+                else if (Near(s.Start, chain[0].Start))
+                {
+                    add = Flip(s);
+                    atEnd = false;
+                }
+
+                if (add is null)
+                {
+                    continue;
+                }
+
+                if (atEnd)
+                {
+                    chain.Add(add);
+                }
+                else
+                {
+                    chain.Insert(0, add);
+                }
+
+                left.RemoveAt(i);
+                grew = true;
+                break;
+            }
+        }
+
+        if (left.Count > 0)
+        {
+            return null;
+        }
+
+        return (chain, chain.Count > 1 && Near(chain[^1].End, chain[0].Start));
+    }
+
+    /// <summary>The same chain traversed the other way.</summary>
+    public static IReadOnlyList<LoopSegment> Reverse(IReadOnlyList<LoopSegment> chain)
+    {
+        ArgumentNullException.ThrowIfNull(chain);
+        return [.. chain.Reverse().Select(Flip)];
+    }
+
+    private static LoopSegment Flip(LoopSegment s) => s with { Start = s.End, End = s.Start, Ccw = !s.Ccw, Reversed = !s.Reversed };
+
     /// <summary>Is <paramref name="inner"/> inside <paramref name="outer"/>? Tested with a point of inner's boundary.</summary>
     private static bool Inside(ProfileLoop inner, ProfileLoop outer) =>
         Math.Abs(inner.SignedArea) < Math.Abs(outer.SignedArea) && outer.Contains(inner.Polygon[0]) &&

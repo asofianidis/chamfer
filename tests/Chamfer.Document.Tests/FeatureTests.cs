@@ -331,6 +331,32 @@ public class FeatureTests
     }
 
     [Fact]
+    public void MomentsOfInertiaOfABlock()
+    {
+        var (doc, _, _, _) = Block(40, 20, 10);
+        var m = doc.MassProperties();
+        // Rectangular block about its centroid: Ixx = m (b² + c²) / 12, with b, c the other two sides.
+        Assert.Equal(m.Mass * ((20 * 20) + (10 * 10)) / 12, m.Ixx, 1e-6);
+        Assert.Equal(m.Mass * ((40 * 40) + (10 * 10)) / 12, m.Iyy, 1e-6);
+        Assert.Equal(m.Mass * ((40 * 40) + (20 * 20)) / 12, m.Izz, 1e-6);
+        Assert.Equal(0, m.Ixy, 1e-9);
+    }
+
+    [Fact]
+    public void ReorderRespectsDependencies()
+    {
+        var (doc, sketch, ex, _) = Block();
+        var plane = doc.Add(new ReferencePlaneFeature { Offset = 5 });
+        Assert.False(doc.Move(ex, -1));       // can't move above its sketch
+        Assert.False(doc.Move(sketch, 1));    // can't move below its user
+        Assert.True(doc.Move(plane, -2));     // an unrelated plane can go first
+        Assert.Same(plane, doc.Features[0]);
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(8000, Volume(doc), Tol);
+    }
+
+    [Fact]
     public void ExportAndImportStep()
     {
         var (doc, _, _, _) = Block();

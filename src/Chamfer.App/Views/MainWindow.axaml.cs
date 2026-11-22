@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private SketchViewModel? _wiredSketch;
     private readonly SoftwareRenderer _underlayRenderer = new();
     private WriteableBitmap? _underlayBitmap;
+    private PartScene? _underlayScene;
 
     public MainWindow()
     {
@@ -45,6 +46,8 @@ public partial class MainWindow : Window
         Viewport.HoverChanged += (_, id) => _vm?.OnHover(id);
         Viewport.Picked += (_, e) => _vm?.OnPick(e.Id, e.Modifiers.HasFlag(KeyModifiers.Shift) || e.Modifiers.HasFlag(CommandModifier), e.ClickCount);
         Canvas.Underlay = DrawUnderlay;
+        Sheet.SheetClicked += (_, e) => _vm?.OnSheetClick(e.At, e.Owner, e.Modifiers.HasFlag(KeyModifiers.Shift) || e.Modifiers.HasFlag(CommandModifier));
+        Sheet.ViewDragged += (_, e) => _vm?.OnViewDragged(e.Owner, e.Delta, e.Finished);
         ActualThemeVariantChanged += (_, _) => ApplyTheme();
     }
 
@@ -82,6 +85,8 @@ public partial class MainWindow : Window
         };
         vm.SceneChanged += OnSceneChanged;
         vm.PropertyChanged += OnViewModelPropertyChanged;
+        vm.PickUnderlayEdge = PickUnderlayEdge;
+        Sheet.Selected = vm.DrawingSelection;
         ApplyTheme();
         Viewport.Camera.SetView(StandardView.Trimetric);
         OnSceneChanged(this, EventArgs.Empty);
@@ -175,7 +180,8 @@ public partial class MainWindow : Window
         var palette = ActualThemeVariant == ThemeVariant.Dark ? ViewPalette.Dark : ViewPalette.Light;
         var background = ActualThemeVariant == ThemeVariant.Dark ? Rgba.FromHex(0x1E1F22) : Rgba.FromHex(0xFFFFFF);
         var faded = palette with { Top = background, Bottom = background, Body = Rgba.Lerp(palette.Body, background, 0.35), Edge = Rgba.Lerp(palette.Edge, background, 0.5) };
-        var scene = new PartScene().Build(_vm.Document, [], null, faded, DisplayStyle.ShadedWithEdges, _vm.EditingSketch?.Id);
+        _underlayScene = new PartScene();
+        var scene = _underlayScene.Build(_vm.Document, [], null, faded, DisplayStyle.ShadedWithEdges, _vm.EditingSketch?.Id);
         scene.Quads.Clear();
         scene.Lines.Clear();
         scene.Points.Clear();
@@ -204,6 +210,20 @@ public partial class MainWindow : Window
         context.DrawImage(_underlayBitmap, new Rect(0, 0, w, h), new Rect(size));
     }
 
+    /// <summary>The model edge drawn behind the sketch at a sketch-space point, from the last underlay render.</summary>
+    private (Body Body, int Edge)? PickUnderlayEdge(SkVec2 at)
+    {
+        if (_underlayScene is null || _underlayRenderer.Width <= 1)
+        {
+            return null;
+        }
+
+        var screen = Canvas.ToScreen(at);
+        var scale = RenderScaling;
+        var id = _underlayRenderer.Pick((int)(screen.X * scale), (int)(screen.Y * scale), (int)Math.Ceiling(5 * scale));
+        return _underlayScene.Target(id) is EdgePick edge ? (edge.Body, edge.Index) : null;
+    }
+
     protected override void OnClosed(EventArgs e)
     {
         base.OnClosed(e);
@@ -225,6 +245,10 @@ public partial class MainWindow : Window
         if (e.Source is TextBox { DataContext: NumberField field })
         {
             field.Commit();
+        }
+        else if (e.Source is TextBox { DataContext: TextField text })
+        {
+            text.Commit();
         }
     }
 
@@ -378,13 +402,29 @@ public partial class MainWindow : Window
             HideDimensionInput();
             e.Handled = true;
         }
-        else if (e.Key == Key.Enter && _editing is { } dim && ViewModel?.Sketch is { } sketch)
+        else if (e.Key == Key.Enter && _editing is { } dim && ViewModel?.Sketch is { } sketch && ViewModel is { } vm)
         {
             e.Handled = true;
-            if (!ValueParser.TryParse(DimensionInput.Text, out var value))
+            var text = DimensionInput.Text?.Trim() ?? string.Empty;
+            double value;
+            if (text.StartsWith('='))
             {
-                sketch.Editor.SetMessage("Enter a number, for example 25, 25.4*2 or 1in.");
+                if (vm.LinkDimension(dim.Id, text[1..].Trim()) is not { } linked)
+                {
+                    sketch.Editor.SetMessage("That equation can't be evaluated. Check the variable names in Equations.");
+                    return;
+                }
+
+                value = linked;
+            }
+            else if (!ValueParser.TryParse(text, out value))
+            {
+                sketch.Editor.SetMessage("Enter a number (25, 25.4*2, 1in) or an equation (=Width/2).");
                 return;
+            }
+            else
+            {
+                vm.LinkDimension(dim.Id, null);
             }
 
             if (sketch.Editor.SetDimensionValue(dim, value))

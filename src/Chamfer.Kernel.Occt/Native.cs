@@ -62,6 +62,7 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial OpHandle chf_mirror(ShapeHandle s, double* plane6, int copy);
     [LibraryImport(Lib)] public static partial OpHandle chf_sweep(ShapeHandle profile, ShapeHandle path, int mode);
     [LibraryImport(Lib)] public static partial OpHandle chf_loft(int count, IntPtr* sections, int solid, int ruled);
+    [LibraryImport(Lib)] public static partial OpHandle chf_rib(ShapeHandle baseShape, ShapeHandle wire, double* plane6, double thickness1, double thickness2);
     [LibraryImport(Lib)] public static partial OpHandle chf_thicken(ShapeHandle s, double thickness);
     [LibraryImport(Lib)] public static partial OpHandle chf_sew(int count, IntPtr* shapes, double tolerance);
     [LibraryImport(Lib)] public static partial OpHandle chf_split(ShapeHandle s, ShapeHandle tool);
@@ -73,6 +74,12 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial void chf_mesh_free(IntPtr m);
     [LibraryImport(Lib)] public static partial void chf_mesh_counts(IntPtr m, int* out4);
     [LibraryImport(Lib)] public static partial void chf_mesh_copy(IntPtr m, float* positions, float* normals, int* triangles, int* triangleFaces, float* edgePoints, int* edgeOffsets);
+
+    // --------------------------------------------------------------- drawings
+    [LibraryImport(Lib)] public static partial IntPtr chf_hlr(ShapeHandle s, double* axis9, double deflection);
+    [LibraryImport(Lib)] public static partial void chf_lines_free(IntPtr l);
+    [LibraryImport(Lib)] public static partial void chf_lines_counts(IntPtr l, int* out2);
+    [LibraryImport(Lib)] public static partial void chf_lines_copy(IntPtr l, double* points, int* offsets, int* kinds);
 
     // -------------------------------------------------------------------- I/O
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)] public static partial int chf_write_step(ShapeHandle s, string path);

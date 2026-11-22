@@ -1,0 +1,493 @@
+using System.Globalization;
+using Avalonia.Platform.Storage;
+using Chamfer.App.Part;
+using Chamfer.Assembly;
+using Chamfer.Document;
+using Chamfer.Geometry;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+
+namespace Chamfer.App.ViewModels;
+
+/// <summary>Assembly mode: components, mates, interference, BOM, explode, and editing parts in place.</summary>
+public sealed partial class MainViewModel
+{
+    private static readonly FilePickerFileType AssemblyFileType = new("Chamfer Assembly") { Patterns = [$"*.{AssemblyDocument.FileExtension}"] };
+
+    private (AssemblyDocument Doc, string? Path)? _returnTo;
+    private MateSolveResult? _lastSolve;
+
+    /// <summary>The open assembly, or null when editing a part.</summary>
+    public AssemblyDocument? AssemblyDoc { get; private set; }
+
+    public AssemblyScene AssemblyBuilder { get; } = new();
+
+    public bool IsAssemblyMode => AssemblyDoc is not null && Sketch is null && DrawingDoc is null;
+    public bool IsPartMode => AssemblyDoc is null && Sketch is null && DrawingDoc is null;
+    public string TreeTitle => DrawingDoc is not null ? "DRAWING" : AssemblyDoc is null ? "FEATURES" : "ASSEMBLY";
+
+    public bool CanReturnToAssembly => _returnTo is not null && AssemblyDoc is null && Sketch is null && DrawingDoc is null;
+
+    [ObservableProperty]
+    public partial bool Exploded { get; set; }
+
+    partial void OnExplodedChanged(bool value)
+    {
+        if (value && AssemblyDoc is { } asm && asm.Components.All(c => c.ExplodeOffset == Vec3.Zero))
+        {
+            AssemblyTools.AutoExplode(asm);
+        }
+
+        RaiseScene();
+        FitAction?.Invoke();
+    }
+
+    /// <summary>Picks in the current scene (part or assembly).</summary>
+    public IPickSource Picks => AssemblyDoc is null ? SceneBuilder : AssemblyBuilder;
+
+    public IReadOnlyList<CommandItem> AssemblyCommands => _assemblyCommands ??=
+    [
+        new("Insert Component", "Insert a saved part", new AsyncRelayCommand(InsertComponent), "⊕"),
+        new("Mate", "Mate two faces or edges", new RelayCommand(StartMate), "⫘"),
+        new("Move", "Move or rotate the selected component", new RelayCommand(StartMove), "✥"),
+        new("Fix / Float", "Fix the selected component in place, or let it move", new RelayCommand(ToggleFixed), "⚓"),
+        new("Interference", "Find overlapping components", new RelayCommand(ShowInterference), "⧉"),
+        new("Bill of Materials", "List parts and quantities", new RelayCommand(ShowBom), "☰"),
+        new("Explode", "Spread the components apart (toggle)", new RelayCommand(() => Exploded = !Exploded), "✳"),
+        new("Open Part", "Edit the selected component's part", new RelayCommand(OpenSelectedPart), "↗"),
+    ];
+
+    private IReadOnlyList<CommandItem>? _assemblyCommands;
+
+    private void RaiseModeChanged()
+    {
+        OnPropertyChanged(nameof(IsAssemblyMode));
+        OnPropertyChanged(nameof(IsPartMode));
+        OnPropertyChanged(nameof(CanReturnToAssembly));
+        OnPropertyChanged(nameof(IsModelMode));
+        OnPropertyChanged(nameof(TreeTitle));
+        OnPropertyChanged(nameof(IsDrawingMode));
+    }
+
+    [RelayCommand]
+    private void NewAssembly()
+    {
+        New();
+        AssemblyDoc = new AssemblyDocument();
+        _returnTo = null;
+        RaiseModeChanged();
+        RebuildAndRefresh();
+    }
+
+    /// <summary>Inserts a part file (or a part already in memory, registered under its path) into the assembly.</summary>
+    public Component InsertPart(string path, PartDocument? part = null)
+    {
+        var asm = AssemblyDoc ?? throw new InvalidOperationException("No assembly is open.");
+        SnapshotAssembly();
+        if (part is not null)
+        {
+            asm.RegisterPart(path, part);
+        }
+
+        // Place new components beside what's already there.
+        var box = asm.Components.Where(c => !c.Suppressed).SelectMany(c => asm.PlacedBodies(c)).Aggregate(Box3.Empty, (b, p) => b.Union(p.Placed.Bounds));
+        var at = box.IsEmpty ? Vec3.Zero : new Vec3(box.Max.X + (box.Size.X * 0.25) + 10, box.Min.Y, box.Min.Z);
+        var c = asm.AddComponent(path, Transform3.Translation(at));
+        RebuildAndRefresh();
+        FitAction?.Invoke();
+        return c;
+    }
+
+    private async Task InsertComponent()
+    {
+        if (StorageProvider is null || AssemblyDoc is null)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Insert Component", FileTypeFilter = [PartFileType] });
+        if (files is not [var file] || file.TryGetLocalPath() is not { } path)
+        {
+            return;
+        }
+
+        try
+        {
+            InsertPart(path);
+        }
+        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or NotSupportedException)
+        {
+            MessageText = $"Couldn't insert {file.Name}: {ex.Message}";
+        }
+    }
+
+    private void SnapshotAssembly()
+    {
+        if (AssemblyDoc is null)
+        {
+            return;
+        }
+
+        _undo.Push("asm:" + AssemblyDoc.Save());
+        _redo.Clear();
+        _dirty = true;
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    private Component? SelectedComponent() =>
+        (SelectedNode?.Tag as Component) ??
+        Selection.Select(s => s.ComponentId).OfType<string>().Select(id => AssemblyDoc?.Find(id)).LastOrDefault(c => c is not null);
+
+    private static SelectionItem ComponentItem(Component c) => new(SelectionKind.Feature, FeatureId: c.Id, Label: c.Name, ComponentId: c.Id);
+
+    private static MateRef? ToMateRef(SelectionItem s) => s switch
+    {
+        { ComponentId: { } id, Kind: SelectionKind.Face, Ref: { } r } => new MateRef(id, Face: r),
+        { ComponentId: { } id, Kind: SelectionKind.Edge, Ref: { } r } => new MateRef(id, Edge: r),
+        _ => null,
+    };
+
+    // ------------------------------------------------------------- mates
+
+    private void StartMate()
+    {
+        if (AssemblyDoc is not { } asm)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var before = asm.Save();
+        var picks = Selection.Where(s => ToMateRef(s) is not null).ToList();
+        var mate = new Mate { Id = "pending", Type = MateType.Coincident };
+        var types = Enum.GetValues<MateType>();
+        FeatureEditor? panel = null;
+
+        void Preview()
+        {
+            asm.RestoreFrom(before);
+            asm.Mates.RemoveAll(m => m.Id == "pending");
+            if (panel?.Fields.OfType<SelectionField>().ToList() is not [var fa, var fb] || fa.Items.Count == 0 || fb.Items.Count == 0)
+            {
+                RebuildAndRefresh();
+                return;
+            }
+
+            var a = ToMateRef(fa.Items[0]);
+            var b = ToMateRef(fb.Items[0]);
+            if (a is null || b is null || a.ComponentId == b.ComponentId)
+            {
+                panel.Message = "Pick faces or edges on two different components.";
+                RebuildAndRefresh();
+                return;
+            }
+
+            var added = asm.AddMate(mate.Type, a, b, mate.Value, mate.Aligned);
+            added.Id = "pending";
+            RebuildAndRefresh();
+            panel.Message = _lastSolve is { Converged: false } ? "These mates conflict or can't be satisfied." : null;
+        }
+
+        panel = FeatureEditor.Command("Mate", Preview,
+            accept: () =>
+            {
+                if (asm.Mates.Find(m => m.Id == "pending") is { } m)
+                {
+                    _undo.Push("asm:" + before);
+                    _redo.Clear();
+                    _dirty = true;
+                    m.Id = $"m{Guid.NewGuid():N}"[..9];
+                    m.Name = $"{m.Type}{asm.Mates.Count(x => x.Type == m.Type)}";
+                    UndoCommand.NotifyCanExecuteChanged();
+                }
+            },
+            cancel: () => asm.RestoreFrom(before));
+        panel.AddField(new ChoiceField("Mate type", [.. types.Select(t => t.ToString())], 0, i =>
+        {
+            mate.Type = types[i];
+            Preview();
+        }));
+        panel.AddField(new NumberField("Distance / angle", string.Empty, () => mate.Value, v =>
+        {
+            mate.Value = v;
+            Preview();
+        }));
+        panel.AddField(new BoolField("Flip alignment", false, v =>
+        {
+            mate.Aligned = !mate.Aligned;
+            Preview();
+        }));
+        var kinds = new[] { SelectionKind.Face, SelectionKind.Edge };
+        var first = panel.AddField(new SelectionField("First entity", kinds, picks.Take(1), _ => Preview(), max: 1));
+        var second = panel.AddField(new SelectionField("Second entity", kinds, picks.Skip(1).Take(1), _ => Preview(), max: 1));
+
+        // Pre-pick the alignment and the closest sensible type for the current selection.
+        if (picks.Count >= 2 && ToMateRef(picks[0]) is { } ra && ToMateRef(picks[1]) is { } rb)
+        {
+            try
+            {
+                var ea = MateSolver.Resolve(asm, ra);
+                var eb = MateSolver.Resolve(asm, rb);
+                mate.Aligned = Vec3.Dot(ea.Direction, eb.Direction) > 0;
+                mate.Type = MateSolver.Applicable(ea.Kind, eb.Kind)[0];
+                ((ChoiceField)panel.Fields[0]).Index = Array.IndexOf(types, mate.Type);
+            }
+            catch (InvalidOperationException)
+            {
+            }
+        }
+
+        panel.ActiveSelectionChanged += (_, _) => LoadActiveField();
+        panel.Activate(picks.Count >= 1 ? second : first);
+        Editor = panel;
+        Preview();
+    }
+
+    // ------------------------------------------------------------- move
+
+    private void StartMove()
+    {
+        if (AssemblyDoc is not { } asm || SelectedComponent() is not { } c)
+        {
+            MessageText = "Select a component (in the tree or the view) to move.";
+            return;
+        }
+
+        CancelEditor();
+        var before = asm.Save();
+        var original = c.Transform;
+        double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
+        void Apply()
+        {
+            var center = AssemblyTools.Center(asm, c);
+            var r = Transform3.Rotation(center, Vec3.UnitX, rx * Math.PI / 180) *
+                    Transform3.Rotation(center, Vec3.UnitY, ry * Math.PI / 180) *
+                    Transform3.Rotation(center, Vec3.UnitZ, rz * Math.PI / 180);
+            c.Transform = Transform3.Translation(new Vec3(dx, dy, dz)) * r * original;
+            RebuildAndRefresh();
+        }
+
+        var panel = FeatureEditor.Command($"Move {c.Name}", Apply,
+            accept: () =>
+            {
+                _undo.Push("asm:" + before);
+                _redo.Clear();
+                _dirty = true;
+                UndoCommand.NotifyCanExecuteChanged();
+            },
+            cancel: () => asm.RestoreFrom(before));
+        panel.AddField(new NumberField("Move X", "mm", () => dx, v => { dx = v; Apply(); }));
+        panel.AddField(new NumberField("Move Y", "mm", () => dy, v => { dy = v; Apply(); }));
+        panel.AddField(new NumberField("Move Z", "mm", () => dz, v => { dz = v; Apply(); }));
+        panel.AddField(new NumberField("Rotate X", "°", () => rx, v => { rx = v; Apply(); }));
+        panel.AddField(new NumberField("Rotate Y", "°", () => ry, v => { ry = v; Apply(); }));
+        panel.AddField(new NumberField("Rotate Z", "°", () => rz, v => { rz = v; Apply(); }));
+        if (c.Fixed)
+        {
+            panel.Message = "This component is fixed; float it first to move it.";
+        }
+
+        Editor = panel;
+    }
+
+    private void ToggleFixed()
+    {
+        if (AssemblyDoc is null || SelectedComponent() is not { } c)
+        {
+            MessageText = "Select a component to fix or float.";
+            return;
+        }
+
+        SnapshotAssembly();
+        c.Fixed = !c.Fixed;
+        RebuildAndRefresh();
+    }
+
+    // ------------------------------------------------------------- evaluate
+
+    private void ShowInterference()
+    {
+        if (AssemblyDoc is not { } asm)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var panel = FeatureEditor.Info("Interference Detection");
+        var found = AssemblyTools.FindInterferences(asm);
+        if (found.Count == 0)
+        {
+            panel.AddInfo(new InfoField("Result", "No interferences."));
+        }
+
+        foreach (var i in found)
+        {
+            panel.AddInfo(new InfoField($"{i.A.Name} ↔ {i.B.Name}", $"{i.Volume.ToString("0.###", CultureInfo.InvariantCulture)} mm³ overlap"));
+        }
+
+        Editor = panel;
+    }
+
+    private void ShowBom()
+    {
+        if (AssemblyDoc is not { } asm)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var panel = FeatureEditor.Info("Bill of Materials");
+        double total = 0;
+        foreach (var line in AssemblyTools.BillOfMaterials(asm))
+        {
+            total += line.MassEach * line.Quantity;
+            var config = line.Configuration is null ? string.Empty : $" [{line.Configuration}]";
+            panel.AddInfo(new InfoField($"{line.Item}. {line.PartName}{config}",
+                $"Qty {line.Quantity} · {line.Material} · {(line.MassEach * 1000).ToString("0.##", CultureInfo.InvariantCulture)} g each"));
+        }
+
+        panel.AddInfo(new InfoField("Total mass", $"{(total * 1000).ToString("0.##", CultureInfo.InvariantCulture)} g"));
+        Editor = panel;
+    }
+
+    // ------------------------------------------------------------- parts in context
+
+    private void OpenSelectedPart()
+    {
+        if (AssemblyDoc is not { } asm || SelectedComponent() is not { } c)
+        {
+            MessageText = "Select a component whose part you want to edit.";
+            return;
+        }
+
+        CancelEditor();
+        var part = asm.PartOf(c);
+        _returnTo = (asm, FilePath);
+        AssemblyDoc = null;
+        Document = part;
+        FilePath = Path.IsPathRooted(c.Path) ? c.Path : asm.Resolve(c.Path);
+        _undo.Clear();
+        _redo.Clear();
+        SetSelection([]);
+        RaiseModeChanged();
+        RebuildAndRefresh();
+        FitAction?.Invoke();
+    }
+
+    [RelayCommand]
+    private void ReturnToAssembly()
+    {
+        if (_returnTo is not { } back)
+        {
+            return;
+        }
+
+        if (Sketch is not null)
+        {
+            ExitSketch();
+        }
+
+        CancelEditor();
+        AssemblyDoc = back.Doc;
+        FilePath = back.Path;
+        _returnTo = null;
+        Document = new PartDocument();
+        _undo.Clear();
+        _redo.Clear();
+        SetSelection([]);
+        RaiseModeChanged();
+        RebuildAndRefresh();
+    }
+
+    // ------------------------------------------------------------- refresh
+
+    private void RefreshAssembly()
+    {
+        var asm = AssemblyDoc!;
+        _lastSolve = asm.Solve();
+        var selectedTag = SelectedNode?.Tag;
+        Tree.Clear();
+        foreach (var c in asm.Components)
+        {
+            var label = $"{(c.Fixed ? "(f) " : string.Empty)}{c.Name}{(c.Configuration is { } cfg ? $" [{cfg}]" : string.Empty)}";
+            Tree.Add(new FeatureNode(label, "⬚", tag: c) { Status = c.Suppressed ? FeatureStatus.Suppressed : FeatureStatus.Ok });
+        }
+
+        if (asm.Mates.Count > 0)
+        {
+            Tree.Add(new FeatureNode("Mates", "⫘"));
+            foreach (var m in asm.Mates)
+            {
+                var failed = _lastSolve.FailedMates.Contains(m);
+                Tree.Add(new FeatureNode($"{m.Name} ({asm.Find(m.A.ComponentId)?.Name}, {asm.Find(m.B.ComponentId)?.Name})", "⟂", indent: 1, tag: m)
+                {
+                    Status = m.Suppressed ? FeatureStatus.Suppressed : failed ? FeatureStatus.Error : FeatureStatus.Ok,
+                    Message = failed ? "This mate can't be satisfied with the others." : null,
+                });
+            }
+        }
+
+        if (selectedTag is not null)
+        {
+            SelectedNode = Tree.FirstOrDefault(n => n.Tag == selectedTag);
+        }
+
+        MessageText = _lastSolve.FailedMates.Count > 0 ? $"Mate errors: {string.Join(", ", _lastSolve.FailedMates.Select(m => m.Name))}" : string.Empty;
+        StatusText = asm.Components.Count == 0 ? "Empty assembly"
+            : _lastSolve.FailedMates.Count > 0 ? "Over defined"
+            : _lastSolve.DegreesOfFreedom == 0 ? "Fully defined"
+            : $"Under defined ({_lastSolve.DegreesOfFreedom} DOF)";
+        var name = FilePath is null ? "Assembly1" : Path.GetFileNameWithoutExtension(FilePath);
+        Title = $"{name}{(_dirty ? " •" : string.Empty)} — Chamfer";
+        RaiseScene();
+    }
+
+    private async Task SaveAssembly(string? path)
+    {
+        var asm = AssemblyDoc!;
+        if (path is null)
+        {
+            if (StorageProvider is null)
+            {
+                return;
+            }
+
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Save Assembly",
+                DefaultExtension = AssemblyDocument.FileExtension,
+                SuggestedFileName = FilePath is null ? "Assembly1" : Path.GetFileNameWithoutExtension(FilePath),
+                FileTypeChoices = [AssemblyFileType],
+            });
+            path = file?.TryGetLocalPath();
+            if (path is null)
+            {
+                return;
+            }
+        }
+
+        // Store part paths relative to the assembly so the folder can move.
+        var dir = Path.GetDirectoryName(Path.GetFullPath(path))!;
+        foreach (var c in asm.Components.Where(c => Path.IsPathRooted(c.Path)))
+        {
+            c.Path = Path.GetRelativePath(dir, c.Path);
+        }
+
+        asm.Directory = dir;
+        await File.WriteAllTextAsync(path, asm.Save());
+        FilePath = path;
+        _dirty = false;
+        RefreshAssembly();
+    }
+
+    private void LoadAssembly(string path, string text)
+    {
+        New();
+        AssemblyDoc = AssemblyDocument.Load(text, Path.GetDirectoryName(Path.GetFullPath(path)));
+        FilePath = path;
+        RaiseModeChanged();
+        RebuildAndRefresh();
+        FitAction?.Invoke();
+    }
+}

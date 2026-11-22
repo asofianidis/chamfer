@@ -21,18 +21,26 @@ public sealed partial class NumberField : PropertyField
 {
     private readonly Action<double> _apply;
     private readonly Func<double> _read;
+    private readonly Func<string?>? _getLink;
+    private readonly Action<string?>? _setLink;
 
-    public NumberField(string label, string unit, Func<double> read, Action<double> apply, double min = double.NegativeInfinity, bool wholeNumber = false)
+    public NumberField(string label, string unit, Func<double> read, Action<double> apply, double min = double.NegativeInfinity, bool wholeNumber = false,
+        Func<string?>? getLink = null, Action<string?>? setLink = null)
         : base(label)
     {
         Unit = unit;
         _read = read;
         _apply = apply;
+        _getLink = getLink;
+        _setLink = setLink;
         Min = min;
         IsInteger = wholeNumber;
-        Text = Format(read());
+        Text = getLink?.Invoke() is { } link ? "=" + link : Format(read());
         CommitCommand = new RelayCommand(Commit);
     }
+
+    /// <summary>True when the value comes from an equation.</summary>
+    public bool IsLinked => _getLink?.Invoke() is not null;
 
     public string Unit { get; }
     public double Min { get; }
@@ -50,6 +58,33 @@ public sealed partial class NumberField : PropertyField
     /// <summary>Parses the text and applies it; restores the old value if it doesn't parse.</summary>
     public void Commit()
     {
+        var trimmed = Text.Trim();
+        if (_setLink is not null && trimmed.StartsWith('='))
+        {
+            var expr = trimmed[1..].Trim();
+            if (expr.Length == 0)
+            {
+                HasError = true;
+                return;
+            }
+
+            HasError = false;
+            if (_getLink?.Invoke() != expr)
+            {
+                _setLink(expr);
+            }
+
+            Text = "=" + expr;
+            OnPropertyChanged(nameof(IsLinked));
+            return;
+        }
+
+        if (_getLink?.Invoke() is not null)
+        {
+            _setLink!(null);
+            OnPropertyChanged(nameof(IsLinked));
+        }
+
         double value;
         if (Unit == "°")
         {
@@ -194,6 +229,39 @@ public sealed partial class SelectionField : PropertyField
 
         _apply(accepted);
     }
+}
+
+/// <summary>Free text, applied on Enter or when focus leaves.</summary>
+public sealed partial class TextField : PropertyField
+{
+    private readonly Action<string> _apply;
+
+    public TextField(string label, string text, Action<string> apply)
+        : base(label)
+    {
+        _apply = apply;
+        Text = text;
+        CommitCommand = new RelayCommand(Commit);
+    }
+
+    public IRelayCommand CommitCommand { get; }
+
+    [ObservableProperty]
+    public partial string Text { get; set; }
+
+    public void Commit()
+    {
+        if (!string.IsNullOrWhiteSpace(Text))
+        {
+            _apply(Text.Trim());
+        }
+    }
+}
+
+/// <summary>A button in a panel.</summary>
+public sealed class ButtonField(string label, IRelayCommand command) : PropertyField(label)
+{
+    public IRelayCommand Command { get; } = command;
 }
 
 /// <summary>A read-only line of text (hints, results).</summary>

@@ -9,10 +9,13 @@
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
+#include <BRepFeat_MakeLinearForm.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
+#include <Geom_Plane.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepOffsetAPI_DraftAngle.hxx>
 #include <BRepOffsetAPI_MakePipe.hxx>
+#include <BRepOffsetAPI_MakePipeShell.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepOffsetAPI_ThruSections.hxx>
 #include <BRepOffset_MakeOffset.hxx>
@@ -33,6 +36,7 @@
 #include <gp_Trsf.hxx>
 
 #include <stdexcept>
+#include <vector>
 
 namespace {
 
@@ -270,19 +274,56 @@ chf_op* chf_mirror(chf_shape* s, const double* plane6, int copy) {
 }
 
 chf_op* chf_sweep(chf_shape* profile, chf_shape* path, int mode) {
-  return chf_guard<chf_op*>(nullptr, [&] {
+  return chf_guard<chf_op*>(nullptr, [&]() -> chf_op* {
     requireShape(profile);
     requireShape(path);
-    TopoDS_Wire spine;
-    if (path->shape.ShapeType() == TopAbs_WIRE) {
-      spine = TopoDS::Wire(path->shape);
-    } else {
-      throw std::runtime_error("sweep path must be a wire");
+    if (path->shape.ShapeType() != TopAbs_WIRE) throw std::runtime_error("sweep path must be a wire");
+    TopoDS_Wire spine = TopoDS::Wire(path->shape);
+
+    // Pipe shells handle paths with sharp corners (right-corner transitions).
+    auto pipe = [&](const TopoDS_Wire& w, bool solid) {
+      auto algo = std::make_unique<BRepOffsetAPI_MakePipeShell>(spine);
+      algo->SetMode(mode == 0);
+      algo->SetTransitionMode(BRepBuilderAPI_RightCorner);
+      algo->Add(w, false, false);
+      algo->Build();
+      if (!algo->IsDone()) throw std::runtime_error("the profile can't be swept along this path");
+      if (solid && !algo->MakeSolid()) throw std::runtime_error("the swept shape isn't closed");
+      return algo;
+    };
+
+    const TopoDS_Shape& p = profile->shape;
+    if (p.ShapeType() == TopAbs_WIRE) {
+      auto algo = pipe(TopoDS::Wire(p), false);
+      return chf_make_op(std::move(algo), "sweep");
     }
-    auto algo = std::make_unique<BRepOffsetAPI_MakePipe>(
-        spine, profile->shape, mode == 0 ? GeomFill_IsFrenet : GeomFill_IsCorrectedFrenet, false);
-    algo->Build();
-    return chf_make_op(std::move(algo), "sweep");
+    if (p.ShapeType() != TopAbs_FACE) throw std::runtime_error("sweep profile must be a face or a wire");
+
+    TopoDS_Face face = TopoDS::Face(p);
+    TopoDS_Wire outer = BRepTools::OuterWire(face);
+    auto algo = pipe(outer, true);
+    TopoDS_Shape first = algo->FirstShape(), last = algo->LastShape();
+    std::vector<TopoDS_Shape> holes;
+    for (TopExp_Explorer ex(face, TopAbs_WIRE); ex.More(); ex.Next()) {
+      if (!ex.Current().IsSame(outer)) holes.push_back(pipe(TopoDS::Wire(ex.Current()), true)->Shape());
+    }
+    if (holes.empty()) {
+      chf_op* op = chf_make_op(std::move(algo), "sweep");
+      if (op) {
+        op->first = first;
+        op->last = last;
+      }
+      return op;
+    }
+
+    // Profiles with holes: sweep each loop and subtract the inner tubes.
+    TopoDS_Shape result = algo->Shape();
+    for (const auto& h : holes) {
+      BRepAlgoAPI_Cut cut(result, h);
+      if (!cut.IsDone()) throw std::runtime_error("couldn't subtract a hole from the sweep");
+      result = cut.Shape();
+    }
+    return chf_make_op_plain(result);
   });
 }
 
@@ -304,7 +345,29 @@ chf_op* chf_loft(int count, chf_shape* const* sections, int solid, int ruled) {
       }
     }
     algo->Build();
-    return chf_make_op(std::move(algo), "loft");
+    TopoDS_Shape first = algo->IsDone() ? algo->FirstShape() : TopoDS_Shape();
+    TopoDS_Shape last = algo->IsDone() ? algo->LastShape() : TopoDS_Shape();
+    chf_op* op = chf_make_op(std::move(algo), "loft");
+    if (op) {
+      op->first = first;
+      op->last = last;
+    }
+    return op;
+  });
+}
+
+chf_op* chf_rib(chf_shape* base, chf_shape* wire, const double* plane6, double thickness1, double thickness2) {
+  return chf_guard<chf_op*>(nullptr, [&] {
+    requireShape(base);
+    requireShape(wire);
+    if (wire->shape.ShapeType() != TopAbs_WIRE) throw std::runtime_error("rib profile must be a wire");
+    gp_Dir n = dir(plane6 + 3);
+    Handle(Geom_Plane) plane = new Geom_Plane(pnt(plane6), n);
+    auto algo = std::make_unique<BRepFeat_MakeLinearForm>(base->shape, TopoDS::Wire(wire->shape), plane,
+                                                          gp_Vec(n) * thickness1, gp_Vec(n) * -thickness2, 1, true);
+    algo->Perform();
+    if (!algo->IsDone() || algo->CurrentStatusError() != BRepFeat_OK) throw std::runtime_error("rib failed");
+    return chf_make_op(std::move(algo), "rib");
   });
 }
 

@@ -49,6 +49,9 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(CircularPatternFeature), "circularPattern")]
 [JsonDerivedType(typeof(MirrorFeature), "mirror")]
 [JsonDerivedType(typeof(ImportFeature), "import")]
+[JsonDerivedType(typeof(SweepFeature), "sweep")]
+[JsonDerivedType(typeof(LoftFeature), "loft")]
+[JsonDerivedType(typeof(RibFeature), "rib")]
 public abstract class Feature
 {
     /// <summary>Stable identifier used by references and persistent names. Never shown to users.</summary>
@@ -58,6 +61,12 @@ public abstract class Feature
     public string Name { get; set; } = string.Empty;
 
     public bool IsSuppressed { get; set; }
+
+    /// <summary>
+    /// Parameters driven by equations: property name → expression over the
+    /// document's global variables (e.g. "Depth" → "Thickness * 2").
+    /// </summary>
+    public Dictionary<string, string>? Links { get; set; }
 
     /// <summary>Base for display names ("Boss-Extrude", "Fillet", ...).</summary>
     [JsonIgnore]

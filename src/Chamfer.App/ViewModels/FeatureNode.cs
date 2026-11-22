@@ -7,8 +7,9 @@ namespace Chamfer.App.ViewModels;
 /// <summary>A row in the feature tree.</summary>
 public sealed partial class FeatureNode : ObservableObject
 {
-    public FeatureNode(string name, string glyph, Feature? feature = null, string? planeId = null, int indent = 0)
+    public FeatureNode(string name, string glyph, Feature? feature = null, string? planeId = null, int indent = 0, object? tag = null)
     {
+        Tag = tag;
         Name = name;
         Glyph = glyph;
         Feature = feature;
@@ -20,6 +21,9 @@ public sealed partial class FeatureNode : ObservableObject
     public string Glyph { get; }
     public Feature? Feature { get; }
     public string? PlaneId { get; }
+
+    /// <summary>The assembly component or mate this row shows, in assembly mode.</summary>
+    public object? Tag { get; }
     public Avalonia.Thickness Indent { get; }
 
     [ObservableProperty]
@@ -58,6 +62,9 @@ public sealed partial class FeatureNode : ObservableObject
         MirrorFeature => "⇋",
         ReferencePlaneFeature => "▱",
         ImportFeature => "⬇",
+        SweepFeature => "⤳",
+        LoftFeature => "⏢",
+        RibFeature => "⊿",
         _ => "•",
     };
 }

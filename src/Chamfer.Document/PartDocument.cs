@@ -27,7 +27,16 @@ public sealed record FeatureResult(FeatureStatus Status, string? Message);
 /// <param name="SurfaceArea">mm².</param>
 /// <param name="Mass">kg.</param>
 /// <param name="CenterOfMass">mm.</param>
-public sealed record PartMassProperties(double Volume, double SurfaceArea, double Mass, Geometry.Vec3 CenterOfMass);
+/// <param name="Inertia">Inertia tensor about the centre of mass in kg·mm², row-major 3×3 (off-diagonals are -∫xy dm etc.).</param>
+public sealed record PartMassProperties(double Volume, double SurfaceArea, double Mass, Geometry.Vec3 CenterOfMass, double[] Inertia)
+{
+    public double Ixx => Inertia[0];
+    public double Iyy => Inertia[4];
+    public double Izz => Inertia[8];
+    public double Ixy => Inertia[1];
+    public double Ixz => Inertia[2];
+    public double Iyz => Inertia[5];
+}
 
 /// <summary>
 /// A part: an ordered feature history and the bodies it builds. Rebuilds are
@@ -46,6 +55,56 @@ public sealed class PartDocument
     public List<Feature> Features { get; } = [];
 
     public Material Material { get; set; } = Material.Steel;
+
+    /// <summary>Global variables, usable in equations for feature parameters and sketch dimensions.</summary>
+    public List<GlobalVariable> Variables { get; } = [];
+
+    /// <summary>Configurations. There is always at least one; <see cref="ActiveConfiguration"/> names the one that is built.</summary>
+    public List<Configuration> Configurations { get; } = [new Configuration()];
+
+    public string ActiveConfiguration { get; set; } = "Default";
+
+    public Configuration Active => Configurations.Find(c => c.Name == ActiveConfiguration) ?? Configurations[0];
+
+    /// <summary>Whether a feature is suppressed in the active configuration.</summary>
+    public bool IsSuppressed(Feature feature)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        return Active.Suppression.TryGetValue(feature.Id, out var s) ? s : feature.IsSuppressed;
+    }
+
+    /// <summary>Sets suppression for the active configuration only (or the feature itself when there is one configuration).</summary>
+    public void SetSuppressed(Feature feature, bool suppressed)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        if (Configurations.Count == 1)
+        {
+            feature.IsSuppressed = suppressed;
+            Active.Suppression.Remove(feature.Id);
+        }
+        else
+        {
+            Active.Suppression[feature.Id] = suppressed;
+        }
+    }
+
+    /// <summary>The document's variables with the active configuration's overrides.</summary>
+    public IReadOnlyList<GlobalVariable> EffectiveVariables
+    {
+        get
+        {
+            var overrides = Active.Variables;
+            var list = Variables.Select(v => overrides.TryGetValue(v.Name, out var e) ? v with { Expression = e } : v).ToList();
+            list.AddRange(overrides.Where(kv => !Variables.Exists(v => v.Name == kv.Key)).Select(kv => new GlobalVariable(kv.Key, kv.Value)));
+            return list;
+        }
+    }
+
+    /// <summary>Values of the global variables after the last rebuild.</summary>
+    public IReadOnlyDictionary<string, double> VariableValues { get; private set; } = new Dictionary<string, double>();
+
+    /// <summary>Variables that couldn't be evaluated, with the reason.</summary>
+    public IReadOnlyDictionary<string, string> VariableErrors { get; private set; } = new Dictionary<string, string>();
 
     /// <summary>Features at or after this index are rolled back (not built). Null = all built.</summary>
     public int? RollbackIndex { get; set; }
@@ -143,7 +202,10 @@ public sealed class PartDocument
         var end = Math.Min(RollbackIndex ?? Features.Count, Features.Count);
         var state = RebuildState.Initial;
         var reuse = true;
-        var fingerprint = string.Empty;
+        VariableValues = Equations.Evaluate(EffectiveVariables, out var variableErrors);
+        VariableErrors = variableErrors;
+        var fingerprint = string.Join(";", VariableValues.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}={kv.Value:R}"));
+        var linkErrors = new Dictionary<string, string>();
         for (var i = 0; i < Features.Count; i++)
         {
             var f = Features[i];
@@ -153,7 +215,16 @@ public sealed class PartDocument
                 continue;
             }
 
-            fingerprint = Fingerprint(f, fingerprint);
+            try
+            {
+                Equations.Apply(f, VariableValues);
+            }
+            catch (FeatureException ex)
+            {
+                linkErrors[f.Id] = ex.Message;
+            }
+
+            fingerprint = Fingerprint(f, fingerprint, IsSuppressed(f));
             if (reuse && i < _cache.Count && _cache[i].Fingerprint == fingerprint)
             {
                 state = _cache[i].State;
@@ -166,9 +237,13 @@ public sealed class PartDocument
                 _cache.RemoveRange(i, _cache.Count - i);
             }
 
-            if (f.IsSuppressed)
+            if (IsSuppressed(f))
             {
                 _results[f.Id] = new FeatureResult(FeatureStatus.Suppressed, null);
+            }
+            else if (linkErrors.TryGetValue(f.Id, out var linkError))
+            {
+                _results[f.Id] = new FeatureResult(FeatureStatus.Error, linkError);
             }
             else
             {
@@ -203,6 +278,23 @@ public sealed class PartDocument
         State = state;
     }
 
+    /// <summary>Adds or replaces a global variable.</summary>
+    public void SetVariable(string name, string expression)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(expression);
+        var i = Variables.FindIndex(v => v.Name == name);
+        var variable = new GlobalVariable(name, expression);
+        if (i >= 0)
+        {
+            Variables[i] = variable;
+        }
+        else
+        {
+            Variables.Add(variable);
+        }
+    }
+
     /// <summary>Drops cached states so the next rebuild re-executes everything.</summary>
     public void InvalidateAll() => _cache.Clear();
 
@@ -211,20 +303,75 @@ public sealed class PartDocument
     {
         double volume = 0, area = 0;
         var moment = Geometry.Vec3.Zero;
+        var parts = new List<(MassProperties M, Geometry.Vec3 C)>();
         foreach (var b in Bodies)
         {
             var m = b.Shape.MassProperties;
             volume += m.Volume;
             area += m.SurfaceArea;
             moment += m.CenterOfMass * m.Volume;
+            parts.Add((m, m.CenterOfMass));
         }
 
-        var mass = volume * 1e-9 * Material.Density;
-        return new PartMassProperties(volume, area, mass, volume > 0 ? moment / volume : Geometry.Vec3.Zero);
+        var density = Material.Density * 1e-9; // kg/mm³
+        var mass = volume * density;
+        var com = volume > 0 ? moment / volume : Geometry.Vec3.Zero;
+
+        // Combine body tensors about the overall centre of mass (parallel-axis theorem).
+        var inertia = new double[9];
+        foreach (var (m, c) in parts)
+        {
+            var bodyMass = m.Volume * density;
+            var d = c - com;
+            double[] own = [m.Ixx, m.Ixy, m.Ixz, m.Ixy, m.Iyy, m.Iyz, m.Ixz, m.Iyz, m.Izz];
+            double[] dv = [d.X, d.Y, d.Z];
+            var d2 = d.LengthSquared;
+            for (var i = 0; i < 3; i++)
+            {
+                for (var j = 0; j < 3; j++)
+                {
+                    inertia[(3 * i) + j] += (own[(3 * i) + j] * density) + (bodyMass * (((i == j) ? d2 : 0) - (dv[i] * dv[j])));
+                }
+            }
+        }
+
+        return new PartMassProperties(volume, area, mass, com, inertia);
     }
 
-    private static string Fingerprint(Feature f, string previous) =>
-        $"{previous.GetHashCode(StringComparison.Ordinal):x8}:{f.IsSuppressed}:{JsonSerializer.Serialize(f, Options)}";
+    /// <summary>
+    /// Moves a feature up (negative) or down (positive) in the history, unless
+    /// that would put it before something it uses or after something that uses it.
+    /// </summary>
+    public bool Move(Feature feature, int delta)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        var from = Features.IndexOf(feature);
+        var to = from + delta;
+        if (from < 0 || to < 0 || to >= Features.Count || delta == 0)
+        {
+            return false;
+        }
+
+        var lo = Math.Min(from, to);
+        var hi = Math.Max(from, to);
+        var between = Features.GetRange(lo, hi - lo + 1).Where(f => f != feature).ToList();
+        if (delta < 0 && between.Any(f => feature.Dependencies.Contains(f.Id)))
+        {
+            return false;
+        }
+
+        if (delta > 0 && between.Any(f => f.Dependencies.Contains(feature.Id)))
+        {
+            return false;
+        }
+
+        Features.RemoveAt(from);
+        Features.Insert(to, feature);
+        return true;
+    }
+
+    private static string Fingerprint(Feature f, string previous, bool suppressed) =>
+        $"{previous.GetHashCode(StringComparison.Ordinal):x8}:{suppressed}:{JsonSerializer.Serialize(f, Options)}";
 
     // ------------------------------------------------------------ persistence
 
@@ -243,6 +390,9 @@ public sealed class PartDocument
         public Material? Material { get; set; }
         public int? RollbackIndex { get; set; }
         public int NextId { get; set; }
+        public List<GlobalVariable>? Variables { get; set; }
+        public List<Configuration>? Configurations { get; set; }
+        public string? ActiveConfiguration { get; set; }
         public List<Feature> Features { get; set; } = [];
     }
 
@@ -252,6 +402,9 @@ public sealed class PartDocument
         Material = Material,
         RollbackIndex = RollbackIndex,
         NextId = _nextId,
+        Variables = Variables.Count > 0 ? Variables : null,
+        Configurations = Configurations.Count > 1 || Configurations[0].Variables.Count > 0 || Configurations[0].Suppression.Count > 0 || Configurations[0].Name != "Default" ? Configurations : null,
+        ActiveConfiguration = ActiveConfiguration == "Default" ? null : ActiveConfiguration,
         Features = Features,
     }, Options);
 
@@ -269,6 +422,14 @@ public sealed class PartDocument
             RollbackIndex = dto.RollbackIndex,
         };
         doc.Features.AddRange(dto.Features);
+        doc.Variables.AddRange(dto.Variables ?? []);
+        if (dto.Configurations is { Count: > 0 } configs)
+        {
+            doc.Configurations.Clear();
+            doc.Configurations.AddRange(configs);
+        }
+
+        doc.ActiveConfiguration = dto.ActiveConfiguration ?? doc.Configurations[0].Name;
         doc._nextId = Math.Max(dto.NextId, doc.Features.Count + 1);
         return doc;
     }

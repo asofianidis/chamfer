@@ -37,6 +37,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private static readonly FilePickerFileType StepFileType = new("STEP") { Patterns = ["*.step", "*.stp"] };
     private static readonly FilePickerFileType IgesFileType = new("IGES") { Patterns = ["*.iges", "*.igs"] };
     private static readonly FilePickerFileType StlFileType = new("STL") { Patterns = ["*.stl"] };
+    private static readonly FilePickerFileType CsvFileType = new("Design table (CSV)") { Patterns = ["*.csv"] };
 
     private readonly Stack<string> _undo = new();
     private readonly Stack<string> _redo = new();
@@ -54,6 +55,11 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Revolved Boss", "Revolve a sketch about a centerline", new RelayCommand(() => StartSketchFeature(sf => new RevolveFeature { SketchId = sf.Id })), "◐"),
             new("Extruded Cut", "Cut by extruding a sketch", new RelayCommand(() => StartSketchFeature(sf => new ExtrudeFeature { SketchId = sf.Id, IsCut = true, EndCondition = EndCondition.ThroughAll })), "▭"),
             new("Revolved Cut", "Cut by revolving a sketch", new RelayCommand(() => StartSketchFeature(sf => new RevolveFeature { SketchId = sf.Id, IsCut = true })), "◑"),
+            new("Swept Boss", "Sweep a profile sketch along a path sketch", new RelayCommand(() => StartFeature(NewSweep(cut: false))), "⤳"),
+            new("Lofted Boss", "Loft through profile sketches in order", new RelayCommand(() => StartFeature(NewLoft(cut: false))), "⏢"),
+            new("Swept Cut", "Cut by sweeping a profile along a path", new RelayCommand(() => StartFeature(NewSweep(cut: true))), "⤳"),
+            new("Lofted Cut", "Cut by lofting through profiles", new RelayCommand(() => StartFeature(NewLoft(cut: true))), "⏢"),
+            new("Rib", "Thicken an open sketch into the part", new RelayCommand(() => StartSketchFeature(sf => new RibFeature { SketchId = sf.Id, Thickness = 2 })), "⊿"),
             new("Fillet", "Round edges", new RelayCommand(() => StartFeature(new FilletFeature { Radius = 2 })), "◜"),
             new("Chamfer", "Bevel edges", new RelayCommand(() => StartFeature(new ChamferFeature { Distance = 1 })), "◸"),
             new("Shell", "Hollow the part", new RelayCommand(() => StartFeature(new ShellFeature { Thickness = 1 })), "□"),
@@ -72,6 +78,42 @@ public sealed partial class MainViewModel : ViewModelBase
     public PartScene SceneBuilder { get; } = new();
 
     public ObservableCollection<FeatureNode> Tree { get; } = [];
+
+    public ObservableCollection<string> ConfigurationNames { get; } = [];
+
+    [ObservableProperty]
+    public partial string? ActiveConfigurationName { get; set; }
+
+    private bool _syncingConfigurations;
+
+    partial void OnActiveConfigurationNameChanged(string? value)
+    {
+        if (_syncingConfigurations || value is null || value == Document.ActiveConfiguration)
+        {
+            return;
+        }
+
+        CancelEditor();
+        Document.ActiveConfiguration = value;
+        RebuildAndRefresh();
+    }
+
+    private void RefreshConfigurations()
+    {
+        _syncingConfigurations = true;
+        var names = Document.Configurations.Select(c => c.Name).ToList();
+        if (!names.SequenceEqual(ConfigurationNames))
+        {
+            ConfigurationNames.Clear();
+            foreach (var n in names)
+            {
+                ConfigurationNames.Add(n);
+            }
+        }
+
+        ActiveConfigurationName = Document.Active.Name;
+        _syncingConfigurations = false;
+    }
 
     public IReadOnlyList<CommandItem> FeatureCommands { get; }
 
@@ -128,7 +170,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool Perspective { get; set; }
 
-    public bool IsModelMode => Sketch is null;
+    public bool IsModelMode => Sketch is null && DrawingDoc is null;
     public bool IsSketchMode => Sketch is not null;
     public bool ShowTree => Editor is null;
     public bool HasEditor => Editor is not null;
@@ -136,7 +178,11 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>The sketch feature being edited in sketch mode.</summary>
     public SketchFeature? EditingSketch { get; private set; }
 
-    partial void OnSketchChanged(SketchViewModel? value) => OnPropertyChanged(nameof(IsSketchMode));
+    partial void OnSketchChanged(SketchViewModel? value)
+    {
+        OnPropertyChanged(nameof(IsSketchMode));
+        RaiseModeChanged();
+    }
 
     partial void OnDisplayStyleChanged(DisplayStyle value) => RaiseScene();
 
@@ -147,7 +193,9 @@ public sealed partial class MainViewModel : ViewModelBase
             return;
         }
 
-        SelectionItem? item = value.Feature is { } f ? SelectionItem.ForFeature(f) : value.PlaneId is { } p ? SelectionItem.Plane(p, value.Name) : null;
+        SelectionItem? item = value.Tag is Chamfer.Assembly.Component c ? ComponentItem(c)
+            : value.Feature is { } f ? SelectionItem.ForFeature(f)
+            : value.PlaneId is { } p ? SelectionItem.Plane(p, value.Name) : null;
         if (item is not null && !Selection.Any(s => s.SameTarget(item)))
         {
             SetSelection([item]);
@@ -158,7 +206,20 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public void RebuildAndRefresh()
     {
+        if (DrawingDoc is not null)
+        {
+            RefreshDrawing();
+            return;
+        }
+
+        if (AssemblyDoc is not null)
+        {
+            RefreshAssembly();
+            return;
+        }
+
         Document.Rebuild();
+        RefreshConfigurations();
         RefreshTree();
         var errors = Document.Features.Where(f => Document.Results.TryGetValue(f.Id, out var r) && r.Status == FeatureStatus.Error).ToList();
         var warnings = Document.Features.Where(f => Document.Results.TryGetValue(f.Id, out var r) && r.Status == FeatureStatus.Warning).ToList();
@@ -254,13 +315,17 @@ public sealed partial class MainViewModel : ViewModelBase
     private void RaiseScene() => SceneChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Builds the 3D scene for the current state.</summary>
-    public Scene BuildScene() => SceneBuilder.Build(Document, Selection, Hover, Palette, DisplayStyle, EditingSketch?.Id);
+    public Scene BuildScene() => AssemblyDoc is { } asm
+        ? AssemblyBuilder.Build(asm, Selection, Hover, Palette, DisplayStyle, Exploded)
+        : SceneBuilder.Build(Document, Selection, Hover, Palette, DisplayStyle, EditingSketch?.Id);
 
     // ------------------------------------------------------------- undo
 
+    private string CurrentState() => DrawingDoc is { } drw ? "drw:" + drw.Save() : AssemblyDoc is { } asm ? "asm:" + asm.Save() : Document.Save();
+
     private void Snapshot()
     {
-        _undo.Push(Document.Save());
+        _undo.Push(CurrentState());
         _redo.Clear();
         _dirty = true;
         UndoCommand.NotifyCanExecuteChanged();
@@ -269,6 +334,21 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void Restore(string json)
     {
+        if (json.StartsWith("drw:", StringComparison.Ordinal))
+        {
+            RestoreDrawing(json[4..]);
+            return;
+        }
+
+        if (json.StartsWith("asm:", StringComparison.Ordinal))
+        {
+            AssemblyDoc?.RestoreFrom(json[4..]);
+            Selection.Clear();
+            Hover = null;
+            RebuildAndRefresh();
+            return;
+        }
+
         Document = PartDocument.Load(json);
         Selection.Clear();
         Hover = null;
@@ -290,7 +370,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
 
         CancelEditor();
-        _redo.Push(Document.Save());
+        _redo.Push(CurrentState());
         Restore(_undo.Pop());
         _dirty = true;
         UndoCommand.NotifyCanExecuteChanged();
@@ -313,7 +393,7 @@ public sealed partial class MainViewModel : ViewModelBase
             return;
         }
 
-        _undo.Push(Document.Save());
+        _undo.Push(CurrentState());
         Restore(_redo.Pop());
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
@@ -353,13 +433,15 @@ public sealed partial class MainViewModel : ViewModelBase
         EdgePick e => SelectionItem.Edge(e.Body, e.Index),
         PlanePick p => SelectionItem.Plane(p.PlaneId, p.Label),
         SketchPick s when Document.Find(s.FeatureId) is { } f => SelectionItem.ForFeature(f),
+        ComponentPick { IsEdge: false } c => new SelectionItem(SelectionKind.Face, c.Body.FaceRef(c.Index), Label: $"{c.Component.Name}: face <{c.Body.Face(c.Index).Surface.ToString().ToLowerInvariant()}>", ComponentId: c.Component.Id),
+        ComponentPick c => new SelectionItem(SelectionKind.Edge, c.Body.EdgeRef(c.Index), Label: $"{c.Component.Name}: edge <{c.Body.Edge(c.Index).Curve.ToString().ToLowerInvariant()}>", ComponentId: c.Component.Id),
         _ => null,
     };
 
     /// <summary>The viewport hovered a pick id.</summary>
     public void OnHover(int id)
     {
-        var item = ToSelection(SceneBuilder.Target(id));
+        var item = ToSelection(Picks.Target(id));
         if (item?.SameTarget(Hover ?? new SelectionItem(SelectionKind.Feature)) == true || (item is null && Hover is null))
         {
             return;
@@ -372,7 +454,7 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>The viewport was clicked. Ctrl/Cmd/Shift adds to the selection.</summary>
     public void OnPick(int id, bool add, int clickCount)
     {
-        var item = ToSelection(SceneBuilder.Target(id));
+        var item = ToSelection(Picks.Target(id));
         if (item is not null && _pendingPlanePick is { } pending && item.AsPlane() is not null)
         {
             _pendingPlanePick = null;
@@ -539,6 +621,22 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private SketchFeature? _lastSketch;
 
+    private List<SketchFeature> SelectedSketches() =>
+        [.. Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => Document.Find(s.FeatureId!)).OfType<SketchFeature>()];
+
+    private SweepFeature NewSweep(bool cut)
+    {
+        var sketches = SelectedSketches();
+        return new SweepFeature
+        {
+            IsCut = cut,
+            ProfileSketchId = sketches.Count > 0 ? sketches[0].Id : string.Empty,
+            PathSketchId = sketches.Count > 1 ? sketches[1].Id : string.Empty,
+        };
+    }
+
+    private LoftFeature NewLoft(bool cut) => new() { IsCut = cut, SectionSketchIds = [.. SelectedSketches().Select(s => s.Id)] };
+
     private void StartHole()
     {
         if (Selection.LastOrDefault(s => s.Kind == SelectionKind.Face) is not { } face || ResolvePlane(new PlaneRef(Face: face.Ref)) is null)
@@ -572,6 +670,7 @@ public sealed partial class MainViewModel : ViewModelBase
             n.Commit();
         }
 
+        Editor.OnAccept?.Invoke();
         if (Editor.IsFeature && _editorSnapshot is not null)
         {
             _undo.Push(_editorSnapshot);
@@ -596,8 +695,10 @@ public sealed partial class MainViewModel : ViewModelBase
         }
 
         var feature = Editor.Feature;
+        var onCancel = Editor.OnCancel;
         Editor = null;
         _measuring = false;
+        onCancel?.Invoke();
         if (feature is not null && _editorSnapshot is not null)
         {
             Restore(_editorSnapshot);
@@ -672,7 +773,7 @@ public sealed partial class MainViewModel : ViewModelBase
         editor.Load(SketchSerializer.Serialize(sf.Sketch), null);
         EditingSketch = sf;
         _afterSketch = after;
-        Sketch = new SketchViewModel(editor);
+        Sketch = new SketchViewModel(editor, ConvertAt);
         Sketch.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(SketchViewModel.StatusText))
@@ -725,6 +826,56 @@ public sealed partial class MainViewModel : ViewModelBase
         }
     }
 
+    /// <summary>Set by the window: the model edge drawn behind the sketch at a sketch-space point.</summary>
+    public Func<Sketching.Vec2, (Body Body, int Edge)?>? PickUnderlayEdge { get; set; }
+
+    private bool ConvertAt(Sketching.Vec2 at)
+    {
+        if (PickUnderlayEdge?.Invoke(at) is not { } hit || Sketch is null || EditingPlane is not { } plane)
+        {
+            return false;
+        }
+
+        var editor = Sketch.Editor;
+        editor.BeginChange();
+        var made = EdgeProjection.Project(editor.Sketch, hit.Body, hit.Edge, plane);
+        if (made.Count == 0)
+        {
+            editor.CancelChange();
+            return false;
+        }
+
+        editor.EndChange(solve: true);
+        return true;
+    }
+
+    /// <summary>Converts the outline of the face the sketch is on.</summary>
+    [RelayCommand]
+    private void ConvertFace()
+    {
+        if (Sketch is null || EditingSketch?.Plane.Face is not { } faceRef || EditingPlane is not { } plane)
+        {
+            MessageText = "Convert Face works on sketches placed on a model face.";
+            return;
+        }
+
+        var body = Document.Bodies.FirstOrDefault(b => b.HasFace(faceRef.Name));
+        if (body is null)
+        {
+            return;
+        }
+
+        var face = body.ResolveFace(faceRef, out _);
+        var editor = Sketch.Editor;
+        editor.BeginChange();
+        foreach (var edge in body.Shape.EdgesOfFace(face))
+        {
+            EdgeProjection.Project(editor.Sketch, body, edge, plane);
+        }
+
+        editor.EndChange(solve: true);
+    }
+
     /// <summary>Plane of the sketch being edited.</summary>
     public Plane3? EditingPlane => EditingSketch is null ? null : ResolvePlane(EditingSketch.Plane);
 
@@ -742,13 +893,29 @@ public sealed partial class MainViewModel : ViewModelBase
     [RelayCommand]
     private void ToggleSuppress()
     {
+        if (AssemblyDoc is not null && SelectedNode?.Tag is { } tag)
+        {
+            SnapshotAssembly();
+            if (tag is Chamfer.Assembly.Component comp)
+            {
+                comp.Suppressed = !comp.Suppressed;
+            }
+            else if (tag is Chamfer.Assembly.Mate mate)
+            {
+                mate.Suppressed = !mate.Suppressed;
+            }
+
+            RebuildAndRefresh();
+            return;
+        }
+
         if (SelectedNode?.Feature is not { } f)
         {
             return;
         }
 
         Snapshot();
-        f.IsSuppressed = !f.IsSuppressed;
+        Document.SetSuppressed(f, !Document.IsSuppressed(f));
         RebuildAndRefresh();
     }
 
@@ -758,6 +925,24 @@ public sealed partial class MainViewModel : ViewModelBase
         if (Sketch is not null)
         {
             Sketch.DeleteCommand.Execute(null);
+            return;
+        }
+
+        if (AssemblyDoc is { } asm && SelectedNode?.Tag is { } tag)
+        {
+            SnapshotAssembly();
+            if (tag is Chamfer.Assembly.Component comp)
+            {
+                asm.RemoveComponent(comp);
+            }
+            else if (tag is Chamfer.Assembly.Mate mate)
+            {
+                asm.Mates.Remove(mate);
+            }
+
+            SelectedNode = null;
+            SetSelection([]);
+            RebuildAndRefresh();
             return;
         }
 
@@ -777,6 +962,34 @@ public sealed partial class MainViewModel : ViewModelBase
         SelectedNode = null;
         SetSelection([]);
         RebuildAndRefresh();
+    }
+
+    [RelayCommand]
+    private void MoveUp() => MoveSelected(-1);
+
+    [RelayCommand]
+    private void MoveDown() => MoveSelected(1);
+
+    private void MoveSelected(int delta)
+    {
+        if (SelectedNode?.Feature is not { } f)
+        {
+            return;
+        }
+
+        var snapshot = Document.Save();
+        if (!Document.Move(f, delta))
+        {
+            MessageText = $"{f.Name} can't move past a feature it depends on or that depends on it.";
+            return;
+        }
+
+        _undo.Push(snapshot);
+        _redo.Clear();
+        _dirty = true;
+        UndoCommand.NotifyCanExecuteChanged();
+        RebuildAndRefresh();
+        SelectedNode = Tree.FirstOrDefault(n => n.Feature == f);
     }
 
     [RelayCommand]
@@ -828,6 +1041,9 @@ public sealed partial class MainViewModel : ViewModelBase
         panel.AddInfo(new InfoField("Volume", $"{m.Volume.ToString("0.###", inv)} mm³"));
         panel.AddInfo(new InfoField("Surface area", $"{m.SurfaceArea.ToString("0.###", inv)} mm²"));
         panel.AddInfo(new InfoField("Centre of mass", m.CenterOfMass.ToString()));
+        panel.AddInfo(new InfoField("Moments of inertia (kg·mm², about centre of mass)",
+            $"Ixx {m.Ixx.ToString("0.###", inv)}\nIyy {m.Iyy.ToString("0.###", inv)}\nIzz {m.Izz.ToString("0.###", inv)}\n" +
+            $"Ixy {m.Ixy.ToString("0.###", inv)}  Ixz {m.Ixz.ToString("0.###", inv)}  Iyz {m.Iyz.ToString("0.###", inv)}"));
         var box = Document.Bodies.Aggregate(Box3.Empty, (b, body) => b.Union(body.Shape.Bounds));
         if (!box.IsEmpty)
         {
@@ -836,6 +1052,200 @@ public sealed partial class MainViewModel : ViewModelBase
 
         _massPanel = true;
         Editor = panel;
+    }
+
+
+    /// <summary>Global variables: list them and add, change or delete with "Name = expression".</summary>
+    [RelayCommand]
+    private void ShowEquations()
+    {
+        CancelEditor();
+        var panel = FeatureEditor.Info("Equations");
+        var inv = CultureInfo.InvariantCulture;
+        panel.AddInfo(new InfoField("How to use",
+            "Type Name = expression and press Enter to add or change a variable (Name = to delete it). " +
+            "Use a variable anywhere a number is asked for by typing =Name, or an expression such as =Width/2, including sketch dimensions."));
+        panel.AddInfo(new TextField("Name = expression", string.Empty, SetEquation));
+        foreach (var v in Document.Variables)
+        {
+            var value = Document.VariableValues.TryGetValue(v.Name, out var x) ? x.ToString("0.####", inv) : null;
+            var error = Document.VariableErrors.GetValueOrDefault(v.Name);
+            panel.AddInfo(new InfoField(v.Name, value is null ? $"= {v.Expression}  ⚠ {error}" : $"= {v.Expression}  →  {value}"));
+        }
+
+        Editor = panel;
+    }
+
+    private void SetEquation(string text)
+    {
+        var eq = text.IndexOf('=', StringComparison.Ordinal);
+        var name = (eq < 0 ? text : text[..eq]).Trim().Trim('"');
+        var expr = eq < 0 ? string.Empty : text[(eq + 1)..].Trim();
+        if (name.Length == 0 || !name.All(c => char.IsLetterOrDigit(c) || c is '_' or '@' or '.') || char.IsDigit(name[0]))
+        {
+            MessageText = "Variable names start with a letter and use letters, digits and underscores.";
+            return;
+        }
+
+        Snapshot();
+        if (expr.Length == 0)
+        {
+            Document.Variables.RemoveAll(v => v.Name == name);
+        }
+        else
+        {
+            Document.SetVariable(name, expr);
+        }
+
+        RebuildAndRefresh();
+        ShowEquations();
+    }
+
+    /// <summary>Configurations: add, switch, override variables, delete, and design tables.</summary>
+    [RelayCommand]
+    private void ShowConfigurations()
+    {
+        CancelEditor();
+        var panel = FeatureEditor.Info("Configurations");
+        panel.AddInfo(new InfoField("Active", $"{Document.Active.Name} (switch with the list above the feature tree)"));
+        panel.AddInfo(new TextField("Add configuration", string.Empty, name =>
+        {
+            if (Document.Configurations.Exists(c => c.Name == name))
+            {
+                MessageText = $"There is already a configuration named {name}.";
+                return;
+            }
+
+            Snapshot();
+            Document.Configurations.Add(Document.Active.Copy(name));
+            Document.ActiveConfiguration = name;
+            RebuildAndRefresh();
+            ShowConfigurations();
+        }));
+        panel.AddInfo(new TextField("Override here (Name = value)", string.Empty, text =>
+        {
+            var eq = text.IndexOf('=', StringComparison.Ordinal);
+            if (eq <= 0)
+            {
+                MessageText = "Type a variable name, =, and its value for this configuration.";
+                return;
+            }
+
+            Snapshot();
+            var name = text[..eq].Trim().Trim('"');
+            var expr = text[(eq + 1)..].Trim();
+            if (expr.Length == 0)
+            {
+                Document.Active.Variables.Remove(name);
+            }
+            else
+            {
+                Document.Active.Variables[name] = expr;
+            }
+
+            RebuildAndRefresh();
+            ShowConfigurations();
+        }));
+        foreach (var (name, expr) in Document.Active.Variables)
+        {
+            panel.AddInfo(new InfoField($"{name} (overridden)", $"= {expr}"));
+        }
+
+        var suppressed = Document.Active.Suppression.Where(kv => kv.Value).Select(kv => Document.Find(kv.Key)?.Name).OfType<string>().ToList();
+        if (suppressed.Count > 0)
+        {
+            panel.AddInfo(new InfoField("Suppressed here", string.Join(", ", suppressed)));
+        }
+
+        if (Document.Configurations.Count > 1)
+        {
+            panel.AddInfo(new ButtonField("Delete this configuration", new RelayCommand(() =>
+            {
+                Snapshot();
+                Document.Configurations.Remove(Document.Active);
+                Document.ActiveConfiguration = Document.Configurations[0].Name;
+                RebuildAndRefresh();
+                ShowConfigurations();
+            })));
+        }
+
+        panel.AddInfo(new ButtonField("Export design table", ExportDesignTableCommand));
+        panel.AddInfo(new ButtonField("Import design table", ImportDesignTableCommand));
+        Editor = panel;
+    }
+
+    [RelayCommand]
+    private async Task ExportDesignTable()
+    {
+        if (StorageProvider is null)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export Design Table",
+            DefaultExtension = "csv",
+            SuggestedFileName = "DesignTable",
+            FileTypeChoices = [CsvFileType],
+        });
+        if (file?.TryGetLocalPath() is { } path)
+        {
+            await File.WriteAllTextAsync(path, DesignTable.Export(Document));
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportDesignTable()
+    {
+        if (StorageProvider is null)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Import Design Table", FileTypeFilter = [CsvFileType] });
+        if (files is not [var file] || file.TryGetLocalPath() is not { } path)
+        {
+            return;
+        }
+
+        try
+        {
+            Snapshot();
+            DesignTable.Import(Document, await File.ReadAllTextAsync(path));
+            RebuildAndRefresh();
+            ShowConfigurations();
+        }
+        catch (FormatException ex)
+        {
+            MessageText = $"Couldn't read the design table: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// Links (or unlinks, when <paramref name="expression"/> is null) a dimension of the sketch being
+    /// edited to an equation, and returns the value it evaluates to.
+    /// </summary>
+    public double? LinkDimension(int constraintId, string? expression)
+    {
+        if (EditingSketch is not { } sf)
+        {
+            return null;
+        }
+
+        if (expression is null)
+        {
+            sf.DimensionLinks?.Remove(constraintId);
+            return null;
+        }
+
+        if (!Expressions.TryEvaluate(expression, n => Document.VariableValues.TryGetValue(n, out var v) ? v : null, out var value))
+        {
+            return null;
+        }
+
+        (sf.DimensionLinks ??= [])[constraintId] = expression;
+        return value;
     }
 
     [RelayCommand]
@@ -963,6 +1373,13 @@ public sealed partial class MainViewModel : ViewModelBase
 
         Editor = null;
         Document = new PartDocument();
+        AssemblyDoc = null;
+        DrawingDoc = null;
+        _drawingRenderer = null;
+        _drawingSource = null;
+        SheetGraphics = null;
+        _returnTo = null;
+        Exploded = false;
         FilePath = null;
         _undo.Clear();
         _redo.Clear();
@@ -970,6 +1387,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _lastSketch = null;
         SetSelection([]);
         RebuildAndRefresh();
+        RaiseModeChanged();
         ViewAction?.Invoke(StandardView.Trimetric);
     }
 
@@ -977,6 +1395,18 @@ public sealed partial class MainViewModel : ViewModelBase
     public void LoadFile(string path, string text)
     {
         ArgumentNullException.ThrowIfNull(path);
+        if (path.EndsWith("." + Chamfer.Assembly.AssemblyDocument.FileExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            LoadAssembly(path, text);
+            return;
+        }
+
+        if (path.EndsWith("." + Chamfer.Drawing.DrawingDocument.FileExtension, StringComparison.OrdinalIgnoreCase))
+        {
+            LoadDrawing(path, text);
+            return;
+        }
+
         if (path.EndsWith(".chsk", StringComparison.OrdinalIgnoreCase))
         {
             New();
@@ -1006,7 +1436,7 @@ public sealed partial class MainViewModel : ViewModelBase
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Open",
-            FileTypeFilter = [PartFileType, SketchFileType],
+            FileTypeFilter = [PartFileType, AssemblyFileType, DrawingFileType, SketchFileType],
             AllowMultiple = false,
         });
         if (files is not [var file])
@@ -1037,6 +1467,34 @@ public sealed partial class MainViewModel : ViewModelBase
         if (Sketch is not null)
         {
             ExitSketch();
+        }
+
+        if (DrawingDoc is not null)
+        {
+            try
+            {
+                await SaveDrawing(path is not null && path.EndsWith("." + Chamfer.Drawing.DrawingDocument.FileExtension, StringComparison.OrdinalIgnoreCase) ? path : null);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                MessageText = $"Couldn't save: {ex.Message}";
+            }
+
+            return;
+        }
+
+        if (AssemblyDoc is not null)
+        {
+            try
+            {
+                await SaveAssembly(path is not null && path.EndsWith("." + Chamfer.Assembly.AssemblyDocument.FileExtension, StringComparison.OrdinalIgnoreCase) ? path : null);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                MessageText = $"Couldn't save: {ex.Message}";
+            }
+
+            return;
         }
 
         try
@@ -1127,6 +1585,13 @@ public sealed partial class MainViewModel : ViewModelBase
 
         try
         {
+            if (AssemblyDoc is { } asm)
+            {
+                Chamfer.Assembly.AssemblyTools.Export(asm, path);
+                MessageText = $"Exported {Path.GetFileName(path)}.";
+                return;
+            }
+
             Document.Export(path);
             MessageText = $"Exported {Path.GetFileName(path)}.";
         }
@@ -1142,6 +1607,14 @@ public sealed partial class MainViewModel : ViewModelBase
         if (Sketch is not null)
         {
             Sketch.Escape();
+            return;
+        }
+
+        if (DrawingDoc is not null && Editor is null)
+        {
+            _pendingSheetClick = null;
+            DrawingSelection.Clear();
+            RefreshDrawing();
             return;
         }
 

@@ -118,6 +118,19 @@ public readonly record struct ProfileSegment(SegmentKind Kind, double A, double 
         new(SegmentKind.Ellipse, cx, cy, major, minor, angle, 0, 0);
 }
 
+/// <summary>Kinds of projected lines in a drawing view.</summary>
+public enum LineKind
+{
+    Visible = 0,
+    VisibleTangent = 1,
+    VisibleSilhouette = 2,
+    Hidden = 3,
+    HiddenSilhouette = 4,
+}
+
+/// <summary>A projected polyline in view coordinates.</summary>
+public sealed record ProjectedLine(LineKind Kind, IReadOnlyList<Point2> Points);
+
 /// <summary>Thrown when the geometry kernel rejects an operation.</summary>
 public sealed class KernelException : Exception
 {
