@@ -503,7 +503,7 @@ public sealed partial class MainViewModel : ViewModelBase
             return scene;
         }
 
-        return SceneBuilder.Build(Document, Selection, Hover, Palette, DisplayStyle, EditingSketch?.Id);
+        return ApplyAnalysis(SceneBuilder.Build(Document, Selection, Hover, Palette, DisplayStyle, EditingSketch?.Id));
     }
 
     // ------------------------------------------------------------- undo
