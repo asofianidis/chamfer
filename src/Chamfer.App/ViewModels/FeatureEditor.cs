@@ -512,7 +512,11 @@ public sealed partial class FeatureEditor : ObservableObject
             case BaseFlangeFeature bf:
                 ed.Add(Num("Thickness", "mm", bf, nameof(bf.Thickness), 1e-6));
                 ed.Add(Num("Bend radius", "mm", bf, nameof(bf.BendRadius), 0));
+                ed.Add(new ChoiceField("Bend allowance", ["K-factor", "Bend table", "Bend deduction"], (int)bf.BendMethod, i => Set(() => bf.BendMethod = (BendAllowanceMethod)i)));
                 ed.Add(Num("K-factor", string.Empty, bf, nameof(bf.KFactor), 0));
+                ed.Add(new TextField("Bend table (angle: allowance; ...)", bf.BendTable.Replace("\n", "; ", StringComparison.Ordinal),
+                    v => Set(() => bf.BendTable = string.Join('\n', v.Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)))));
+                ed.Add(Num("Bend deduction (90°)", "mm", bf, nameof(bf.BendDeduction)));
                 ed.Add(Num("Depth (open profiles)", "mm", bf, nameof(bf.Depth), 1e-6));
                 ed.Add(new BoolField("Reverse direction", bf.Reverse, v => Set(() => bf.Reverse = v)));
                 break;

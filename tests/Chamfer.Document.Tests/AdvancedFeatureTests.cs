@@ -611,6 +611,26 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void BendAllowanceFromTablesAndDeductions()
+    {
+        var sm = new SheetMetalState(2, 3, 0.4, Plane3.Front, new Vec3(0, 0, 2), [], [], [], AcceptsFlanges: true);
+        var quarter = Math.PI / 2;
+        Assert.Equal(quarter * (3 + (0.4 * 2)), sm.BendAllowance(quarter), 1e-12);
+
+        var table = sm with { Method = BendAllowanceMethod.BendTable, BendTable = [(45, 2.5), (90, 5.6), (135, 8.0)] };
+        Assert.Equal(5.6, table.BendAllowance(quarter), 1e-12);
+        Assert.Equal(6.8, table.BendAllowance(112.5 * Math.PI / 180), 1e-9); // halfway between 90 and 135
+        Assert.Equal(2.5 * 30 / 45, table.BendAllowance(Math.PI / 6), 1e-9); // below the table, in proportion
+
+        // Deduction: 2 OSSB - BD, OSSB = (r + t) tan(45 deg) = 5 at 90 degrees.
+        var deduction = sm with { Method = BendAllowanceMethod.BendDeduction, BendDeduction90 = 4.2 };
+        Assert.Equal((2 * 5) - 4.2, deduction.BendAllowance(quarter), 1e-12);
+
+        var flange = new BaseFlangeFeature { BendTable = "45: 2.5\n90 = 5.6\nnonsense\n135: 8" };
+        Assert.Equal([(45.0, 2.5), (90.0, 5.6), (135.0, 8.0)], flange.TableRows());
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();
