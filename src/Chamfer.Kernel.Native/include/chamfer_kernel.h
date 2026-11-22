@@ -212,7 +212,8 @@ CHF_API chf_shape* chf_project_curve(chf_shape* curve, chf_shape* target, const 
 /* Joins curves end to end into one wire. */
 CHF_API chf_shape* chf_join_curves(int count, chf_shape* const* curves);
 /* Flex along an axis (frame: origin, axis, x direction) over a length: mode 0 twists by amount
-   radians, 1 tapers to (1 + amount) times the size, 2 stretches by (1 + amount). */
+   radians, 1 tapers to (1 + amount) times the size, 2 stretches by (1 + amount), 3 pushes the surface
+   near the origin along the axis by amount, fading out at a distance of length (point deform). */
 CHF_API chf_shape* chf_flex(chf_shape* s, const double* frame9, int mode, double amount, double length);
 /* A face on a cylinder (frame: origin, axis, angle-zero direction; radius) bounded by polygons given in
    (angle, height) pairs: the first loop is the outline, the rest holes. */

@@ -83,6 +83,10 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 Axis = Selection.Select(s => s.AsAxis()).FirstOrDefault(a => a is not null) ?? AxisRef.Z,
             })), "≀"),
+            new("Deform", "Push the surface near a point, fading out at a radius", new RelayCommand(() => StartFeature(new DeformFeature
+            {
+                PointId = Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => Document.Find(s.FeatureId!)).OfType<ReferencePointFeature>().FirstOrDefault()?.Id ?? string.Empty,
+            })), "◒"),
             new("Wrap", "Emboss or deboss a sketch onto a cylindrical face", new RelayCommand(() => StartFeature(new WrapFeature
             {
                 SketchId = SelectedSketches().Select(s => s.Id).FirstOrDefault() ?? string.Empty,

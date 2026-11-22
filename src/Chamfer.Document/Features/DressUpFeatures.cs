@@ -676,3 +676,62 @@ public sealed class FlexFeature : Feature
     }
 }
 
+/// <summary>
+/// Deform (point): pushes the model's surface near a point along a direction by a distance, fading
+/// smoothly to nothing at a radius, like pressing a dent or pulling a bulge.
+/// </summary>
+public sealed class DeformFeature : Feature
+{
+    public override string DefaultName => "Deform";
+
+    /// <summary>The point to push (a reference point).</summary>
+    public string PointId { get; set; } = string.Empty;
+
+    /// <summary>Which way to push.</summary>
+    public AxisRef Direction { get; set; } = AxisRef.Z;
+
+    public double Distance { get; set; } = 3;
+
+    /// <summary>How far from the point the deformation reaches.</summary>
+    public double Radius { get; set; } = 20;
+
+    /// <summary>Bodies to deform; empty deforms every solid body.</summary>
+    public List<string> Bodies { get; set; } = [];
+
+    public override IEnumerable<string> Dependencies => new[] { PointId, Direction.AxisId }.OfType<string>().Where(id => id.Length > 0);
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (Radius <= 0)
+        {
+            throw new FeatureException("The radius must be greater than zero.");
+        }
+
+        var point = ctx.ResolvePoint(PointId.Length > 0 ? PointId : throw new FeatureException("Select the point to push."));
+        var dir = ctx.ResolveAxis(Direction).Direction.Normalized();
+        var targets = Bodies.Count == 0 ? ctx.Bodies.Where(b => !b.IsSurface).ToList() : Bodies.Select(ctx.FindBody).ToList();
+        foreach (var body in targets.Where(b => b.Shape.Bounds.Intersects(new Box3(point - new Vec3(Radius, Radius, Radius), point + new Vec3(Radius, Radius, Radius)))))
+        {
+            Shape moved;
+            try
+            {
+                moved = Modeling.Flex(body.Shape, point, dir, dir.AnyPerpendicular(), 3, Distance, Radius);
+            }
+            catch (KernelException ex)
+            {
+                throw new FeatureException($"The body can't be deformed that way: {ex.Message}");
+            }
+
+            if (moved.SolidCount == 0 || !moved.IsValid)
+            {
+                moved.Dispose();
+                throw new FeatureException("Deforming left an invalid body; try a smaller distance or a larger radius.");
+            }
+
+            var names = moved.FaceCount == body.FaceCount ? [.. body.FaceNames] : Naming.Finish(moved, new string?[moved.FaceCount], Id);
+            ctx.Bodies[ctx.Bodies.IndexOf(body)] = new Body(moved, names, body.Name, body.Color);
+        }
+    }
+}
+

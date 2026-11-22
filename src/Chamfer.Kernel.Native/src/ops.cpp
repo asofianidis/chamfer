@@ -651,6 +651,14 @@ chf_shape* chf_flex(chf_shape* s, const double* frame9, int mode, double amount,
     gp_Dir x(frame9[6], frame9[7], frame9[8]);
     gp_Dir y = z.Crossed(x);
     std::function<gp_Pnt(const gp_Pnt&)> deform = [&](const gp_Pnt& p) {
+      if (mode == 3) {
+        // Point deform: push along the axis by amount at the origin, fading to nothing at `length`.
+        double r = p.Distance(o) / length;
+        if (r >= 1) return p;
+        double w = (1 - r * r) * (1 - r * r);
+        return p.Translated(gp_Vec(z) * (amount * w));
+      }
+
       gp_Vec d(o, p);
       double lx = d.Dot(gp_Vec(x)), ly = d.Dot(gp_Vec(y)), lz = d.Dot(gp_Vec(z));
       double t = std::clamp(lz / length, 0.0, 1.0);
@@ -677,7 +685,8 @@ chf_shape* chf_flex(chf_shape* s, const double* frame9, int mode, double amount,
 
     BRepBuilderAPI_NurbsConvert convert(s->shape, Standard_True);
     TopoDS_Shape shape = convert.Shape();
-    const int spans = mode == 2 ? 1 : 8;
+    // Enough control points to follow the change: a point deform is local, so it needs a fine grid.
+    const int spans = mode == 2 ? 1 : mode == 3 ? 24 : 8;
     auto refine = [&](double a, double b, const std::function<void(double)>& insert) {
       for (int k = 1; k < spans; ++k) insert(a + (b - a) * k / spans);
     };

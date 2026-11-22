@@ -588,6 +588,29 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void DeformPushesABulge()
+    {
+        // A 100 x 100 x 10 plate; pull up the middle of its top face 5 mm, fading out over 30 mm.
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCenterRectangle(Vec2.Zero, new Vec2(50, 50));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        var top = doc.Add(new ReferencePointFeature { X = 0, Y = 0, Z = 10 });
+        doc.Add(new DeformFeature { PointId = top.Id, Direction = AxisRef.Z, Distance = 5, Radius = 30 });
+        doc.Rebuild();
+        AssertOk(doc);
+
+        // The influence is a ball of radius 30 round the point: the top rises by 5 (1 - r^2/R^2)^2,
+        // and the bottom face, 10 below, lifts too (by the same falloff at its distance).
+        var rise = Math.PI * 900 * 5 / 3;
+        var lift = 5 * Math.PI * Math.Pow(800, 3) / 3 / (900.0 * 900);
+        Assert.Equal(100000 + rise - lift, Volume(doc), (rise - lift) * 0.05);
+        Assert.Equal(15, doc.Bodies[0].Shape.Bounds.Max.Z, 0.5);
+        Assert.Equal(100, doc.Bodies[0].Shape.Bounds.Size.X, 1e-3); // the edges don't move
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();
