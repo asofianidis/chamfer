@@ -115,4 +115,70 @@ public class SheetMetalTests
         loaded.Rebuild();
         Assert.NotNull(loaded.State.SheetMetal);
     }
+
+    private static (PartDocument Doc, int TopEdge) Plate()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(100, 50));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new BaseFlangeFeature { SketchId = sf.Id, Thickness = 2, BendRadius = 1, KFactor = 0.5 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        return (doc, Enumerable.Range(1, body.EdgeCount).Single(i => Vec3.Distance(body.Edge(i).Midpoint, new Vec3(50, 50, 2)) < 1e-6));
+    }
+
+    [Fact]
+    public void ClosedAndOpenHems()
+    {
+        var (doc, edge) = Plate();
+        var hem = doc.Add(new HemFeature { Edges = [doc.Bodies[0].EdgeRef(edge)], Length = 6 });
+        doc.Rebuild();
+        AssertOk(doc);
+        var folded = Assert.Single(doc.Bodies).Shape;
+        Assert.True(folded.IsValid);
+
+        // Closed hem: inner radius 0.02 (a hair of clearance), leg back over the plate.
+        const double r = 0.02;
+        var bend = 100 * (Math.PI / 2) * (((r + 2) * (r + 2)) - (r * r));
+        Assert.Equal(10000 + bend + (6 * 2 * 100), folded.MassProperties.Volume, 1e-3);
+        Assert.Equal(50 + r + 2, folded.Bounds.Max.Y, 1e-6);
+        Assert.Equal(2 + (2 * r) + 2, folded.Bounds.Max.Z, 1e-6);
+
+        // Flat: the hem adds its bend allowance π (r + K t) plus the leg; K = 0.5 keeps the volume.
+        var (_, h) = FlatPattern.Size(doc);
+        Assert.Equal(50 + (Math.PI * (r + 1)) + 6, h, 1e-6);
+        using var flat = FlatPattern.Solid(doc);
+        Assert.Equal(folded.MassProperties.Volume, flat.MassProperties.Volume, 1e-3);
+
+        // Open hem with a 1 mm gap.
+        ((HemFeature)hem).Gap = 1;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(2 + 1 + 2, doc.Bodies[0].Shape.Bounds.Max.Z, 1e-6);
+    }
+
+    [Fact]
+    public void TabExtendsTheSheetAndTheFlatPattern()
+    {
+        var (doc, _) = Plate();
+        var body = doc.Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99 && body.Face(i).Centroid.Z > 1.9);
+        var plane = body.Shape.FacePlane(top)!.Value;
+        var s = new Sketch();
+        var (u0, v0) = plane.ToLocal(new Vec3(100, 10, 2));
+        var (u1, v1) = plane.ToLocal(new Vec3(130, 40, 2));
+        s.AddCornerRectangle(new Vec2(u0, v0), new Vec2(u1, v1));
+        var sf = doc.Add(new SketchFeature { Plane = new PlaneRef(Face: body.FaceRef(top)), Sketch = s });
+        doc.Add(new TabFeature { SketchId = sf.Id });
+        doc.Rebuild();
+        AssertOk(doc);
+        var shape = Assert.Single(doc.Bodies).Shape;
+        Assert.Equal(10000 + (30 * 30 * 2), shape.MassProperties.Volume, 1e-3);
+        Assert.Equal(2, shape.Bounds.Size.Z, 1e-9); // stays in the sheet
+        var (w, _) = FlatPattern.Size(doc);
+        Assert.Equal(130, w, 1e-6);
+        using var flat = FlatPattern.Solid(doc);
+        Assert.Equal(shape.MassProperties.Volume, flat.MassProperties.Volume, 1e-3);
+    }
 }
