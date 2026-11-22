@@ -109,6 +109,15 @@ public sealed class Scene
 
     public DisplayStyle Style { get; set; } = DisplayStyle.ShadedWithEdges;
 
+    /// <summary>Section view: geometry on the positive side of this plane is cut away.</summary>
+    public Plane3? ClipPlane { get; set; }
+
+    /// <summary>Colour of the cut faces in a section view.</summary>
+    public Rgba CapColor { get; set; } = Rgba.FromHex(0xE0A458);
+
+    /// <summary>Zebra stripes instead of normal shading, to judge surface continuity.</summary>
+    public bool Zebra { get; set; }
+
     public Rgba BackgroundTop { get; set; } = Rgba.FromHex(0xF3F5F8);
     public Rgba BackgroundBottom { get; set; } = Rgba.FromHex(0xC5CED8);
 

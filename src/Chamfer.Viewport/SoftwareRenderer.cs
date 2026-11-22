@@ -28,6 +28,9 @@ public sealed class SoftwareRenderer
     public int[] OverlayIds { get; private set; } = [];
 
     private float[] _overlayDepth = [];
+    private Plane3? _clip;
+    private Rgba _cap;
+    private bool _zebra;
     private Camera _camera = new();
 
     public void Resize(int width, int height)
@@ -61,6 +64,9 @@ public sealed class SoftwareRenderer
         var hlr = scene.Style == DisplayStyle.HiddenLinesRemoved;
         var edgeBias = (float)(camera.ViewHeight * 0.004);
 
+        _clip = scene.ClipPlane;
+        _cap = scene.CapColor;
+        _zebra = scene.Zebra;
         var projected = scene.Meshes.Select(m => Project(m.Mesh)).ToList();
         if (drawFaces)
         {
@@ -213,6 +219,9 @@ public sealed class SoftwareRenderer
         public required float[] Nx { get; init; }
         public required float[] Ny { get; init; }
         public required float[] Nz { get; init; }
+
+        /// <summary>Signed distance to the clip plane per vertex (empty without clipping).</summary>
+        public required float[] Clip { get; init; }
     }
 
     private Projected Project(TriangleMesh mesh)
@@ -222,7 +231,9 @@ public sealed class SoftwareRenderer
         {
             X = new float[n], Y = new float[n], Z = new float[n],
             Nx = new float[n], Ny = new float[n], Nz = new float[n],
+            Clip = _clip is null ? [] : new float[n],
         };
+        var clip = _clip;
         var cam = _camera;
         int w = Width, h = Height;
         Parallel.For(0, (n + 4095) / 4096, chunk =>
@@ -238,6 +249,10 @@ public sealed class SoftwareRenderer
                 p.Nx[i] = (float)Vec3.Dot(nn, cam.Right);
                 p.Ny[i] = (float)Vec3.Dot(nn, cam.Up);
                 p.Nz[i] = (float)Vec3.Dot(nn, cam.Back);
+                if (clip is { } cp)
+                {
+                    p.Clip[i] = (float)cp.SignedDistance(mesh.Vertex(i));
+                }
             }
         });
         return p;
@@ -316,6 +331,11 @@ public sealed class SoftwareRenderer
                             continue;
                         }
 
+                        if (p.Clip.Length > 0 && (wa * p.Clip[ia]) + (wb * p.Clip[ib]) + (wc * p.Clip[ic]) > 0)
+                        {
+                            continue;
+                        }
+
                         uint shaded;
                         if (flatColor is { } flat)
                         {
@@ -336,7 +356,8 @@ public sealed class SoftwareRenderer
                                     (byte)((wa * ca.B) + (wb * cb.B) + (wc * cc.B)));
                             }
 
-                            shaded = Shade(pixelColor, nx, ny, nz);
+                            // In a section view, faces seen from behind are the inside of the cut solid: show them as the cap.
+                            shaded = p.Clip.Length > 0 && nz < 0 ? Shade(_cap, 0, 0, 1) : _zebra ? ZebraShade(nx, ny, nz) : Shade(pixelColor, nx, ny, nz);
                         }
 
                         if (opaque)
@@ -353,6 +374,31 @@ public sealed class SoftwareRenderer
                 }
             }
         });
+    }
+
+    /// <summary>Black and white bands from the reflected view direction, like a striped light box.</summary>
+    private static uint ZebraShade(float nx, float ny, float nz)
+    {
+        var len = MathF.Sqrt((nx * nx) + (ny * ny) + (nz * nz));
+        if (len < 1e-12f)
+        {
+            return 0xFF808080u;
+        }
+
+        nx /= len;
+        ny /= len;
+        nz /= len;
+        if (nz < 0)
+        {
+            (nx, ny, nz) = (-nx, -ny, -nz);
+        }
+
+        // Reflect the view vector (0, 0, 1) about the normal; stripes follow its vertical angle.
+        var ry = 2 * nz * ny;
+        var band = (int)MathF.Floor((MathF.Asin(Math.Clamp(ry, -1, 1)) / MathF.PI * 16) + 100) & 1;
+        var v = band == 0 ? 245 : 25;
+        var light = (byte)Math.Clamp(v * (0.75f + (0.25f * nz)), 0, 255);
+        return 0xFF000000u | ((uint)light << 16) | ((uint)light << 8) | light;
     }
 
     private static uint Shade(Rgba c, float nx, float ny, float nz)
@@ -446,6 +492,55 @@ public sealed class SoftwareRenderer
             return;
         }
 
+        if (_clip is { } clip)
+        {
+            // Draw only the parts on the kept side of the section plane.
+            var kept = new List<Vec3>();
+            var count = closed ? points.Count : points.Count - 1;
+            for (var s = 0; s < count; s++)
+            {
+                var a = points[s];
+                var b = points[(s + 1) % points.Count];
+                double da = clip.SignedDistance(a), db = clip.SignedDistance(b);
+                if (da > 0 && db > 0)
+                {
+                    if (kept.Count > 1)
+                    {
+                        DrawPolylineUnclipped(kept, false, color, width, pickId, bias, showHidden, dashed);
+                    }
+
+                    kept.Clear();
+                    continue;
+                }
+
+                var from = da > 0 ? Vec3.Lerp(a, b, da / (da - db)) : a;
+                var to = db > 0 ? Vec3.Lerp(a, b, da / (da - db)) : b;
+                if (kept.Count == 0 || Vec3.Distance(kept[^1], from) > 1e-9)
+                {
+                    if (kept.Count > 1)
+                    {
+                        DrawPolylineUnclipped(kept, false, color, width, pickId, bias, showHidden, dashed);
+                    }
+
+                    kept = [from];
+                }
+
+                kept.Add(to);
+            }
+
+            if (kept.Count > 1)
+            {
+                DrawPolylineUnclipped(kept, false, color, width, pickId, bias, showHidden, dashed);
+            }
+
+            return;
+        }
+
+        DrawPolylineUnclipped(points, closed, color, width, pickId, bias, showHidden, dashed);
+    }
+
+    private void DrawPolylineUnclipped(IReadOnlyList<Vec3> points, bool closed, Rgba color, double width, int pickId, float bias, bool showHidden, bool dashed)
+    {
         var screen = points.Select(p => _camera.Project(p, Width, Height)).ToArray();
         var segments = closed ? screen.Length : screen.Length - 1;
         var packed = Pack(color with { A = 255 });

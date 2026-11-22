@@ -214,6 +214,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Patterns and mirror | Select features in the tree, then **Linear Pattern**, **Circular Pattern** or **Mirror**, and pick a direction, axis or plane in the view. |
 | Property panel | Changes preview live. Type values or expressions (`25.4*2`, `1in`) and press Enter. Click a selection box to make it active, then pick in the view; Ctrl/⌘-click or Shift-click adds and removes. **OK** (Enter) or **Cancel** (Esc). |
 | Feature tree | Double-click to edit. **Suppress**, **Delete** (with dependents), **Roll Here** and **Roll Forward** act on the selected feature. Errors are red, warnings amber. |
+| Analysis | **Section** cuts the part with the Front, Top or Right plane (offset, flip) and shows the cut faces. **Draft Analysis** colours faces green, red or yellow by draft against a pull direction. **Zebra** shows stripes for judging surface smoothness. |
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
 | Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES, STL, 3MF or OBJ. |
@@ -361,7 +362,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Cosmetic threads, thread feature *(modelled ISO metric threads, external and internal)*
 - [ ] Library features
 - [~] Appearances, decals, scenes *(body colours)*
-- [ ] Section view, display states
+- [~] Section view, display states *(section view with capped cut faces)*
 - [ ] Interactive feature editing via drag handles (Instant3D-style)
 
 ### Phase 4: Assemblies
@@ -401,7 +402,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Knit (sew), trim, untrim, extend, and delete face *(knit, forming solids from closed sets)*
 - [~] Thicken, and thickened cut *(thicken)*
 - [ ] Replace face, cut with surface
-- [ ] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection
+- [~] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection *(zebra stripes, draft analysis)*
 - [ ] Freeform
 
 ### Phase 7: Specialized Toolsets
@@ -433,7 +434,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] Thermal studies
 - [ ] Motion study: animation timeline, motors, springs, gravity
 - [ ] Basic kinematics and interference over time
-- [ ] Draft-angle and wall-thickness checks for manufacturability
+- [~] Draft-angle and wall-thickness checks for manufacturability *(draft analysis)*
 
 ### Phase 10: Productivity, Extensibility & Ecosystem
 - [x] **Public C# API** (`Chamfer.Api`) and plugin loading via `AssemblyLoadContext`

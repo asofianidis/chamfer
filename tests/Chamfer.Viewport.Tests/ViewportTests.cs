@@ -165,4 +165,39 @@ public class ViewportTests
         Assert.Equal((byte)'P', bytes[1]);
         Assert.True(bytes.Length > 40);
     }
+
+    [Fact]
+    public void ClipPlaneCutsAndCapsAndZebraStripes()
+    {
+        using var box = Modeling.Box(40, 40, 40);
+        var scene = new Scene { Style = DisplayStyle.Shaded };
+        scene.Meshes.Add(new MeshItem { Mesh = box.Tessellate(), Color = Rgba.FromHex(0x808080) });
+        var cam = new Camera();
+        cam.SetView(StandardView.Front);
+        cam.Fit(scene.Bounds, 200, 200);
+        var r = new SoftwareRenderer();
+        r.Resize(200, 200);
+        r.Render(scene, cam);
+        var uncut = r.Pixels[(100 * 200) + 100];
+
+        // Cut away z > 20: from the front we now look into the solid and see the cap.
+        scene.ClipPlane = new Plane3(new Vec3(0, 0, 20), Vec3.UnitZ, Vec3.UnitX);
+        scene.CapColor = Rgba.FromHex(0xFF0000);
+        r.Render(scene, cam);
+        Save(r, "box-section");
+        var cut = r.Pixels[(100 * 200) + 100];
+        Assert.NotEqual(uncut, cut);
+        Assert.True(((cut >> 16) & 0xFF) > ((cut >> 8) & 0xFF), "the cap colour is reddish");
+
+        scene.ClipPlane = null;
+        scene.Zebra = true;
+        using var sphere = Modeling.Sphere(20);
+        scene.Meshes[0] = new MeshItem { Mesh = sphere.Tessellate() };
+        cam.Fit(scene.Bounds, 200, 200);
+        r.Render(scene, cam);
+        Save(r, "sphere-zebra");
+        var lums = Enumerable.Range(50, 100).Select(y => r.Pixels[(y * 200) + 100] & 0xFF).ToList();
+        Assert.Contains(lums, l => l < 80);
+        Assert.Contains(lums, l => l > 180);
+    }
 }
