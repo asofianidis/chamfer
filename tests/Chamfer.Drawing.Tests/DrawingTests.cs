@@ -249,6 +249,39 @@ public class DrawingTests
     }
 
     [Fact]
+    public void CenterlinesAndCosmeticThreads()
+    {
+        // A plate with a tapped M8 hole from the top face.
+        var (part, _) = Part();
+        var body = part.Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99);
+        var (u, v) = body.Shape.FacePlane(top)!.Value.ToLocal(new Vec3(15, 15, 20));
+        var pts = new Sketch();
+        pts.AddPoint(new Vec2(u, v));
+        var ps = part.Add(new SketchFeature { Plane = new PlaneRef(Face: body.FaceRef(top)), Sketch = pts });
+        part.Add(new HoleFeature { SketchId = ps.Id, Type = HoleType.Tapped, Size = "M8", Diameter = 6.8, ThreadDiameter = 8, Depth = 12 });
+        part.Rebuild();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        var front = drawing.Add(sheet, ViewKind.Front, 120, 150);
+        var below = drawing.AddProjected(sheet, front, ViewSide.Below, 120, 60);
+        var renderer = new DrawingRenderer(drawing);
+        var g = renderer.Render(sheet);
+        List<PolylinePrimitive> Owned(DrawingView view, Pen pen) =>
+            [.. g.Items.OfType<PolylinePrimitive>().Where(p => p.Pen == pen && g.Owners.TryGetValue(p, out var o) && o == view.Id)];
+
+        // End-on (front, looking down the holes): a thin three-quarter circle of the M8 thread.
+        var arc = Assert.Single(Owned(front, Pen.Thin), p => p.Points.Count > 20);
+        var fg = renderer.Geometry(sheet, front);
+        var center = fg.ToSheet(new Vec3(15, 15, 0));
+        Assert.All(arc.Points, p => Assert.Equal(4 * fg.Scale, Point2.Distance(p, center), 1e-6));
+
+        // Side-on (below): centrelines along both holes, and the thread's two thin lines.
+        Assert.Equal(2, Owned(below, Pen.Center).Count);
+        Assert.Equal(2, Owned(below, Pen.Thin).Count(p => p.Points.Count == 2));
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();
