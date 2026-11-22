@@ -219,6 +219,57 @@ public sealed partial class MainViewModel
         Apply();
     }
 
+    private void StartBrokenOut()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet || SelectedView() is not { } view || _drawingRenderer is null)
+        {
+            MessageText = "Select the view to break out.";
+            return;
+        }
+
+        if (view.Kind is ViewKind.Section or ViewKind.Detail)
+        {
+            MessageText = "Broken-out sections go on standard, projected or auxiliary views.";
+            return;
+        }
+
+        CancelEditor();
+        var (min, max) = UncutExtent(sheet, view);
+        double[] rect = view.BrokenOut is [var a, var b, var c, _, _, var e, ..] ? [a, b, c, e] : [min.X + ((max.X - min.X) * 0.3), min.Y + ((max.Y - min.Y) * 0.3), min.X + ((max.X - min.X) * 0.7), min.Y + ((max.Y - min.Y) * 0.7)];
+        var depth = view.BrokenOut is null ? 5.0 : view.BrokenOutDepth;
+        void Apply()
+        {
+            view.BrokenOut = [rect[0], rect[1], rect[2], rect[1], rect[2], rect[3], rect[0], rect[3]];
+            view.BrokenOutDepth = depth;
+            RefreshDrawing();
+        }
+
+        var panel = DrawingPanel("Broken-out Section", d, Apply);
+        string[] labels = ["Left", "Bottom", "Right", "Top"];
+        for (var i = 0; i < 4; i++)
+        {
+            var k = i;
+            panel.AddField(new NumberField(labels[i], "mm", () => rect[k], v =>
+            {
+                rect[k] = v;
+                Apply();
+            }));
+        }
+
+        panel.AddField(new NumberField("Depth", "mm", () => depth, v =>
+        {
+            depth = v;
+            Apply();
+        }, 1e-6));
+        panel.AddField(new ButtonField("Remove", new CommunityToolkit.Mvvm.Input.RelayCommand(() =>
+        {
+            view.BrokenOut = null;
+            RefreshDrawing();
+        })));
+        Editor = panel;
+        Apply();
+    }
+
     private void StartCropView()
     {
         if (DrawingDoc is not { } d || CurrentSheet is not { } sheet || SelectedView() is not { } view || _drawingRenderer is null)

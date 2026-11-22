@@ -44,6 +44,7 @@ public sealed partial class MainViewModel
         new("Detail View", "Magnify part of the selected view", new RelayCommand(StartDetail), "⊙"),
         new("Projected View", "Project the selected view to one side", new RelayCommand(StartProjectedView), "⊡"),
         new("Auxiliary View", "View square to an inclined edge of the selected view", new RelayCommand(StartAuxiliaryView), "⟂"),
+        new("Broken-out Section", "Cut away part of the selected view to a depth to show inside", new RelayCommand(StartBrokenOut), "◪"),
         new("Crop View", "Show only a rectangle of the selected view", new RelayCommand(StartCropView), "⬚"),
         new("Break View", "Shorten a long view by leaving out its middle", new RelayCommand(StartBreakView), "≈"),
         new("Auto Dimension", "Overall sizes and hole diameters in the selected view", new RelayCommand(AutoDimension), "↔"),

@@ -580,6 +580,28 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task BrokenOutSectionRenders()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            vm.LoadFile("plate.chprt", PlateWithHole().Save());
+            vm.NewDrawingCommand.Execute(null);
+            var sheet = vm.CurrentSheet!;
+            var top = sheet.Views[1];
+            vm.OnSheetClick(new Geometry.Point2(top.X, top.Y), top.Id, add: false);
+            vm.DrawingCommands.Single(c => c.Label == "Broken-out Section").Command.Execute(null);
+            var depth = vm.Editor!.Fields.OfType<NumberField>().Single(f => f.Label == "Depth");
+            depth.Text = "25";
+            depth.Commit();
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.NotNull(top.BrokenOut);
+            Capture(window, "drawing-broken-out");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open(string theme)
     {
         Application.Current!.RequestedThemeVariant = theme == "dark" ? ThemeVariant.Dark : ThemeVariant.Light;
