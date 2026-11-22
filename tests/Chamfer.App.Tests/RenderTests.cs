@@ -305,6 +305,36 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task F6MovesFocusBetweenRegions()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            vm.LoadFile("plate.chprt", PlateWithHole().Save());
+            vm.ShowUnitsCommand.Execute(null); // a property panel with a focusable field
+            Dispatcher.UIThread.RunJobs();
+            var tree = window.FindControl<ListBox>("FeatureTree")!;
+            var view = window.FindControl<Controls.ModelViewport>("Viewport")!;
+            Assert.Equal("Feature tree", Avalonia.Automation.AutomationProperties.GetName(tree));
+
+            Visual? Focused() => window.FocusManager?.GetFocusedElement() as Visual;
+            // With a panel open, F6 moves between the panel and the view.
+            var panel = window.FindControl<Panel>("PropertyPanel")!;
+            window.KeyPress(Avalonia.Input.Key.F6, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.F6, null);
+            Assert.True(Focused() is { } f && Avalonia.VisualTree.VisualExtensions.IsVisualAncestorOf(panel, f));
+            window.KeyPress(Avalonia.Input.Key.F6, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.F6, null);
+            Assert.Same(view, Focused());
+
+            // With no panel, between the tree and the view.
+            vm.AcceptEditorCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            window.KeyPress(Avalonia.Input.Key.F6, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.F6, null);
+            Assert.True(Focused() is { } t && (ReferenceEquals(t, tree) || Avalonia.VisualTree.VisualExtensions.IsVisualAncestorOf(tree, t)));
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static PartDocument PlateWithHole()
     {
         var doc = new PartDocument();
