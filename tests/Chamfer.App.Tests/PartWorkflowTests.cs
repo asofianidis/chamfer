@@ -1014,4 +1014,31 @@ public class PartWorkflowTests
         Assert.Equal((false, (Version?)null), MainViewModel.CompareRelease(current, "{\"message\": \"Not Found\"}"));
         Assert.Equal((false, (Version?)null), MainViewModel.CompareRelease(current, "not json"));
     }
+
+    [Fact]
+    public void LanguagesTranslateCommandNames()
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"chamfer-lang-{Guid.NewGuid():N}.txt");
+        try
+        {
+            var vm = new MainViewModel { LanguageFile = file };
+            vm.ShowLanguageCommand.Execute(null);
+            vm.Editor!.Fields.OfType<ChoiceField>().Single().Index = Localizer.Languages.Keys.ToList().IndexOf("de");
+            Assert.Equal("Linear austragen", Localizer.T("Extruded Boss"));
+            Assert.Equal("Blech", Localizer.T("Sheet Metal"));
+            Assert.Equal("Something new", Localizer.T("Something new")); // untranslated names stay as they are
+            Assert.Equal("de", File.ReadAllText(file));
+            Assert.Contains(vm.FeatureCommands, c => c.Label == "Extruded Boss"); // identifiers stay English
+
+            Localizer.Language = "en";
+            new MainViewModel { LanguageFile = file }.LoadLanguage();
+            Assert.Equal("de", Localizer.Language);
+            Assert.True(Localizer.Coverage("fr") > 40);
+        }
+        finally
+        {
+            Localizer.Language = "en";
+            File.Delete(file);
+        }
+    }
 }

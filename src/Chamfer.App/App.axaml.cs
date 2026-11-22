@@ -18,6 +18,7 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var vm = new MainViewModel();
+            vm.LoadLanguage();
             vm.LoadPlugins(
             [
                 Path.Combine(AppContext.BaseDirectory, "plugins"),
