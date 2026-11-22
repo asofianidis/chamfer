@@ -82,6 +82,13 @@ public abstract class SketchTool
                 }
 
                 break;
+            case SketchEllipse el:
+                foreach (var q in el.Sample(n))
+                {
+                    yield return q;
+                }
+
+                break;
             case SketchArc a:
                 for (var i = 0; i <= n; i++)
                 {

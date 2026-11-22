@@ -21,6 +21,7 @@ internal static class ProfileShapes
         EntityKind.Line => ProfileSegment.Line(s.Start.X, s.Start.Y, s.End.X, s.End.Y),
         EntityKind.Arc => ProfileSegment.Arc(s.Center.X, s.Center.Y, s.Start.X, s.Start.Y, s.End.X, s.End.Y, s.Ccw),
         EntityKind.Circle => ProfileSegment.Circle(s.Center.X, s.Center.Y, s.Radius),
+        EntityKind.Ellipse => ProfileSegment.Ellipse(s.Center.X, s.Center.Y, s.Radius, s.Minor, s.Angle),
         _ => throw new FeatureException($"Unsupported profile curve {s.Kind}."),
     };
 

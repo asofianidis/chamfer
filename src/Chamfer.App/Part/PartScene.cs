@@ -181,6 +181,8 @@ public sealed class PartScene : IPickSource
                 return [l.Start.Position, l.End.Position];
             case SketchCircle c:
                 return [.. Enumerable.Range(0, 73).Select(i => c.Center.Position + Sketching.Vec2.FromAngle(i * Math.PI / 36, c.Radius))];
+            case SketchEllipse el:
+                return [.. el.Sample(96), el.PointAt(0)];
             case SketchArc a:
                 var n = Math.Max(4, (int)Math.Ceiling(a.Sweep / (Math.PI / 36)));
                 return [.. Enumerable.Range(0, n + 1).Select(i => a.Center.Position + Sketching.Vec2.FromAngle(a.StartAngle + (a.Sweep * i / n), a.Radius))];

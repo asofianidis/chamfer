@@ -6,7 +6,8 @@ namespace Chamfer.Document.Profiles;
 /// <summary>One curve of a profile loop, traversed in loop order.</summary>
 /// <param name="EntityId">The sketch entity this segment came from.</param>
 /// <param name="Reversed">True when the loop runs against the entity's own direction.</param>
-public sealed record LoopSegment(int EntityId, EntityKind Kind, Vec2 Start, Vec2 End, Vec2 Center, double Radius, bool Ccw, bool Reversed)
+public sealed record LoopSegment(int EntityId, EntityKind Kind, Vec2 Start, Vec2 End, Vec2 Center, double Radius, bool Ccw, bool Reversed,
+    double Minor = 0, double Angle = 0)
 {
     /// <summary>Points along the segment, excluding its end point.</summary>
     public IEnumerable<Vec2> Sample(int arcSteps = 24)
@@ -20,6 +21,16 @@ public sealed record LoopSegment(int EntityId, EntityKind Kind, Vec2 Start, Vec2
                 for (var i = 0; i < arcSteps * 2; i++)
                 {
                     yield return Center + Vec2.FromAngle((Ccw ? 1 : -1) * i * Math.PI / arcSteps, Radius);
+                }
+
+                break;
+            case EntityKind.Ellipse:
+                var (c, s) = (Math.Cos(Angle), Math.Sin(Angle));
+                for (var i = 0; i < arcSteps * 3; i++)
+                {
+                    var t = (Ccw ? 1 : -1) * i * 2 * Math.PI / (arcSteps * 3);
+                    var (x, y) = (Radius * Math.Cos(t), Minor * Math.Sin(t));
+                    yield return Center + new Vec2((x * c) - (y * s), (x * s) + (y * c));
                 }
 
                 break;
@@ -141,7 +152,7 @@ public static class ProfileBuilder
     public static ProfileResult Build(Sketch sketch)
     {
         ArgumentNullException.ThrowIfNull(sketch);
-        var curves = sketch.Entities.Where(e => !e.IsConstruction && e is SketchLine or SketchArc or SketchCircle).ToList();
+        var curves = sketch.Entities.Where(e => !e.IsConstruction && e is SketchLine or SketchArc or SketchCircle or SketchEllipse).ToList();
         var extent = curves.Count == 0 ? 1 : curves.SelectMany(Endpoints).Select(p => Math.Max(Math.Abs(p.X), Math.Abs(p.Y))).DefaultIfEmpty(1).Max();
         var tol = Math.Max(1e-7, extent * 1e-8) * 100;
 
@@ -168,6 +179,9 @@ public static class ProfileBuilder
             {
                 case SketchCircle c when c.Radius > tol:
                     outlines.Add(new ProfileLoop([new LoopSegment(c.Id, EntityKind.Circle, c.Center.Position, c.Center.Position, c.Center.Position, c.Radius, true, false)]));
+                    break;
+                case SketchEllipse el when el.MinorRadius > tol && el.MajorRadius > tol:
+                    outlines.Add(new ProfileLoop([Ellipse(el)]));
                     break;
                 case SketchLine l when l.Length > tol:
                     edges.Add(new Edge { Entity = l, From = NodeAt(l.Start.Position), To = NodeAt(l.End.Position) });
@@ -408,8 +422,14 @@ public static class ProfileBuilder
         SketchLine l => [l.Start.Position, l.End.Position],
         SketchArc a => [a.Start.Position, a.End.Position, a.Center.Position],
         SketchCircle c => [c.Center.Position + new Vec2(c.Radius, c.Radius)],
+        SketchEllipse el => [el.Center.Position + new Vec2(el.MajorRadius, el.MajorRadius)],
         _ => [],
     };
+
+    /// <summary>A full ellipse as one loop segment (the larger semi-axis as the major one).</summary>
+    private static LoopSegment Ellipse(SketchEllipse el) => el.MajorRadius >= el.MinorRadius
+        ? new LoopSegment(el.Id, EntityKind.Ellipse, el.Center.Position, el.Center.Position, el.Center.Position, el.MajorRadius, true, false, el.MinorRadius, el.Angle)
+        : new LoopSegment(el.Id, EntityKind.Ellipse, el.Center.Position, el.Center.Position, el.Center.Position, el.MinorRadius, true, false, el.MajorRadius, el.Angle + (Math.PI / 2));
 
     private static LoopSegment ToSegment(SketchEntity e, bool reverse) => e switch
     {
