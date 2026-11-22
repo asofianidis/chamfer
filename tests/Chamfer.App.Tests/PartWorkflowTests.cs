@@ -908,4 +908,56 @@ public class PartWorkflowTests
             Directory.Delete(root, recursive: true);
         }
     }
+
+    [Fact]
+    public void LibraryFeatureFromTheUi()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"chamfer-lf-{Guid.NewGuid():N}");
+        try
+        {
+            static PartDocument Block()
+            {
+                var d = new PartDocument();
+                var s = new Sketch();
+                s.AddCenterRectangle(Vec2.Zero, new Vec2(20, 20));
+                var sf = d.Add(new SketchFeature { Sketch = s });
+                d.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 20 });
+                return d;
+            }
+
+            var vm = new MainViewModel();
+            vm.LibraryFolders[0] = root;
+            vm.LoadFile("source.chprt", Block().Save());
+            var body = vm.Document.Bodies[0];
+            var top = body.FaceRef(Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99));
+            var pocket = new Sketch();
+            pocket.AddCircle(Vec2.Zero, 4);
+            var sketch = vm.Document.Add(new SketchFeature { Plane = new PlaneRef(Face: top), Sketch = pocket });
+            var cut = vm.Document.Add(new ExtrudeFeature { SketchId = sketch.Id, IsCut = true, Depth = 6 });
+            vm.RebuildAndRefresh();
+            vm.SetSelection([SelectionItem.ForFeature(sketch), SelectionItem.ForFeature(cut)]);
+            vm.ShowDesignLibraryCommand.Execute(null);
+            var save = vm.Editor!.Fields.OfType<TextField>().Single(f => f.Label == "Save selected features as library feature");
+            save.Text = "Pocket";
+            save.Commit();
+            Assert.Single(vm.LibraryFeatureFiles());
+
+            var target = new MainViewModel();
+            target.LibraryFolders[0] = root;
+            target.LoadFile("target.chprt", Block().Save());
+            var tb = target.Document.Bodies[0];
+            var before = target.Document.MassProperties().Volume;
+            target.SetSelection([SelectionItem.Face(tb, Enumerable.Range(1, tb.FaceCount).Single(i => tb.Face(i).Normal.Z > 0.99))]);
+            target.ShowDesignLibraryCommand.Execute(null);
+            target.Editor!.Fields.OfType<ButtonField>().Single(f => f.Label == "Insert feature Pocket").Command.Execute(null);
+            Assert.Equal(before - (Math.PI * 16 * 6), target.Document.MassProperties().Volume, 1e-3);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }

@@ -220,7 +220,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
 | Vault | **Vault** treats the file's folder as a vault: check the file out (others can't), check it in with a comment to record the next revision letter, see the history and restore any revision, and see which assemblies and drawings use it. |
 | Shortcuts | **Ctrl+K** finds any command by name. **F1** lists the shortcuts; add or change one as `Ctrl+Shift+H = Hole Wizard` (leave the command empty to remove it). Custom shortcuts are saved with your settings. |
-| Templates and library | **Templates** saves the current part (units, material, properties, features) as a template and starts new parts from templates. **Library** lists the parts in the design library folder: open them in part mode, or insert them in an assembly; add the current part to it by name. |
+| Templates and library | **Templates** saves the current part (units, material, properties, features) as a template and starts new parts from templates. **Library** lists the parts in the design library folder: open them in part mode, or insert them in an assembly; add the current part to it by name. Select features in the tree and save them as a **library feature** (with their sketches); insert it later onto a selected face or plane. |
 | Units | **Units** switches the part between MMGS, CGS, MKS and IPS. Lengths show in that unit everywhere (fields, sketch and drawing dimensions); type a bare number in the document unit or add a unit (25mm, 1in, 2.5cm). |
 | Properties | **Properties** holds custom properties as Name = value; values can use {Mass}, {Volume}, {Material}, {Configuration}, other properties and global variables. Description and PartNumber show in assembly BOMs and drawing title blocks. |
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
@@ -373,7 +373,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Curve-driven, sketch-driven, table-driven, fill, and variable patterns *(curve-driven with alignment, sketch-driven, table-driven, fill with square or staggered grid)*
 - [~] Wrap, dome, flex, deform, indent *(dome)*
 - [~] Cosmetic threads, thread feature *(modelled ISO metric threads, external and internal)*
-- [ ] Library features
+- [x] Library features *(save sketches and the features on them; insert onto any face or plane)*
 - [~] Appearances, decals, scenes *(body colours)*
 - [~] Section view, display states *(section view with capped cut faces)*
 - [~] Interactive feature editing via drag handles (Instant3D-style) *(drag the arrow to set an extrusion's depth)*
