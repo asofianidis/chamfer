@@ -810,6 +810,19 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             return;
         }
 
+        // Cosmetic threads: the thread's other diameter along its length, as for tapped holes.
+        foreach (var ct in doc.Model.Features.OfType<Document.Features.CosmeticThreadFeature>().Where(f => !doc.Model.IsSuppressed(f)))
+        {
+            try
+            {
+                var t = ct.Resolve(doc.Bodies);
+                ThreadLines(g, vg, t.Origin + (t.Axis * t.From), t.Origin + (t.Axis * t.To), t.Axis, t.ThreadRadius);
+            }
+            catch (Document.FeatureException)
+            {
+            }
+        }
+
         var tapped = doc.Model.Features.OfType<Document.Features.HoleFeature>().Where(h => h.ThreadDiameter > 0).ToList();
         foreach (var hole in tapped)
         {
@@ -852,6 +865,34 @@ public sealed class DrawingRenderer(DrawingDocument doc)
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// <summary>A thread's thin lines: a three-quarter circle end-on, two lines side-on.</summary>
+    private static void ThreadLines(SheetGraphics g, ViewGeometry vg, Vec3 p0, Vec3 p1, Vec3 axis, double radius)
+    {
+        if (Math.Abs(Math.Abs(Vec3.Dot(axis, vg.Toward)) - 1) < 1e-6)
+        {
+            var end = Vec3.Dot(p0, vg.Toward) > Vec3.Dot(p1, vg.Toward) ? p0 : p1;
+            if (!vg.IsShown(end))
+            {
+                return;
+            }
+
+            var c = vg.ToSheet(end);
+            var r = radius * vg.Scale;
+            g.Polyline(Pen.Thin, [.. Enumerable.Range(0, 55).Select(k => c + new Point2(Math.Cos(k * 1.5 * Math.PI / 54) * r, Math.Sin(k * 1.5 * Math.PI / 54) * r))], owner: vg.View.Id);
+        }
+        else if (Math.Abs(Vec3.Dot(axis, vg.Toward)) < 1e-6)
+        {
+            var side = Vec3.Cross(axis, vg.Toward).Normalized() * radius;
+            foreach (var s in new[] { side, side * -1 })
+            {
+                if (vg.IsShown(p0 + s) || vg.IsShown(p1 + s))
+                {
+                    g.Line(Pen.Thin, vg.ToSheet(p0 + s), vg.ToSheet(p1 + s), vg.View.Id);
                 }
             }
         }

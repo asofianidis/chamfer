@@ -151,6 +151,26 @@ public sealed class PartScene : IPickSource
             scene.Lines.Add(new LineItem { Points = [o, o + (new Vec3(frame.M02, frame.M12, frame.M22) * len)], Color = Rgba.FromHex(0x2563EB), Width = 2, OnTop = true });
         }
 
+        // Cosmetic threads: dashed rings at the thread diameter where the thread starts and ends.
+        foreach (var ct in doc.Features.OfType<CosmeticThreadFeature>().Where(f => !doc.IsSuppressed(f)))
+        {
+            try
+            {
+                var t = ct.Resolve(doc.Bodies);
+                var u = t.Axis.AnyPerpendicular();
+                var w = Vec3.Cross(t.Axis, u);
+                foreach (var at in new[] { t.From, t.To })
+                {
+                    var center = t.Origin + (t.Axis * at);
+                    var ring = Enumerable.Range(0, 49).Select(k => center + (u * (Math.Cos(k * Math.PI / 24) * t.ThreadRadius)) + (w * (Math.Sin(k * Math.PI / 24) * t.ThreadRadius))).ToList();
+                    scene.Lines.Add(new LineItem { Points = ring, Color = palette.Sketch, Width = 1, Dashed = true, OnTop = true });
+                }
+            }
+            catch (FeatureException)
+            {
+            }
+        }
+
         // 3D curves (helices) are drawn and can be picked like sketches.
         foreach (var (id, curve) in doc.State.Curves)
         {

@@ -295,3 +295,69 @@ public sealed class CompositeCurveFeature : Feature
     }
 }
 
+/// <summary>
+/// A cosmetic thread: marks a cylindrical face as threaded (a designation, the thread's other
+/// diameter and its length) without modelling the thread. Drawings and the 3D view show it.
+/// </summary>
+public sealed class CosmeticThreadFeature : Feature
+{
+    public override string DefaultName => "Cosmetic Thread";
+
+    public TopoRef? Face { get; set; }
+
+    /// <summary>The designation shown in callouts, e.g. "M10x1.5".</summary>
+    public string Designation { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The thread's other diameter: the root (minor) diameter on a shaft, the crest (major) diameter
+    /// in a hole. 0 picks the ISO coarse value from the face's diameter.
+    /// </summary>
+    public double Diameter { get; set; }
+
+    /// <summary>Threaded length from the face's start; 0 threads the whole face.</summary>
+    public double Length { get; set; }
+
+    /// <summary>The cylinder, its axis, whether it's a hole, and the thread's extent along the axis.</summary>
+    public (Body Body, int Face, Vec3 Origin, Vec3 Axis, double Radius, double ThreadRadius, bool Internal, double From, double To) Resolve(IReadOnlyList<Body> bodies)
+    {
+        ArgumentNullException.ThrowIfNull(bodies);
+        var face = Face ?? throw new FeatureException("Select a cylindrical face to thread.");
+        var body = bodies.FirstOrDefault(b => b.HasFace(face.Name)) ?? throw new FeatureException("The threaded face is missing.");
+        var index = body.ResolveFace(face, out _);
+        var info = body.Face(index);
+        if (info.Surface != SurfaceKind.Cylinder)
+        {
+            throw new FeatureException("A cosmetic thread goes on a cylindrical face.");
+        }
+
+        var axis = info.AxisDirection.Normalized();
+        var onFace = body.Shape.EdgesOfFace(index).SelectMany(e => body.Shape.SampleEdge(e)).ToList();
+
+        // A hole's wall faces its axis; a shaft's faces away. (The centroid of a whole cylinder is
+        // on its axis, so look at a point on the face.)
+        var probe = onFace[0];
+        var outward = probe - (info.AxisOrigin + (axis * Vec3.Dot(probe - info.AxisOrigin, axis)));
+        var inside = body.Shape.ProjectOnFace(index, probe) is { } hit && Vec3.Dot(hit.Normal, outward) < 0;
+        var along = onFace.Select(p => Vec3.Dot(p - info.AxisOrigin, axis)).ToList();
+        var (from, to) = (along.Min(), along.Max());
+        if (Length > 0)
+        {
+            to = Math.Min(to, from + Length);
+        }
+
+        var nominal = info.Radius * 2;
+        var other = Diameter > 0 ? Diameter : inside ? nominal / 0.85 : nominal * 0.85; // about the coarse-thread depth
+        return (body, index, info.AxisOrigin, axis, info.Radius, other / 2, inside, from, to);
+    }
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var t = Resolve(ctx.Bodies);
+        if (t.Internal ? t.ThreadRadius <= t.Radius : t.ThreadRadius >= t.Radius)
+        {
+            throw new FeatureException(t.Internal ? "A hole's thread diameter must be larger than the hole." : "A shaft's thread root must be smaller than the shaft.");
+        }
+    }
+}
+

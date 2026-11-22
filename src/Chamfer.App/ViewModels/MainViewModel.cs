@@ -70,6 +70,10 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Rib", "Thicken an open sketch into the part", new RelayCommand(() => StartSketchFeature(sf => new RibFeature { SketchId = sf.Id, Thickness = 2 })), "⊿"),
             new("Fillet", "Round edges", new RelayCommand(() => StartFeature(new FilletFeature { Radius = 2 })), "◜"),
             new("Chamfer", "Bevel edges", new RelayCommand(() => StartFeature(new ChamferFeature { Distance = 1 })), "◸"),
+            new("Cosmetic Thread", "Mark a cylindrical face as threaded, without modelling the thread", new RelayCommand(() => StartFeature(new CosmeticThreadFeature
+            {
+                Face = Selection.FirstOrDefault(s => s.Kind == SelectionKind.Face)?.Ref,
+            })), "≡"),
             new("Vertex Chamfer", "Cut off a corner where three edges meet", new RelayCommand(() => StartFeature(new VertexChamferFeature
             {
                 Vertices = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => new VertexRef(s.Ref!, AtEnd: false))],
