@@ -19,6 +19,7 @@ public partial class App : Application
         {
             var vm = new MainViewModel();
             vm.LoadLanguage();
+            vm.LoadLayout();
             vm.LoadPlugins(
             [
                 Path.Combine(AppContext.BaseDirectory, "plugins"),

@@ -109,6 +109,8 @@
           <Button Classes="tool" Content="Vault" Command="{Binding ShowVaultCommand}" ToolTip.Tip="Check out, check in, revisions and where-used" />
           <Button Classes="tool" Content="Updates" Command="{Binding CheckForUpdatesCommand}" ToolTip.Tip="Check GitHub for a newer release" />
           <Button Classes="tool" Content="Language" Command="{Binding ShowLanguageCommand}" ToolTip.Tip="Display language for commands" />
+          <Button Classes="tool" Content="Panel Side" Command="{Binding TogglePanelSideCommand}" ToolTip.Tip="Move the side panel to the other side of the window" />
+          <Button Classes="tool" Content="Panel" Command="{Binding TogglePanelCommand}" Classes.active="{Binding !PanelHidden}" ToolTip.Tip="Show or hide the side panel (F9)" />
           <Button Classes="tool" Content="Import" Command="{Binding ImportCommand}" ToolTip.Tip="Import a STEP or IGES file as a body" />
           <Button Classes="tool" Content="Export" Command="{Binding ExportCommand}" ToolTip.Tip="Export STEP, IGES or STL" />
           <Border Classes="separator" />
@@ -297,8 +299,10 @@
       </Grid>
     </Border>
 
-    <!-- Left panel: feature tree, property panel, or sketch relations -->
-    <Border DockPanel.Dock="Left" Width="300" Padding="12,4,12,12"
+    <!-- The workspace: the side panel (left or right, resizable, hideable) and the view. -->
+    <Grid x:Name="Workspace" ColumnDefinitions="300,Auto,*">
+    <!-- Side panel: feature tree, property panel, or sketch relations -->
+    <Border x:Name="SidePane" Grid.Column="0" Padding="12,4,12,12" MinWidth="220"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,0,1,0">
       <Panel>
         <!-- Feature tree -->
@@ -485,8 +489,10 @@
       </Panel>
     </Border>
 
+    <GridSplitter x:Name="SideSplitter" Grid.Column="1" Width="4" ResizeDirection="Columns" Background="Transparent" />
+
     <!-- 3D view, or the sketch canvas while editing a sketch -->
-    <Panel>
+    <Panel x:Name="ViewArea" Grid.Column="2">
       <c:ModelViewport x:Name="Viewport" IsVisible="{Binding IsModelMode}" AutomationProperties.Name="3D view" Focusable="True" />
       <c:DrawingCanvas x:Name="Sheet" IsVisible="{Binding IsDrawingMode}" Graphics="{Binding SheetGraphics}" AutomationProperties.Name="Drawing sheet" Focusable="True" />
       <c:SketchCanvas x:Name="Canvas" Editor="{Binding Sketch.Editor, FallbackValue={x:Null}}" IsVisible="{Binding IsSketchMode}" AutomationProperties.Name="Sketch" Focusable="True" />
@@ -495,5 +501,6 @@
                  PlaceholderText="Value" />
       </Canvas>
     </Panel>
+    </Grid>
   </DockPanel>
 </Window>

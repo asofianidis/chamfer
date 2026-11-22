@@ -319,7 +319,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] CI on GitHub Actions: build and test on Windows and macOS
 - [x] Native shim (`Chamfer.Kernel.Native`) with CMake over OCCT 7.9.3 *(win-x64 and osx-arm64 in CI; win-arm64 and osx-x64 build with the same script)*
 - [x] P/Invoke layer with `SafeHandle` lifetime management; kernel tests cover primitives, booleans, fillets, shells, sweeps, lofts and file exchange
-- [~] Avalonia shell: main window, docking layout, ribbon placeholder, dark/light themes *(command bar, feature tree, property panel and themes done; docking not yet)*
+- [x] Avalonia shell: main window, docking layout, ribbon placeholder, dark/light themes *(command bar, feature tree, property panel and themes; a resizable side panel docked left or right, hidden with F9, remembered)*
 - [x] 3D viewport: camera (orbit about the cursor, pan, zoom at the cursor, zoom-to-fit), axis triad, standard views, perspective *(view cube not yet)*
 - [x] Tessellation pipeline: B-rep → mesh with per-face triangles and edge polylines; shaded, shaded-with-edges, wireframe, and hidden-lines-removed modes
 - [x] Picking: ID buffers for faces, edges, sketches and planes; hover highlight; selection set
