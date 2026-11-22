@@ -1,3 +1,4 @@
+using Chamfer.Geometry;
 using Chamfer.Kernel.Occt;
 
 namespace Chamfer.Document.Features;
@@ -223,5 +224,77 @@ internal static class DressUp
         }
 
         return [.. byBody.Select(kv => (kv.Key, kv.Value.ToArray()))];
+    }
+}
+
+/// <summary>A spherical dome raised (or sunk) on a planar face, following the face's outline.</summary>
+public sealed class DomeFeature : Feature
+{
+    public override string DefaultName => "Dome";
+
+    public TopoRef? Face { get; set; }
+
+    /// <summary>Height of the dome above the face (mm).</summary>
+    public double Height { get; set; } = 5;
+
+    /// <summary>Sink the dome into the part instead.</summary>
+    public bool Reverse { get; set; }
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (Face is null)
+        {
+            throw new FeatureException("Select a flat face for the dome.");
+        }
+
+        if (Height <= 0)
+        {
+            throw new FeatureException("The dome height must be positive.");
+        }
+
+        var (body, index) = ctx.ResolveFace(Face);
+        _ = body.Shape.FacePlane(index) ?? throw new FeatureException("Domes go on flat faces.");
+        using var face = body.Shape.Sub(TopoKind.Face, index);
+
+        // The circle around the face's outline (centred on its centroid) sets the sphere.
+        var info = body.Face(index);
+        var center = info.Centroid;
+        var c = 0.0;
+        foreach (var e in body.Shape.EdgesOfFace(index))
+        {
+            foreach (var p in body.Shape.SampleEdge(e))
+            {
+                c = Math.Max(c, Vec3.Distance(p, center));
+            }
+        }
+
+        var h = Height;
+        var radius = ((c * c) + (h * h)) / (2 * h);
+        var normal = info.Normal.Normalized();
+        var dir = Reverse ? -normal : normal;
+        var sphereCenter = center + (dir * (h - radius));
+
+        using var sphere = Modeling.Sphere(radius);
+        using var placed = Modeling.Transform(sphere, Transform3.Translation(sphereCenter));
+        using var prism = Modeling.Extrude(face, dir * h);
+        using var cap = Modeling.Boolean(placed.Result, prism.Result, BooleanKind.Common);
+        var tool = cap.Result;
+        if (tool.SolidCount == 0)
+        {
+            throw new FeatureException("The dome couldn't be made on this face.");
+        }
+
+        var names = Naming.Finish(tool, new string?[tool.FaceCount], Id);
+        if (Reverse)
+        {
+            ctx.RemoveMaterial(tool, names);
+        }
+        else
+        {
+            ctx.AddMaterial(tool, names, merge: true);
+        }
+
+        ctx.Tools[Id] = new FeatureTool(tool, names, Reverse);
     }
 }

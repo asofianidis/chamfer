@@ -277,6 +277,13 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(BodyField(doc, feature, "Bodies (empty = all)", cws.Bodies, names => Set(() => cws.Bodies = names)));
                 break;
 
+            case DomeFeature dm:
+                ed.Add(new SelectionField("Face", Faces, dm.Face is { } domeFace ? [new SelectionItem(SelectionKind.Face, domeFace, Label: $"Face <{domeFace.Name}>")] : [],
+                    items => Set(() => dm.Face = Last(items)?.Ref), max: 1));
+                ed.Add(Num("Height", "mm", dm, nameof(dm.Height), 1e-6));
+                ed.Add(new BoolField("Sink into the part", dm.Reverse, v => Set(() => dm.Reverse = v)));
+                break;
+
             case HealFeature hf:
                 ed.Add(Num("Gap tolerance", "mm", hf, nameof(hf.Tolerance), 1e-6));
                 ed.Add(BodyField(doc, feature, "Bodies (empty = all)", hf.Bodies, names => Set(() => hf.Bodies = names)));
