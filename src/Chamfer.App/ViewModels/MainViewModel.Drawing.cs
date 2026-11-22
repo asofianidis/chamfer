@@ -935,10 +935,10 @@ public sealed partial class MainViewModel
 
         CancelEditor();
         var panel = FeatureEditor.Info("Sheet");
-        panel.AddInfo(new ChoiceField("Drafting standard", ["ISO (first angle)", "ANSI (third angle)"], d.Standard == DraftingStandard.Ansi ? 1 : 0, i =>
+        panel.AddInfo(new ChoiceField("Drafting standard", ["ISO (first angle)", "ANSI (third angle)", "DIN (first angle)", "JIS (third angle)"], (int)d.Standard, i =>
         {
             SnapshotDrawing();
-            d.ApplyStandard(i == 1 ? DraftingStandard.Ansi : DraftingStandard.Iso);
+            d.ApplyStandard((DraftingStandard)i);
             RefreshDrawing();
         }));
         var sizes = Enum.GetValues<SheetSize>();

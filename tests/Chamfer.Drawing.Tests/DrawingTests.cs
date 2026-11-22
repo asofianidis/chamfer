@@ -306,6 +306,33 @@ public class DrawingTests
     }
 
     [Fact]
+    public void ProjectedViewsFollowTheProjectionAngle()
+    {
+        // An L-shaped part: its left and right views differ.
+        var part = new PartDocument();
+        var l = new Sketch();
+        l.AddPolyline([new Vec2(0, 0), new Vec2(40, 0), new Vec2(40, 10), new Vec2(10, 10), new Vec2(10, 30), new Vec2(0, 30)], closed: true);
+        var sf = part.Add(new SketchFeature { Sketch = l });
+        part.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 20 });
+        part.Rebuild();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        var front = drawing.Add(sheet, ViewKind.Front, 100, 100);
+        var placedRight = drawing.AddProjected(sheet, front, ViewSide.Right, 200, 100);
+
+        drawing.ApplyStandard(DraftingStandard.Jis); // third angle: the right view looks from the right
+        Assert.False(drawing.FirstAngle);
+        var third = new DrawingRenderer(drawing).Geometry(sheet, placedRight);
+        Assert.Equal(1, Vec3.Dot(third.Toward, Vec3.UnitX), 1e-9);
+
+        drawing.ApplyStandard(DraftingStandard.Din); // first angle: the view on the right looks from the left
+        Assert.True(drawing.FirstAngle);
+        var first = new DrawingRenderer(drawing).Geometry(sheet, placedRight);
+        Assert.Equal(-1, Vec3.Dot(first.Toward, Vec3.UnitX), 1e-9);
+        Assert.Contains(new DrawingRenderer(drawing).Render(sheet).Items.OfType<TextPrimitive>(), t => t.Text == "FIRST ANGLE PROJECTION");
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();
