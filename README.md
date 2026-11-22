@@ -218,6 +218,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Render | **Render** path-traces the current view: metals glossy, wood matte, other materials as coated plastic, with a soft sun, sky light and a shadow-catching floor. Pick the quality, then **Render** and **Save PNG**. Click the view to return to the live model. |
 | Analysis | **Section** cuts the part with the Front, Top or Right plane (offset, flip) and shows the cut faces. **Draft Analysis** colours faces green, red or yellow by draft against a pull direction. **Zebra** shows stripes for judging surface smoothness. |
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
+| Vault | **Vault** treats the file's folder as a vault: check the file out (others can't), check it in with a comment to record the next revision letter, see the history and restore any revision, and see which assemblies and drawings use it. |
 | Shortcuts | **Ctrl+K** finds any command by name. **F1** lists the shortcuts; add or change one as `Ctrl+Shift+H = Hole Wizard` (leave the command empty to remove it). Custom shortcuts are saved with your settings. |
 | Templates and library | **Templates** saves the current part (units, material, properties, features) as a template and starts new parts from templates. **Library** lists the parts in the design library folder: open them in part mode, or insert them in an assembly; add the current part to it by name. |
 | Units | **Units** switches the part between MMGS, CGS, MKS and IPS. Lengths show in that unit everywhere (fields, sketch and drawing dimensions); type a bare number in the document unit or add a unit (25mm, 1in, 2.5cm). |
@@ -457,7 +458,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Photorealistic rendering (path tracer, PBR materials, HDRI environments) *(CPU path tracer: BVH, plastic/metal/matte finishes from the material, soft sun shadows, sky, floor, PNG output)*
 - [ ] Model-Based Definition (3D PMI)
 - [ ] Routing: piping, tubing, electrical harnesses
-- [ ] Basic PDM: check-in/out, revisions, where-used (Git-backed or server-backed)
+- [~] Basic PDM: check-in/out, revisions, where-used (Git-backed or server-backed) *(folder vault: locks, check-in with revision letters and comments, history and restore, where-used)*
 - [~] eDrawings-style lightweight viewer *(export a self-contained HTML/WebGL viewer page)*
 - [ ] Localization (i18n)
 - [ ] Accessibility: keyboard navigation, screen-reader support for panels

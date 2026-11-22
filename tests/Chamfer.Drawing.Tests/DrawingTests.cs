@@ -490,4 +490,49 @@ public class DrawingTests
 
         Assert.True(failures.Count == 0, string.Join("\n", failures.Distinct().Take(10)));
     }
+
+    [Fact]
+    public void VaultLocksRevisionsHistoryAndWhereUsed()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"chamfer-vault-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var (part, _) = Part();
+            var partPath = Path.Combine(root, "bracket.chprt");
+            File.WriteAllText(partPath, part.Save());
+            var asm = new Chamfer.Assembly.AssemblyDocument { Directory = root };
+            asm.AddComponent("bracket.chprt");
+            File.WriteAllText(Path.Combine(root, "frame.chasm"), asm.Save());
+            File.WriteAllText(Path.Combine(root, "bracket.chdrw"), new DrawingDocument { ModelPath = "bracket.chprt" }.Save());
+            File.WriteAllText(Path.Combine(root, "other.chprt"), new PartDocument().Save());
+
+            var vault = new Vault(root);
+            vault.CheckOut(partPath, "alice");
+            Assert.Equal("alice", vault.LockOf(partPath)!.User);
+            Assert.Throws<InvalidOperationException>(() => vault.CheckOut(partPath, "bob"));
+            var a = vault.CheckIn(partPath, "alice", "First release");
+            Assert.Equal("A", a.Rev);
+            Assert.Null(vault.LockOf(partPath));
+
+            vault.CheckOut(partPath, "bob");
+            Vault.StampRevision(part, "B");
+            File.WriteAllText(partPath, part.Save());
+            var b = vault.CheckIn(partPath, "bob", "Thicker flange");
+            Assert.Equal("B", b.Rev);
+            Assert.Equal(["A", "B"], vault.History(partPath).Select(r => r.Rev));
+            Assert.Equal("B", vault.RevisionOf(partPath));
+
+            vault.Restore(partPath, "A");
+            Assert.Null(PropertyEvaluator.Get(PartDocument.Load(File.ReadAllText(partPath)), "Revision"));
+
+            var used = vault.WhereUsed(partPath);
+            Assert.Equal(["bracket.chdrw", "frame.chasm"], used.Order(StringComparer.Ordinal));
+            Assert.Empty(vault.WhereUsed(Path.Combine(root, "other.chprt")));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }
