@@ -14,7 +14,15 @@ public enum MateEntityKind
 /// <summary>The geometry a mate works with: a plane (origin, normal), an axis (point, direction, radius) or a point.</summary>
 public readonly record struct MateEntity(MateEntityKind Kind, Vec3 Origin, Vec3 Direction, double Radius = 0)
 {
-    public MateEntity Transformed(Transform3 t) => this with { Origin = t.Apply(Origin), Direction = t.ApplyVector(Direction).Normalized() };
+    /// <summary>Points along the edge the entity came from (for path and cam mates); null for faces and planes.</summary>
+    public IReadOnlyList<Vec3>? Curve { get; init; }
+
+    public MateEntity Transformed(Transform3 t) => this with
+    {
+        Origin = t.Apply(Origin),
+        Direction = t.ApplyVector(Direction).Normalized(),
+        Curve = Curve is null ? null : [.. Curve.Select(t.Apply)],
+    };
 }
 
 /// <summary>Outcome of solving an assembly's mates.</summary>
@@ -73,9 +81,10 @@ public static class MateSolver
             {
                 var i = body.ResolveEdge(er, out _);
                 var e = body.Edge(i);
+                var curve = body.Shape.SampleEdge(i, 0.02);
                 if (e.Curve == CurveKind.Line)
                 {
-                    return new MateEntity(MateEntityKind.Axis, e.Start, (e.End - e.Start).Normalized());
+                    return new MateEntity(MateEntityKind.Axis, e.Start, (e.End - e.Start).Normalized()) { Curve = curve };
                 }
 
                 if (e.Curve == CurveKind.Circle)
@@ -86,10 +95,10 @@ public static class MateSolver
                         n = body.Face(body.Shape.FacesOfEdge(i)[0]).AxisDirection;
                     }
 
-                    return new MateEntity(MateEntityKind.Axis, e.CenterOrDirection, n.Normalized(), e.Radius);
+                    return new MateEntity(MateEntityKind.Axis, e.CenterOrDirection, n.Normalized(), e.Radius) { Curve = curve };
                 }
 
-                return new MateEntity(MateEntityKind.Point, e.Midpoint, Vec3.UnitZ);
+                return new MateEntity(MateEntityKind.Point, e.Midpoint, Vec3.UnitZ) { Curve = curve };
             }
         }
 
@@ -126,9 +135,9 @@ public static class MateSolver
     public static IReadOnlyList<MateType> Applicable(MateEntityKind a, MateEntityKind b) => (a, b) switch
     {
         (MateEntityKind.Plane, MateEntityKind.Plane) => [MateType.Coincident, MateType.Parallel, MateType.Perpendicular, MateType.Distance, MateType.Angle, MateType.Lock, MateType.Symmetric, MateType.Width, MateType.LimitDistance, MateType.LimitAngle, MateType.LinearCoupler],
-        (MateEntityKind.Axis, MateEntityKind.Axis) => [MateType.Concentric, MateType.Parallel, MateType.Perpendicular, MateType.Angle, MateType.Coincident, MateType.Distance, MateType.Lock, MateType.Gear, MateType.Screw, MateType.RackPinion, MateType.Symmetric, MateType.LimitDistance, MateType.Hinge, MateType.UniversalJoint, MateType.LinearCoupler],
+        (MateEntityKind.Axis, MateEntityKind.Axis) => [MateType.Concentric, MateType.Parallel, MateType.Perpendicular, MateType.Angle, MateType.Coincident, MateType.Distance, MateType.Lock, MateType.Gear, MateType.Screw, MateType.RackPinion, MateType.Symmetric, MateType.LimitDistance, MateType.Hinge, MateType.UniversalJoint, MateType.LinearCoupler, MateType.Path, MateType.Cam],
         (MateEntityKind.Plane, MateEntityKind.Axis) or (MateEntityKind.Axis, MateEntityKind.Plane) => [MateType.Tangent, MateType.Coincident, MateType.Parallel, MateType.Perpendicular, MateType.Distance, MateType.Lock, MateType.Slot, MateType.LinearCoupler],
-        _ => [MateType.Coincident, MateType.Distance, MateType.Lock],
+        _ => [MateType.Coincident, MateType.Distance, MateType.Lock, MateType.Path, MateType.Cam],
     };
 
     /// <summary>Residuals of one mate for the given world-space entities and component placements.</summary>
@@ -150,7 +159,7 @@ public static class MateSolver
     private static void Residuals(Mate m, MateEntity a, MateEntity b, Transform3 ta, Transform3 tb, List<double> r, MateEntity? c = null, MateEntity? d = null)
     {
         var mechanical = m.Type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.Symmetric or MateType.Width or MateType.Drive
-            or MateType.Hinge or MateType.Slot or MateType.UniversalJoint or MateType.LinearCoupler;
+            or MateType.Hinge or MateType.Slot or MateType.UniversalJoint or MateType.LinearCoupler or MateType.Path or MateType.Cam;
         var s = m.Aligned ? -1.0 : 1.0; // anti-aligned: dA = -dB  →  dA + dB = 0
         void Vec(Vec3 v)
         {
@@ -381,6 +390,20 @@ public static class MateSolver
                     break;
                 }
 
+            case MateType.Path when a.Curve is { Count: > 1 } path:
+                Vec(ClosestOnPolyline(path, b.Origin) - b.Origin);
+                break;
+
+            case MateType.Cam when a.Curve is { Count: > 1 } cam:
+                {
+                    // Seen along the follower's axis: the cam profile's nearest distance minus the follower's radius.
+                    var followerAxis = b.Direction;
+                    Vec3 Flat(Vec3 p) => p - (followerAxis * Vec3.Dot(p - b.Origin, followerAxis));
+                    var nearest = Vec3.Distance(ClosestOnPolyline([.. cam.Select(Flat)], b.Origin), b.Origin);
+                    r.Add(nearest - b.Radius);
+                    break;
+                }
+
             case MateType.Lock:
                 var expected = ta * (m.Relative ?? Transform3.Identity);
                 foreach (var p in new[] { Vec3.Zero, new Vec3(100, 0, 0), new Vec3(0, 100, 0) })
@@ -390,6 +413,28 @@ public static class MateSolver
 
                 break;
         }
+    }
+
+    /// <summary>The point of a polyline nearest to <paramref name="p"/>.</summary>
+    private static Vec3 ClosestOnPolyline(IReadOnlyList<Vec3> points, Vec3 p)
+    {
+        var best = points[0];
+        var bestDistance = double.MaxValue;
+        for (var i = 0; i + 1 < points.Count; i++)
+        {
+            var (a, b) = (points[i], points[i + 1]);
+            var ab = b - a;
+            var len = ab.LengthSquared;
+            var t = len < 1e-18 ? 0 : Math.Clamp(Vec3.Dot(p - a, ab) / len, 0, 1);
+            var q = a + (ab * t);
+            var d = Vec3.Distance(p, q);
+            if (d < bestDistance)
+            {
+                (best, bestDistance) = (q, d);
+            }
+        }
+
+        return best;
     }
 
     /// <summary>Solves all active mates in place.</summary>

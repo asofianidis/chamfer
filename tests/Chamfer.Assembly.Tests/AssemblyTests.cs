@@ -482,4 +482,48 @@ public class AssemblyTests
         Assert.True(pair.Distance > 0);
         Assert.DoesNotContain(AssemblyTools.Clearances(asm, 0.001), c => c.A == seed && c.B == mirrored);
     }
+
+    [Fact]
+    public void PathAndCamMates()
+    {
+        var asm = new AssemblyDocument();
+        var rail = Pin(30, 5); // its top circle (radius 30, at z = 5) is the path
+        var pin = Pin(3, 20);
+        asm.RegisterPart("rail.chprt", rail);
+        asm.RegisterPart("pin.chprt", pin);
+        var r = asm.AddComponent("rail.chprt");
+        r.Fixed = true;
+        var p = asm.AddComponent("pin.chprt", Transform3.Translation(new Vec3(12, 40, 30)));
+        var railBody = rail.Bodies[0];
+        var circle = railBody.EdgeRef(Enumerable.Range(1, railBody.EdgeCount).First(i => railBody.Edge(i).Curve == CurveKind.Circle && railBody.Edge(i).CenterOrDirection.Z > 4));
+        var pinBody = pin.Bodies[0];
+        var bottomEdge = pinBody.EdgeRef(Enumerable.Range(1, pinBody.EdgeCount).First(i => pinBody.Edge(i).Curve == CurveKind.Circle && pinBody.Edge(i).CenterOrDirection.Z < 1));
+
+        // Path: the pin's bottom circle centre rides on the rail's top edge.
+        asm.AddMate(MateType.Path, new MateRef(r.Id, Edge: circle), new MateRef(p.Id, Edge: bottomEdge));
+        var result = asm.Solve();
+        Assert.True(result.Converged, $"residual {result.Residual}");
+        var at = p.Transform.Apply(Vec3.Zero);
+        Assert.Equal(30, Math.Sqrt((at.X * at.X) + (at.Y * at.Y)), 0.05);
+        Assert.Equal(5, at.Z, 1e-3);
+
+        // Cam: an eccentric disc (radius 20, centred 5 off its axis) and a 3 mm follower touching it.
+        var cam = new AssemblyDocument();
+        var disc = new PartDocument();
+        var ds = new Sketch();
+        ds.AddCircle(new Vec2(5, 0), 20);
+        var dsf = disc.Add(new SketchFeature { Sketch = ds });
+        disc.Add(new ExtrudeFeature { SketchId = dsf.Id, Depth = 10 });
+        disc.Rebuild();
+        cam.RegisterPart("disc.chprt", disc);
+        cam.RegisterPart("pin.chprt", pin);
+        var c = cam.AddComponent("disc.chprt");
+        c.Fixed = true;
+        var f = cam.AddComponent("pin.chprt", Transform3.Translation(new Vec3(40, 3, 0)));
+        var profile = disc.Bodies[0].EdgeRef(Enumerable.Range(1, disc.Bodies[0].EdgeCount).First(i => disc.Bodies[0].Edge(i).Curve == CurveKind.Circle));
+        cam.AddMate(MateType.Cam, new MateRef(c.Id, Edge: profile), new MateRef(f.Id, FaceWhere(pin, x => x.Surface == SurfaceKind.Cylinder)));
+        Assert.True(cam.Solve().Converged);
+        var axis = f.Transform.Apply(Vec3.Zero);
+        Assert.Equal(23, Math.Sqrt(((axis.X - 5) * (axis.X - 5)) + (axis.Y * axis.Y)), 0.05);
+    }
 }
