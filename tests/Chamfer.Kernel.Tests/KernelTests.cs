@@ -207,7 +207,14 @@ public class KernelTests
         }
         finally
         {
-            dir.Delete(recursive: true);
+            try
+            {
+                dir.Delete(recursive: true);
+            }
+            catch (IOException)
+            {
+                // Best effort: a scanner may still hold a file just written.
+            }
         }
     }
 
