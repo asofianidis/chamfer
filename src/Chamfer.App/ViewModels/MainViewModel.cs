@@ -113,6 +113,8 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Combine", "Add, subtract or intersect bodies", new RelayCommand(StartCombine), "⊕", "Bodies"),
             new("Split", "Cut bodies in two with a plane", new RelayCommand(() => StartFeature(new SplitBodyFeature { Plane = SelectedPlane() ?? PlaneRef.Right })), "⫽", "Bodies"),
             new("Move/Copy Body", "Move, rotate or copy bodies", new RelayCommand(() => StartFeature(new MoveCopyBodyFeature { Bodies = SelectedBodyNames() })), "✥", "Bodies"),
+            new("Import Diagnostics", "Check bodies for gaps, open edges and bad faces", new RelayCommand(ShowDiagnostics), "✚", "Bodies"),
+            new("Heal", "Sew gaps and repair faces (for imported bodies)", new RelayCommand(() => StartFeature(new HealFeature { Bodies = SelectedBodyNames() })), "✚", "Bodies"),
             new("Scale", "Scale bodies uniformly", new RelayCommand(() => StartFeature(new ScaleFeature { Bodies = SelectedBodyNames() })), "⤢", "Bodies"),
             new("Delete/Keep Body", "Remove bodies, or keep only some", new RelayCommand(() => StartFeature(new DeleteBodyFeature { Bodies = SelectedBodyNames() })), "✕", "Bodies"),
             new("Appearance", "Colour bodies", new RelayCommand(() => StartFeature(new AppearanceFeature { Bodies = SelectedBodyNames() })), "◆", "Bodies"),

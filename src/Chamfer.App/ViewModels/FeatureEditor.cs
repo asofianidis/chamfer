@@ -277,6 +277,11 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(BodyField(doc, feature, "Bodies (empty = all)", cws.Bodies, names => Set(() => cws.Bodies = names)));
                 break;
 
+            case HealFeature hf:
+                ed.Add(Num("Gap tolerance", "mm", hf, nameof(hf.Tolerance), 1e-6));
+                ed.Add(BodyField(doc, feature, "Bodies (empty = all)", hf.Bodies, names => Set(() => hf.Bodies = names)));
+                break;
+
             case ScaleFeature sc:
                 ed.Add(Num("Scale factor", string.Empty, sc, nameof(sc.Factor), 1e-6));
                 ed.Add(new BoolField("About the centroid (else the origin)", sc.AboutCentroid, v => Set(() => sc.AboutCentroid = v)));
