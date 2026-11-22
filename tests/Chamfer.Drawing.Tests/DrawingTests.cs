@@ -116,6 +116,53 @@ public class DrawingTests
     }
 
     [Fact]
+    public void ProjectedAuxiliaryCropAndBreakViews()
+    {
+        var (part, _) = Part();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        var front = drawing.Add(sheet, ViewKind.Front, 100, 100);
+        var renderer = new DrawingRenderer(drawing);
+        static (double W, double H) Size(ViewGeometry g) => (g.SheetBounds.Max.X - g.SheetBounds.Min.X, g.SheetBounds.Max.Y - g.SheetBounds.Min.Y);
+
+        // Projected to the right: depth by height, like the standard right view.
+        var right = drawing.AddProjected(sheet, front, ViewSide.Right, 200, 100);
+        Assert.Equal((20, 50), Size(renderer.Geometry(sheet, right)), new SizeComparer());
+        var above = drawing.AddProjected(sheet, front, ViewSide.Above, 100, 200);
+        Assert.Equal((80, 20), Size(renderer.Geometry(sheet, above)), new SizeComparer());
+
+        // Auxiliary, square to the front view's bottom edge: looking up from below.
+        var aux = drawing.AddAuxiliary(sheet, front, new Point2(0, 0), new Point2(80, 0), 100, 20);
+        var ag = renderer.Geometry(sheet, aux);
+        Assert.Equal((80, 20), Size(ag), new SizeComparer());
+        Assert.Equal(-1, Vec3.Dot(ag.Toward, Vec3.UnitY), 1e-9);
+
+        // Cropped to the lower-left quarter.
+        var cropped = drawing.Add(sheet, ViewKind.Front, 300, 100);
+        cropped.Crop = [0, 0, 40, 25];
+        Assert.Equal((40, 25), Size(renderer.Geometry(sheet, cropped)), new SizeComparer());
+
+        // Broken: x from 20 to 60 left out and closed up to a 4 mm gap; break lines reach 2 mm past the part.
+        var broken = drawing.Add(sheet, ViewKind.Front, 300, 250);
+        broken.Break = [20, 60];
+        var bg = renderer.Geometry(sheet, broken);
+        Assert.Equal((44, 54), Size(bg), new SizeComparer());
+        Assert.False(bg.IsShown(new Vec3(40, 25, 0)));
+        Assert.Equal(44, bg.ToSheet(new Vec3(80, 0, 0)).X - bg.ToSheet(new Vec3(0, 0, 0)).X, 1e-6);
+
+        var g = renderer.Render(sheet);
+        Assert.Contains(g.Items.OfType<TextPrimitive>(), t => t.Text == "VIEW A");
+        Assert.Equal(ViewSide.Right, DrawingDocument.Load(drawing.Save()).Sheets[0].Views.Single(v => v.Kind == ViewKind.Projected && v.Side == ViewSide.Right).Side);
+    }
+
+    private sealed class SizeComparer : IEqualityComparer<(double, double)>
+    {
+        public bool Equals((double, double) a, (double, double) b) => Math.Abs(a.Item1 - b.Item1) < 1e-3 && Math.Abs(a.Item2 - b.Item2) < 1e-3;
+
+        public int GetHashCode((double, double) obj) => 0;
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();

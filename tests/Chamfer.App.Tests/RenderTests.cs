@@ -447,6 +447,41 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task MoreDrawingViewsRender()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            vm.LoadFile("plate.chprt", PlateWithHole().Save());
+            vm.NewDrawingCommand.Execute(null);
+            var sheet = vm.CurrentSheet!;
+            var front = sheet.Views[0];
+            void SelectFront() => vm.OnSheetClick(new Geometry.Point2(front.X, front.Y), front.Id, add: false);
+
+            SelectFront();
+            vm.DrawingCommands.Single(c => c.Label == "Auxiliary View").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.Contains(sheet.Views, v => v.Kind == Chamfer.Drawing.ViewKind.Auxiliary);
+
+            SelectFront();
+            vm.DrawingCommands.Single(c => c.Label == "Break View").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.NotNull(front.Break);
+
+            var iso = sheet.Views.Single(v => v.Kind == Chamfer.Drawing.ViewKind.Isometric);
+            vm.OnSheetClick(new Geometry.Point2(iso.X, iso.Y), iso.Id, add: false);
+            vm.DrawingCommands.Single(c => c.Label == "Crop View").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.NotNull(iso.Crop);
+
+            vm.UndoCommand.Execute(null); // the crop goes again
+            Assert.Null(vm.CurrentSheet!.Views.Single(v => v.Kind == Chamfer.Drawing.ViewKind.Isometric).Crop);
+            Capture(window, "drawing-more-views");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open(string theme)
     {
         Application.Current!.RequestedThemeVariant = theme == "dark" ? ThemeVariant.Dark : ThemeVariant.Light;
