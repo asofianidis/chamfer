@@ -149,7 +149,7 @@ chamfer/
 │   ├── Chamfer.Kernel.Occt/      # C# bindings to the native shim ✅
 │   ├── Chamfer.Kernel.Native/    # C++ shim over OCCT (CMake) ✅
 │   ├── Chamfer.IO/               # STEP, IGES, STL, 3MF, DXF, PDF, native format
-│   └── Chamfer.Api/              # Public plugin / scripting API
+│   └── Chamfer.Api/              # Public plugin / scripting API ✅
 ├── tests/
 │   ├── Chamfer.Sketching.Tests/   ✅
 │   ├── Chamfer.Kernel.Tests/      ✅
@@ -224,6 +224,8 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids) and **Thicken**. |
 | Sheet metal | The **Sheet Metal** tab: **Base Flange** from a sketch (closed makes a plate, open lines make a bent sheet with the bend radius), **Edge Flange** on straight edges (length, angle, either direction), **Flatten** to see the blank with bend lines, and **Export Flat DXF**. |
 | Simulation | The **Simulation** tab: select faces and click **Fixture**, **Force** (normal or along an axis) or **Pressure**, then **Run Study**. The part is shown deformed and coloured by von Mises stress, with max stress, max displacement and factor of safety against the material's yield strength. |
+| Macros | **Macro** opens a C# editor. Scripts get `Api` (sketch builders, `Extrude`, `FilletEdges`, `Variable`, `Link`, queries and export) and `Print`. **Record** captures what you do as a replayable macro; **Open/Save Macro** use `.csx` files. |
+| Plugins | .NET assemblies in `plugins/` next to the app (or `%APPDATA%/Chamfer/plugins`) implementing `IChamferPlugin` can add commands; they appear under a **Plugins** tab. |
 | Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
 
 ### Assemblies
@@ -434,8 +436,8 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] Draft-angle and wall-thickness checks for manufacturability
 
 ### Phase 10: Productivity, Extensibility & Ecosystem
-- [ ] **Public C# API** (`Chamfer.Api`) and plugin loading via `AssemblyLoadContext`
-- [ ] Macro recording and playback (Roslyn scripting)
+- [x] **Public C# API** (`Chamfer.Api`) and plugin loading via `AssemblyLoadContext`
+- [x] Macro recording and playback (Roslyn scripting)
 - [~] Toolbox: standard fasteners, bearings, and hardware libraries (ANSI and ISO) *(ISO socket head cap screws, hex bolts, hex nuts and washers, M3 to M20)*
 - [ ] Design Library, favorites, templates
 - [ ] Custom properties, property tab builder
@@ -482,7 +484,7 @@ A high-level tracker against SolidWorks capability areas.
 | MBD | 3D PMI | 10 | ⬜ |
 | Routing | Piping, tubing, electrical | 10 | ⬜ |
 | Toolbox | Standard hardware library | 10 | 🟨 ISO screws, bolts, nuts, washers |
-| API / macros | Programmatic API, macro recorder | 10 | ⬜ |
+| API / macros | Programmatic API, macro recorder | 10 | 🟩 C# API, Roslyn macros, recorder, plugins |
 | PDM | Vault-style data management | 10 | ⬜ |
 
 ---
