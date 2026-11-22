@@ -76,4 +76,34 @@ public class ThermalTests
 
         Assert.Throws<InvalidOperationException>(() => ThermalSolver.Solve(doc, new ThermalStudy { Loads = { new ThermalLoad(right, ThermalLoadKind.HeatPower, 1) } }, TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public void TransientHeatingStoresEnergyAndApproachesSteadyState()
+    {
+        // An insulated 20 mm steel cube heated with 50 W for 10 s: every joule raises its temperature by 1/(rho c V).
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(20, 20));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 20 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        TopoRef Face(Func<Vec3, bool> normal) => body.FaceRef(Enumerable.Range(1, body.FaceCount).Single(i => normal(body.Face(i).Normal)));
+        var heated = new ThermalStudy { Resolution = 10, Duration = 10, Steps = 10, InitialTemperature = 20 };
+        heated.Loads.Add(new ThermalLoad(Face(n => n.Z > 0.99), ThermalLoadKind.HeatPower, 50));
+        var r = ThermalSolver.Solve(doc, heated, TestContext.Current.CancellationToken);
+        Assert.Equal(11, r.History.Count);
+        Assert.Equal(10, r.Times[^1], 1e-12);
+        var capacity = 7800 * 1e-9 * 490 * 8000; // J/K
+        var mean = r.Temperatures.Average();
+        Assert.Equal(20 + (50 * 10 / capacity), mean, 0.5);
+        Assert.True(r.History[5].Average() < mean); // still warming at half time
+
+        // One face held at 100 degrees: after a long time the whole cube is at 100; early on the far side is still cool.
+        var held = new ThermalStudy { Resolution = 10, Duration = 2000, Steps = 20, InitialTemperature = 20 };
+        held.Loads.Add(new ThermalLoad(Face(n => n.Z < -0.99), ThermalLoadKind.Temperature, 100));
+        var h = ThermalSolver.Solve(doc, held, TestContext.Current.CancellationToken);
+        Assert.Equal(100, h.TemperatureAt(new Vec3(10, 10, 19.5)), 1);
+        Assert.True(h.AtStep(1).TemperatureAt(new Vec3(10, 10, 19.5)) < 90);
+    }
 }

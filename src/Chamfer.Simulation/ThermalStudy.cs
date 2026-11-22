@@ -19,12 +19,21 @@ public enum ThermalLoadKind
 
 public sealed record ThermalLoad(TopoRef Face, ThermalLoadKind Kind, double Value, double Ambient = 20);
 
-/// <summary>A steady-state heat conduction study.</summary>
+/// <summary>A heat conduction study: steady state, or transient over a duration.</summary>
 public sealed class ThermalStudy
 {
     public List<ThermalLoad> Loads { get; } = [];
 
     public int Resolution { get; set; } = 30;
+
+    /// <summary>Transient: how long to follow the temperatures (s); 0 solves the steady state.</summary>
+    public double Duration { get; set; }
+
+    /// <summary>Time steps over <see cref="Duration"/>.</summary>
+    public int Steps { get; set; } = 20;
+
+    /// <summary>Transient: the part's temperature at the start (°C).</summary>
+    public double InitialTemperature { get; set; } = 20;
 }
 
 public sealed class ThermalResult
@@ -44,6 +53,24 @@ public sealed class ThermalResult
     public int Iterations { get; init; }
 
     public TimeSpan Elapsed { get; init; }
+
+    /// <summary>Transient studies: the time of each saved step (s), starting at 0.</summary>
+    public IReadOnlyList<double> Times { get; init; } = [];
+
+    /// <summary>Transient studies: the node temperatures at each of <see cref="Times"/>.</summary>
+    public IReadOnlyList<double[]> History { get; init; } = [];
+
+    /// <summary>The same result at one saved step of a transient study.</summary>
+    public ThermalResult AtStep(int step)
+    {
+        if (History.Count == 0)
+        {
+            return this;
+        }
+
+        step = Math.Clamp(step, 0, History.Count - 1);
+        return new ThermalResult { Grid = Grid, Temperatures = History[step], HeatThroughFixedFaces = HeatThroughFixedFaces, Iterations = Iterations, Elapsed = Elapsed, Times = Times, History = History };
+    }
 
     /// <summary>Trilinear temperature inside the part (NaN outside).</summary>
     public double TemperatureAt(Vec3 p)
@@ -130,7 +157,7 @@ public static class ThermalSolver
             throw new InvalidOperationException("There is no solid to analyse.");
         }
 
-        if (!study.Loads.Any(l => l.Kind is ThermalLoadKind.Temperature or ThermalLoadKind.Convection))
+        if (study.Duration <= 0 && !study.Loads.Any(l => l.Kind is ThermalLoadKind.Temperature or ThermalLoadKind.Convection))
         {
             throw new InvalidOperationException("Hold some faces at a temperature or add convection, or the temperature is undefined.");
         }
@@ -259,6 +286,11 @@ public static class ThermalSolver
             }
         }
 
+        if (study.Duration > 0)
+        {
+            return Transient(part, study, grid, fixedT, f, diag, Full, timer, cancel);
+        }
+
         var u = new double[n];
         var iterations = Pcg(Free, diag, fixedT, rhs, u, cancel);
         for (var i = 0; i < n; i++)
@@ -279,6 +311,80 @@ public static class ThermalSolver
         }
 
         return new ThermalResult { Grid = grid, Temperatures = t, HeatThroughFixedFaces = leaving, Iterations = iterations, Elapsed = timer.Elapsed };
+    }
+
+    /// <summary>
+    /// Implicit Euler in time: (C/dt + K) T' = C/dt T + f, with lumped node heat capacities
+    /// C = rho c V (each node gets an eighth of every voxel it touches).
+    /// </summary>
+    private static ThermalResult Transient(PartDocument part, ThermalStudy study, VoxelGrid grid, double?[] fixedT, double[] f, double[] diag,
+        Action<double[], double[]> full, Stopwatch timer, CancellationToken cancel)
+    {
+        var n = grid.NodeCount;
+        var steps = Math.Max(1, study.Steps);
+        var dt = study.Duration / steps;
+        var perNode = part.Material.Density * 1e-9 * part.Material.SpecificHeat * Math.Pow(grid.Size, 3) / 8; // J/K per voxel corner
+        var capacity = new double[n];
+        foreach (var nodes in grid.CellNodes)
+        {
+            foreach (var node in nodes)
+            {
+                capacity[node] += perNode;
+            }
+        }
+
+        var lumped = new double[n];
+        for (var i = 0; i < n; i++)
+        {
+            lumped[i] = diag[i] + (capacity[i] / dt);
+        }
+
+        void System(double[] x, double[] y)
+        {
+            full(x, y);
+            for (var i = 0; i < n; i++)
+            {
+                y[i] = fixedT[i] is null ? y[i] + (capacity[i] / dt * x[i]) : 0;
+            }
+        }
+
+        var t = new double[n];
+        for (var i = 0; i < n; i++)
+        {
+            t[i] = fixedT[i] ?? study.InitialTemperature;
+        }
+
+        var times = new List<double> { 0 };
+        var history = new List<double[]> { (double[])t.Clone() };
+        var iterations = 0;
+        var fixedOnly = new double[n];
+        var kFixed = new double[n];
+        for (var i = 0; i < n; i++)
+        {
+            fixedOnly[i] = fixedT[i] ?? 0;
+        }
+
+        full(fixedOnly, kFixed);
+        for (var step = 1; step <= steps; step++)
+        {
+            var rhs = new double[n];
+            for (var i = 0; i < n; i++)
+            {
+                rhs[i] = fixedT[i] is null ? (capacity[i] / dt * t[i]) + f[i] - kFixed[i] : 0;
+            }
+
+            var u = new double[n];
+            iterations += Pcg(System, lumped, fixedT, rhs, u, cancel);
+            for (var i = 0; i < n; i++)
+            {
+                t[i] = fixedT[i] ?? u[i];
+            }
+
+            times.Add(step * dt);
+            history.Add((double[])t.Clone());
+        }
+
+        return new ThermalResult { Grid = grid, Temperatures = t, Iterations = iterations, Elapsed = timer.Elapsed, Times = times, History = history };
     }
 
     private static int Pcg(Action<double[], double[]> multiply, double[] diag, double?[] fixedT, double[] b, double[] x, CancellationToken cancel)
