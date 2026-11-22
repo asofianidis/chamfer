@@ -74,3 +74,47 @@ public class CutScaleTests
         Assert.Equal(other, loaded.Bodies.Single(b => !b.IsSurface).Shape.MassProperties.Volume, 1e-6);
     }
 }
+
+public class ToolingTests
+{
+    [Fact]
+    public void CoreAndCavityFromAFlatParting()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCircle(Vec2.Zero, 10);
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 20 });
+        doc.Rebuild();
+        var part = doc.MassProperties().Volume;
+
+        var split = (ToolingSplitFeature)doc.Add(new ToolingSplitFeature { PartingHeight = 10, Margin = 10 });
+        doc.Rebuild();
+        Assert.Equal(FeatureStatus.Ok, doc.Results[split.Id].Status);
+        Assert.Equal(3, doc.Bodies.Count);
+        var core = doc.Bodies.Single(b => b.Name == "Core");
+        var cavity = doc.Bodies.Single(b => b.Name == "Cavity");
+        var block = 40.0 * 40 * 40;
+        Assert.Equal((block - part) / 2, core.Shape.MassProperties.Volume, 1e-3);
+        Assert.Equal((block - part) / 2, cavity.Shape.MassProperties.Volume, 1e-3);
+        Assert.Equal(10, core.Shape.Bounds.Max.Z, 1e-6);
+        Assert.Equal(10, cavity.Shape.Bounds.Min.Z, 1e-6);
+
+        // 2 % shrinkage enlarges the impression by 1.02³.
+        split.Shrinkage = 1.02;
+        doc.Rebuild();
+        var tools = doc.Bodies.Where(b => b.Name is "Core" or "Cavity").Sum(b => b.Shape.MassProperties.Volume);
+        Assert.Equal(block - (part * Math.Pow(1.02, 3)), tools, 1e-2);
+
+        // A box's parting line for a +Z pull is its top edge loop (zero-draft walls).
+        var box = new PartDocument();
+        var bs = new Sketch();
+        bs.AddCornerRectangle(new Vec2(0, 0), new Vec2(20, 20));
+        var bf = box.Add(new SketchFeature { Sketch = bs });
+        box.Add(new ExtrudeFeature { SketchId = bf.Id, Depth = 20 });
+        box.Rebuild();
+        var edges = PartingLines.Find(box.Bodies[0], Vec3.UnitZ);
+        Assert.Equal(4, edges.Count);
+        Assert.All(edges, e => Assert.Equal(20, box.Bodies[0].Edge(e).Midpoint.Z, 1e-9));
+    }
+}

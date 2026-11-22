@@ -111,6 +111,10 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Structural Member", "Profiles along sketch lines, mitred at corners", new RelayCommand(() => StartSketchFeature(sf => new StructuralMemberFeature { SketchId = sf.Id })), "⌗", "Weldments"),
             new("Cut List", "Members grouped by profile and length", new RelayCommand(ShowCutList), "☰", "Weldments"),
 
+            new("Parting Lines", "Find where faces turn from the pull direction (pull along Z)", new RelayCommand(ShowPartingLines), "≡", "Mold Tools"),
+            new("Tooling Split", "Core and cavity blocks from a flat parting plane", new RelayCommand(() => StartFeature(new ToolingSplitFeature())), "⊟", "Mold Tools"),
+            new("Draft Check", "Colour faces by draft against the pull direction", new RelayCommand(ToggleDraftAnalysis), "◩", "Mold Tools"),
+
             new("Combine", "Add, subtract or intersect bodies", new RelayCommand(StartCombine), "⊕", "Bodies"),
             new("Split", "Cut bodies in two with a plane", new RelayCommand(() => StartFeature(new SplitBodyFeature { Plane = SelectedPlane() ?? PlaneRef.Right })), "⫽", "Bodies"),
             new("Move/Copy Body", "Move, rotate or copy bodies", new RelayCommand(() => StartFeature(new MoveCopyBodyFeature { Bodies = SelectedBodyNames() })), "✥", "Bodies"),
@@ -171,7 +175,20 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial IReadOnlyList<CommandItem> FeatureCommands { get; set; }
 
     [ObservableProperty]
-    public partial IReadOnlyList<string> CommandTabs { get; set; } = ["Features", "Surfaces", "Sheet Metal", "Weldments", "Bodies", "Simulation"];
+    public partial IReadOnlyList<string> CommandTabs { get; set; } = ["Features", "Surfaces", "Sheet Metal", "Weldments", "Mold Tools", "Bodies", "Simulation"];
+
+    /// <summary>Selects the parting-line edges of every solid for a pull along +Z (the Front plane's normal).</summary>
+    private void ShowPartingLines()
+    {
+        var picks = new List<SelectionItem>();
+        foreach (var body in Document.Bodies.Where(b => !b.IsSurface))
+        {
+            picks.AddRange(PartingLines.Find(body, Vec3.UnitZ).Select(e => SelectionItem.Edge(body, e)));
+        }
+
+        SetSelection(picks);
+        MessageText = picks.Count == 0 ? "No parting line found for a pull along Z." : $"Parting line: {picks.Count} edge(s) for a pull along Z (selected).";
+    }
 
     private void ShowCutList()
     {

@@ -170,3 +170,140 @@ public sealed class ScaleFeature : Feature
         }
     }
 }
+
+/// <summary>
+/// Mould tooling: a block around the part, less the part (scaled for shrinkage), split at a flat
+/// parting plane into a core (below) and a cavity (above). The part body stays.
+/// </summary>
+public sealed class ToolingSplitFeature : Feature
+{
+    public override string DefaultName => "Tooling Split";
+
+    /// <summary>Normal of the parting plane (the pull direction); the cavity is on this side.</summary>
+    public AxisRef Pull { get; set; } = AxisRef.Z;
+
+    /// <summary>Parting plane height along the pull direction, measured from the part's lowest point.</summary>
+    public double PartingHeight { get; set; }
+
+    /// <summary>Block wall around the part on every side (mm).</summary>
+    public double Margin { get; set; } = 15;
+
+    /// <summary>Scale applied to the part's impression for material shrinkage (1 = none).</summary>
+    public double Shrinkage { get; set; } = 1;
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var parts = ctx.Bodies.Where(b => !b.IsSurface).ToList();
+        if (parts.Count == 0)
+        {
+            throw new FeatureException("There's no solid to make tooling for.");
+        }
+
+        if (Margin <= 0 || Shrinkage <= 0)
+        {
+            throw new FeatureException("The margin and shrinkage must be positive.");
+        }
+
+        var pull = ctx.ResolveAxis(Pull).Direction.Normalized();
+        var x = pull.AnyPerpendicular().Normalized();
+        var y = Vec3.Cross(pull, x);
+
+        // The part's extent in the pull frame.
+        double Lo(Vec3 axis) => parts.Min(b => Extent(b.Shape, axis).Min);
+        double Hi(Vec3 axis) => parts.Max(b => Extent(b.Shape, axis).Max);
+        var (x0, x1, y0, y1, z0, z1) = (Lo(x), Hi(x), Lo(y), Hi(y), Lo(pull), Hi(pull));
+        var parting = z0 + PartingHeight;
+        if (parting < z0 - Margin || parting > z1 + Margin)
+        {
+            throw new FeatureException("The parting plane must pass through the block.");
+        }
+
+        // The block, as a rectangle on a plane normal to the pull, extruded through the part plus margins.
+        var basePlane = new Plane3((x * (x0 - Margin)) + (y * (y0 - Margin)) + (pull * (z0 - Margin)), pull, x);
+        var w = x1 - x0 + (2 * Margin);
+        var h = y1 - y0 + (2 * Margin);
+        using var rect = Modeling.Face(basePlane, [[
+            ProfileSegment.Line(0, 0, w, 0), ProfileSegment.Line(w, 0, w, h), ProfileSegment.Line(w, h, 0, h), ProfileSegment.Line(0, h, 0, 0),
+        ]]);
+        using var blockOp = Modeling.Extrude(rect, pull * (z1 - z0 + (2 * Margin)));
+        var block = blockOp.Result;
+
+        // The impression: the part, grown by the shrinkage about its centre.
+        var center = (x * ((x0 + x1) / 2)) + (y * ((y0 + y1) / 2)) + (pull * ((z0 + z1) / 2));
+        foreach (var part in parts)
+        {
+            using var grown = Modeling.Transform(part.Shape, Transform3.Scale(center, Shrinkage));
+            using var cut = Modeling.Boolean(block, grown.Result, BooleanKind.Cut);
+            block = cut.Result;
+        }
+
+        // Split at the parting plane.
+        using var tool = Modeling.PlaneFace(new Plane3(pull * parting, pull, x), (block.Bounds.Diagonal * 2) + 10);
+        using var split = Modeling.Split(block, tool);
+        var whole = split.Result;
+        var core = new List<Shape>();
+        var cavity = new List<Shape>();
+        for (var i = 1; i <= whole.SolidCount; i++)
+        {
+            var piece = whole.Sub(TopoKind.Solid, i);
+            (Vec3.Dot(piece.MassProperties.CenterOfMass, pull) > parting ? cavity : core).Add(piece);
+        }
+
+        if (core.Count == 0 || cavity.Count == 0)
+        {
+            throw new FeatureException("The parting plane must split the block in two.");
+        }
+
+        foreach (var (pieces, name) in new[] { (core, "Core"), (cavity, "Cavity") })
+        {
+            var shape = pieces.Count == 1 ? pieces[0] : Modeling.Compound(pieces);
+            var names = Naming.Finish(shape, new string?[shape.FaceCount], $"{Id}:{name}");
+            ctx.Bodies.Add(new Body(shape, names, name, name == "Core" ? 0x7C8DA6u : 0xB08D57u));
+        }
+    }
+
+    private static (double Min, double Max) Extent(Shape s, Vec3 axis)
+    {
+        var b = s.Bounds;
+        double lo = double.MaxValue, hi = double.MinValue;
+        for (var k = 0; k < 8; k++)
+        {
+            var p = new Vec3((k & 1) == 0 ? b.Min.X : b.Max.X, (k & 2) == 0 ? b.Min.Y : b.Max.Y, (k & 4) == 0 ? b.Min.Z : b.Max.Z);
+            var d = Vec3.Dot(p, axis);
+            lo = Math.Min(lo, d);
+            hi = Math.Max(hi, d);
+        }
+
+        return (lo, hi);
+    }
+}
+
+/// <summary>Parting line analysis: edges where faces change from facing the pull direction to facing away.</summary>
+public static class PartingLines
+{
+    /// <summary>1-based edge indices of a body on its parting line for a pull direction.</summary>
+    public static IReadOnlyList<int> Find(Body body, Vec3 pull)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var dir = pull.Normalized();
+        var edges = new List<int>();
+        for (var e = 1; e <= body.EdgeCount; e++)
+        {
+            var faces = body.Shape.FacesOfEdge(e);
+            if (faces.Length != 2)
+            {
+                continue;
+            }
+
+            var mid = body.Edge(e).Midpoint;
+            var sides = faces.Select(f => body.Shape.ProjectOnFace(f, mid) is { } hit ? Math.Sign(Math.Round(Vec3.Dot(hit.Normal, dir), 6)) : 0).ToArray();
+            if ((sides[0] > 0 && sides[1] <= 0) || (sides[1] > 0 && sides[0] <= 0))
+            {
+                edges.Add(e);
+            }
+        }
+
+        return edges;
+    }
+}
