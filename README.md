@@ -387,7 +387,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] **Advanced mates**: limit distance and angle, width, symmetric, path, linear/linear coupler *(limit distance/angle, width, symmetric)*
 - [~] **Mechanical mates**: gear, rack and pinion, cam, hinge, screw, universal joint, slot *(gear, rack and pinion, screw)*
 - [~] Mate references, SmartMates (drag-to-mate) *(mate references: concentric/coincident faces, applied on insert)*
-- [~] Move and rotate component with collision detection *(numeric move/rotate; drag and collision detection not yet)*
+- [~] Move and rotate component with collision detection *(numeric move/rotate, optionally stopping at collisions; drag not yet)*
 - [~] Interference detection, clearance verification *(interference volumes)*
 - [~] Exploded views and explode lines *(automatic radial explode)*
 - [~] Component patterns, mirror components *(linear and circular component patterns)*

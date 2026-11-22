@@ -24,28 +24,7 @@ public static class AssemblyTools
         {
             for (var j = i + 1; j < comps.Count; j++)
             {
-                double volume = 0;
-                foreach (var a in placed[comps[i].Id])
-                {
-                    foreach (var b in placed[comps[j].Id])
-                    {
-                        if (!Overlap(a.Bounds, b.Bounds))
-                        {
-                            continue;
-                        }
-
-                        try
-                        {
-                            using var common = Modeling.Boolean(a, b, BooleanKind.Common);
-                            using var result = common.Result;
-                            volume += result.MassProperties.Volume;
-                        }
-                        catch (KernelException)
-                        {
-                        }
-                    }
-                }
-
+                var volume = OverlapVolume(placed[comps[i].Id], placed[comps[j].Id]);
                 if (volume > minVolume)
                 {
                     found.Add(new Interference(comps[i], comps[j], volume));
@@ -54,6 +33,55 @@ public static class AssemblyTools
         }
 
         return found;
+    }
+
+    /// <summary>
+    /// The components that <paramref name="moving"/> overlaps by more than <paramref name="minVolume"/> mm³,
+    /// for stopping a move at a collision. Touching faces don't count.
+    /// </summary>
+    public static IReadOnlyList<Interference> CollisionsWith(AssemblyDocument asm, Component moving, double minVolume = 1e-3)
+    {
+        ArgumentNullException.ThrowIfNull(asm);
+        ArgumentNullException.ThrowIfNull(moving);
+        var mine = asm.PlacedBodies(moving).Select(p => p.Placed).ToList();
+        var found = new List<Interference>();
+        foreach (var other in asm.Components.Where(c => !c.Suppressed && c.Id != moving.Id))
+        {
+            var volume = OverlapVolume(mine, asm.PlacedBodies(other).Select(p => p.Placed).ToList());
+            if (volume > minVolume)
+            {
+                found.Add(new Interference(moving, other, volume));
+            }
+        }
+
+        return found;
+    }
+
+    private static double OverlapVolume(IReadOnlyList<Shape> first, IReadOnlyList<Shape> second)
+    {
+        double volume = 0;
+        foreach (var a in first)
+        {
+            foreach (var b in second)
+            {
+                if (!Overlap(a.Bounds, b.Bounds))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    using var common = Modeling.Boolean(a, b, BooleanKind.Common);
+                    using var result = common.Result;
+                    volume += result.MassProperties.Volume;
+                }
+                catch (KernelException)
+                {
+                }
+            }
+        }
+
+        return volume;
     }
 
     /// <summary>One line per distinct part and configuration, in insertion order.</summary>
