@@ -93,6 +93,7 @@ public sealed partial class FeatureNode : ObservableObject
         TabFeature => "⊓",
         SketchedBendFeature => "⌒",
         HealFeature => "✚",
+        DomeFeature => "◠",
         _ => "•",
     };
 }

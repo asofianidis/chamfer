@@ -222,7 +222,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
 | Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES, STL, 3MF or OBJ. |
 | Sketch tools | **Trim** (click the piece to remove), **Extend**, **Fillet** and **Chamfer** (click a corner; Size sets the radius or distance), **Offset** (selected curves, by Size; Reverse flips the side), **Mirror** (selection about a selected centerline), **Linear/Circular Pattern** (Count copies), **Convert Entities** (click model edges behind the sketch), **Convert Face** (outline of the sketch face) and **Import DXF** (lines, arcs, circles and polylines from a DXF file, converted to mm). |
-| Advanced features | **Helix** on a sketch circle (pitch, height, handedness) is a sweep path for springs. **3D Sketch** is a polyline or spline through typed points (x,y,z, or @dx,dy,dz relative), also usable as a sweep path. **Thread** models an ISO metric thread on a selected cylindrical face (pitch defaults to coarse). **Swept Boss/Cut**: select the profile sketch, then the path sketch, helix or 3D sketch. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
+| Advanced features | **Helix** on a sketch circle (pitch, height, handedness) is a sweep path for springs. **3D Sketch** is a polyline or spline through typed points (x,y,z, or @dx,dy,dz relative), also usable as a sweep path. **Thread** models an ISO metric thread on a selected cylindrical face (pitch defaults to coarse). **Swept Boss/Cut**: select the profile sketch, then the path sketch, helix or 3D sketch. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. **Dome** raises (or sinks) a spherical cap on a flat face, following its outline. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
 | Equations | **Equations** defines global variables (`Width = 40`, `Wall = Width / 20`). Type `=Width/2` in any number box or sketch dimension to link it. |
 | Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
 | Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids), **Thicken** and **Cut With Surface** (removes the material on one side of a surface body or plane). |
@@ -366,7 +366,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] **Global variables and equations**
 - [x] **Configurations**, then **design tables** (spreadsheet-driven configurations)
 - [~] Curve-driven, sketch-driven, table-driven, fill, and variable patterns *(curve-driven with alignment, sketch-driven, table-driven, fill with square or staggered grid)*
-- [ ] Wrap, dome, flex, deform, indent
+- [~] Wrap, dome, flex, deform, indent *(dome)*
 - [~] Cosmetic threads, thread feature *(modelled ISO metric threads, external and internal)*
 - [ ] Library features
 - [~] Appearances, decals, scenes *(body colours)*

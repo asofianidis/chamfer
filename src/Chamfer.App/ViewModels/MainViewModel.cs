@@ -76,6 +76,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Curve Pattern", "Repeat features along a sketched curve", new RelayCommand(() => StartFeature(new CurveDrivenPatternFeature())), "∿"),
             new("Fill Pattern", "Fill a face with copies on a grid", new RelayCommand(() => StartFeature(new FillPatternFeature())), "⣿"),
             new("Mirror", "Mirror features about a plane", new RelayCommand(() => StartFeature(new MirrorFeature())), "⇋"),
+            new("Dome", "Raise a spherical dome on a flat face", new RelayCommand(() => StartFeature(new DomeFeature { Face = Selection.FirstOrDefault(s => s.Kind == SelectionKind.Face)?.Ref })), "◠"),
             new("Mate Reference", "Faces this part mates by automatically when inserted", new RelayCommand(StartMateReference), "⫘"),
             new("Plane", "Reference plane", new RelayCommand(() => StartFeature(new ReferencePlaneFeature { Base = SelectedPlane() ?? PlaneRef.Front })), "▱"),
             new("3D Sketch", "Polyline or spline through points in space, for sweep paths", new RelayCommand(() => StartFeature(new Sketch3DFeature
