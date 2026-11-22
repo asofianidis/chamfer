@@ -188,6 +188,12 @@ public sealed class DrawingView
 
     /// <summary>The break band runs across Y (a vertical part shortened) instead of across X.</summary>
     public bool BreakAlongY { get; set; }
+
+    /// <summary>Broken-out section: a closed outline in view coordinates (x0, y0, x1, y1, ...) cut away to <see cref="BrokenOutDepth"/>.</summary>
+    public double[]? BrokenOut { get; set; }
+
+    /// <summary>How deep the broken-out section goes, from the front of the model (model mm).</summary>
+    public double BrokenOutDepth { get; set; } = 10;
 }
 
 /// <summary>A bill of materials table on a sheet (assembly drawings).</summary>

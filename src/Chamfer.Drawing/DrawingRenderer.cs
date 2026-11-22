@@ -89,7 +89,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         }
 
         var scale = view.Scale ?? sheet.Scale;
-        var key = $"{view.Id}|{view.Kind}|{view.ParentId}|{doc.FirstAngle}|{view.Ax},{view.Ay},{view.Bx},{view.By},{view.Radius}|{scale}|{view.Side}|" +
+        var key = $"{view.Id}|{view.Kind}|{view.ParentId}|{doc.FirstAngle}|{string.Join(',', view.BrokenOut ?? [])}|{view.BrokenOutDepth}|{view.Ax},{view.Ay},{view.Bx},{view.By},{view.Radius}|{scale}|{view.Side}|" +
             $"{string.Join(',', view.Crop ?? [])}|{string.Join(',', view.Break ?? [])}|{view.BreakAlongY}";
         if (_cache.TryGetValue(key, out var cached))
         {
@@ -157,8 +157,60 @@ public sealed class DrawingRenderer(DrawingDocument doc)
     private ViewGeometry Oriented(DrawingView view, Vec3 toward, Vec3 x, double scale)
     {
         var shape = Compound();
+        if (shape is not null && view.BrokenOut is { Length: >= 6 } outline)
+        {
+            return BrokenOut(view, shape, outline, toward, x, scale);
+        }
+
         var lines = shape is null ? [] : shape.Project(Vec3.Zero, toward, x, 0.005);
         return new ViewGeometry { View = view, Toward = toward, XAxis = x, Lines = lines, Scale = scale, Center = Middle(lines) };
+    }
+
+    /// <summary>
+    /// A view with a broken-out section: the material inside the outline is cut away from the front
+    /// of the model to a depth, and the cut's floor is hatched.
+    /// </summary>
+    private static ViewGeometry BrokenOut(DrawingView view, Shape shape, double[] outline, Vec3 toward, Vec3 x, double scale)
+    {
+        var y = Vec3.Cross(toward, x);
+        var box = shape.Bounds;
+        var front = new[] { box.Min, box.Max, new Vec3(box.Min.X, box.Min.Y, box.Max.Z), new Vec3(box.Min.X, box.Max.Y, box.Min.Z),
+            new Vec3(box.Max.X, box.Min.Y, box.Min.Z), new Vec3(box.Max.X, box.Max.Y, box.Min.Z), new Vec3(box.Max.X, box.Min.Y, box.Max.Z), new Vec3(box.Min.X, box.Max.Y, box.Max.Z) }
+            .Max(p => Vec3.Dot(p, toward));
+        var floor = front - view.BrokenOutDepth;
+
+        // The outline as a face above the model, swept down to the floor.
+        var top = new Plane3(toward * (front + 1), toward, x);
+        var pts = Enumerable.Range(0, outline.Length / 2).Select(i => (outline[2 * i], outline[(2 * i) + 1])).ToList();
+        var segments = pts.Select((p, i) => ProfileSegment.Line(p.Item1, p.Item2, pts[(i + 1) % pts.Count].Item1, pts[(i + 1) % pts.Count].Item2)).ToList();
+        using var face = Modeling.Face(top, [segments]);
+        using var tool = Modeling.Extrude(face, toward * -(front + 1 - floor));
+        using var cut = Modeling.Boolean(shape, tool.Result, BooleanKind.Cut);
+        var result = cut.Result;
+        var lines = result.Project(Vec3.Zero, toward, x, 0.005).ToList();
+
+        // Hatch the floor: faces facing the viewer at the floor's depth.
+        var boundary = new List<(Point2, Point2)>();
+        for (var f = 1; f <= result.FaceCount; f++)
+        {
+            var info = result.Face(f);
+            if (info.Surface != SurfaceKind.Plane || Vec3.Dot(info.Normal, toward) < 0.999 || Math.Abs(Vec3.Dot(info.Centroid, toward) - floor) > 1e-6)
+            {
+                continue;
+            }
+
+            foreach (var e in result.EdgesOfFace(f))
+            {
+                var sample = result.SampleEdge(e, 0.01).Select(p => new Point2(Vec3.Dot(p, x), Vec3.Dot(p, y))).ToList();
+                for (var k = 0; k + 1 < sample.Count; k++)
+                {
+                    boundary.Add((sample[k], sample[k + 1]));
+                }
+            }
+        }
+
+        var hatch = Hatching(boundary, 3 / scale).ToList();
+        return new ViewGeometry { View = view, Toward = toward, XAxis = x, Lines = lines, Hatch = hatch, Scale = scale, Center = Middle(lines) };
     }
 
     /// <summary>Applies a view's crop rectangle and break, if it has them.</summary>
@@ -307,9 +359,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
     private ViewGeometry Standard(DrawingView view, double scale)
     {
         var (toward, x) = Orientation(view.Kind);
-        var shape = Compound();
-        var lines = shape is null ? [] : shape.Project(Vec3.Zero, toward, x, 0.005);
-        return new ViewGeometry { View = view, Toward = toward, XAxis = x, Lines = lines, Scale = scale, Center = Middle(lines) };
+        return Oriented(view, toward, x, scale);
     }
 
     private ViewGeometry Section(Sheet sheet, DrawingView view, double scale)

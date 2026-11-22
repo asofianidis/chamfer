@@ -392,6 +392,29 @@ public class DrawingTests
     }
 
     [Fact]
+    public void BrokenOutSectionShowsTheInside()
+    {
+        // The plate (80 x 50 x 20, a 20 mm hole through it, y 15 to 35) seen along Y from y = 50; break out
+        // a window 20 deep over the hole, down past its near side.
+        var (part, _) = Part();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        var top = drawing.Add(sheet, ViewKind.Top, 100, 100);
+        var renderer = new DrawingRenderer(drawing);
+        var plain = renderer.Geometry(sheet, top);
+        Assert.Empty(plain.Hatch);
+        Assert.DoesNotContain(plain.Lines, l => l.Kind == LineKind.Visible && l.Points.All(p => p.X > 25 && p.X < 55));
+
+        // View coordinates of the top view: x is model X, y is -Z (the view looks down).
+        top.BrokenOut = [20, -25, 60, -25, 60, 5, 20, 5];
+        top.BrokenOutDepth = 20;
+        var broken = renderer.Geometry(sheet, top);
+        Assert.NotEmpty(broken.Hatch); // the floor of the cut
+        Assert.Contains(broken.Lines, l => l.Kind == LineKind.Visible && l.Points.All(p => p.X > 25 && p.X < 55)); // the hole's walls now in sight
+        Assert.Equal(20, DrawingDocument.Load(drawing.Save()).Sheets[0].Views.Single().BrokenOutDepth);
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();

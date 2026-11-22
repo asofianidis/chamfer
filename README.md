@@ -400,7 +400,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 5: Drawings
 - [x] Drawing document (`.chdrw`), sheets, sheet formats, title blocks *(A4–A0, Letter, Tabloid; multiple sheets; editable title block fields; part and assembly drawings)*
 - [x] Hidden-line-removal (HLR) projection engine *(OCCT exact HLR: visible, tangent, silhouette and hidden edges)*
-- [~] Standard 3 views, projected, auxiliary, section, detail, broken-out section, break, crop, and alternate-position views *(standard, isometric, projected, auxiliary, section with hatching, detail, break, crop)*
+- [~] Standard 3 views, projected, auxiliary, section, detail, broken-out section, break, crop, and alternate-position views *(standard, isometric, projected, auxiliary, section with hatching, detail, broken-out section, break, crop; alternate position not yet)*
 - [~] Model items import (dimensions from the model), reference dimensions *(auto overall and hole dimensions anchored to model edges)*
 - [x] Ordinate, baseline, and chain dimensions; tolerances and fits *(horizontal, vertical, aligned, diameter, radius; baseline, chain and ordinate sets to hole centres; tolerance text; ISO 286 fits with limits)*
 - [x] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target
