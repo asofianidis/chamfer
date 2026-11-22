@@ -361,6 +361,68 @@ public sealed partial class AssemblyDocument
         return made;
     }
 
+    /// <summary>
+    /// Mirrors a component across a plane. With <paramref name="oppositeHand"/>, a mirrored copy of
+    /// its part is made (registered under <paramref name="mirroredPath"/>); without, the same part is
+    /// placed turned over, which is right for parts that are symmetric themselves.
+    /// </summary>
+    public Component MirrorComponent(Component seed, Vec3 planeOrigin, Vec3 planeNormal, bool oppositeHand, string mirroredPath)
+    {
+        ArgumentNullException.ThrowIfNull(seed);
+        ArgumentNullException.ThrowIfNull(mirroredPath);
+        if (planeNormal.LengthSquared < 1e-18)
+        {
+            throw new ArgumentException("The mirror plane needs a direction.", nameof(planeNormal));
+        }
+
+        // Mirror · placement · local reflection is a rigid placement; the local reflection goes into
+        // the part's geometry (opposite hand) or is left out (a symmetric part, turned over). It's
+        // taken across the part's own middle, square to the local axis nearest the mirror normal,
+        // so a part symmetric about that plane lands exactly on its mirror image.
+        var source = PartOf(seed);
+        var n = AssemblyDocument.Inverse(seed.Transform).ApplyVector(planeNormal.Normalized());
+        var axis = Math.Abs(n.X) >= Math.Abs(n.Y) && Math.Abs(n.X) >= Math.Abs(n.Z) ? Vec3.UnitX : Math.Abs(n.Y) >= Math.Abs(n.Z) ? Vec3.UnitY : Vec3.UnitZ;
+        var box = source.Bodies.Aggregate(Box3.Empty, (b, x) => b.Union(x.Shape.Bounds));
+        var middle = box.IsEmpty ? Vec3.Zero : box.Center;
+        var local = Transform3.Mirror(middle, axis);
+        var placement = Transform3.Mirror(planeOrigin, planeNormal.Normalized()) * seed.Transform * local;
+        var path = seed.Path;
+        if (oppositeHand)
+        {
+            var shapes = new List<Shape>();
+            try
+            {
+                foreach (var body in source.Bodies.Where(b => !b.IsSurface))
+                {
+                    using var op = Modeling.Mirror(body.Shape, middle, axis);
+                    shapes.Add(op.Result);
+                }
+
+                if (shapes.Count == 0)
+                {
+                    throw new InvalidOperationException("The component has no solid bodies to mirror.");
+                }
+
+                using var all = shapes.Count == 1 ? null : Modeling.Compound(shapes);
+                var mirrored = new PartDocument { Material = source.Material };
+                mirrored.Add(new Chamfer.Document.Features.ImportFeature { SourceName = $"{System.IO.Path.GetFileNameWithoutExtension(seed.Path)} (mirrored)", Brep = (all ?? shapes[0]).ToBrep() });
+                RegisterPart(mirroredPath, mirrored);
+                path = mirroredPath;
+            }
+            finally
+            {
+                foreach (var s in shapes)
+                {
+                    s.Dispose();
+                }
+            }
+        }
+
+        var copy = AddComponent(path, placement, oppositeHand ? null : seed.Configuration);
+        copy.Fixed = false;
+        return copy;
+    }
+
     /// <summary>Deletes a component and the mates that reference it.</summary>
     public void RemoveComponent(Component c)
     {

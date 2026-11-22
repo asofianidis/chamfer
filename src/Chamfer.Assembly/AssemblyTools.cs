@@ -7,6 +7,9 @@ namespace Chamfer.Assembly;
 /// <summary>Two components whose solids overlap.</summary>
 public sealed record Interference(Component A, Component B, double Volume);
 
+/// <summary>Two components closer than a required clearance, and their closest points.</summary>
+public sealed record Clearance(Component A, Component B, double Distance, Vec3 OnA, Vec3 OnB);
+
 /// <summary>A bill-of-materials line.</summary>
 public sealed record BomItem(int Item, string PartName, string? Configuration, int Quantity, string Material, double MassEach, string Description = "");
 
@@ -83,6 +86,57 @@ public static class AssemblyTools
 
         return volume;
     }
+
+    /// <summary>
+    /// Pairs of components closer than <paramref name="minimum"/> mm (touching and overlapping
+    /// pairs report 0), with the closest points: clearance verification.
+    /// </summary>
+    public static IReadOnlyList<Clearance> Clearances(AssemblyDocument asm, double minimum)
+    {
+        ArgumentNullException.ThrowIfNull(asm);
+        var comps = asm.Components.Where(c => !c.Suppressed).ToList();
+        var placed = comps.ToDictionary(c => c.Id, c => asm.PlacedBodies(c).Select(p => p.Placed).ToList());
+        var found = new List<Clearance>();
+        for (var i = 0; i < comps.Count; i++)
+        {
+            for (var j = i + 1; j < comps.Count; j++)
+            {
+                Clearance? closest = null;
+                foreach (var a in placed[comps[i].Id])
+                {
+                    foreach (var b in placed[comps[j].Id])
+                    {
+                        if (!Overlap(Grow(a.Bounds, minimum), b.Bounds))
+                        {
+                            continue;
+                        }
+
+                        try
+                        {
+                            var (d, pa, pb) = a.DistanceTo(b);
+                            if (d < minimum && (closest is null || d < closest.Distance))
+                            {
+                                closest = new Clearance(comps[i], comps[j], d, pa, pb);
+                            }
+                        }
+                        catch (KernelException)
+                        {
+                        }
+                    }
+                }
+
+                if (closest is not null)
+                {
+                    found.Add(closest);
+                }
+            }
+        }
+
+        return [.. found.OrderBy(c => c.Distance)];
+    }
+
+    private static Box3 Grow(Box3 b, double by) =>
+        b.IsEmpty ? b : new Box3(b.Min - new Vec3(by, by, by), b.Max + new Vec3(by, by, by));
 
     /// <summary>One line per distinct part and configuration, in insertion order.</summary>
     public static IReadOnlyList<BomItem> BillOfMaterials(AssemblyDocument asm)

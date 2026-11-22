@@ -420,4 +420,52 @@ public class AssemblyTests
             dir.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public void MirrorComponentsAndCheckClearance()
+    {
+        var asm = new AssemblyDocument();
+        var bracket = new PartDocument();
+        var l = new Sketch();
+        l.AddPolyline([new Vec2(0, 0), new Vec2(30, 0), new Vec2(30, 5), new Vec2(5, 5), new Vec2(5, 20), new Vec2(0, 20)], closed: true);
+        var sf = bracket.Add(new SketchFeature { Sketch = l });
+        bracket.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 8 });
+        bracket.Rebuild();
+        asm.RegisterPart("bracket.chprt", bracket);
+        var seed = asm.AddComponent("bracket.chprt", Transform3.Translation(new Vec3(10, 3, 2)) * Transform3.Rotation(Vec3.Zero, Vec3.UnitZ, 0.3));
+
+        Shape Placed(Component c) => asm.PlacedBodies(c).Single().Placed;
+        double Overlap(Shape a, Shape b)
+        {
+            using var common = Modeling.Boolean(a, b, BooleanKind.Common);
+            using var r = common.Result;
+            return r.MassProperties.Volume;
+        }
+
+        // Opposite hand: exactly the mirror image across the YZ plane.
+        var volume = Placed(seed).MassProperties.Volume;
+        var mirrored = asm.MirrorComponent(seed, Vec3.Zero, Vec3.UnitX, oppositeHand: true, "bracket-mirror.chprt");
+        Assert.True(mirrored.Transform.IsRigid);
+        using (var image = Modeling.Mirror(Placed(seed), Vec3.Zero, Vec3.UnitX))
+        {
+            Assert.Equal(volume, Overlap(image.Result, Placed(mirrored)), 1e-3);
+        }
+
+        // A symmetric block turned over lands on its mirror image too, with the same part.
+        asm.RegisterPart("block.chprt", Block(20, 10, 6));
+        var block = asm.AddComponent("block.chprt", Transform3.Translation(new Vec3(0, 40, 0)) * Transform3.Rotation(Vec3.Zero, Vec3.UnitY, 0.4));
+        var turned = asm.MirrorComponent(block, new Vec3(0, 0, 30), Vec3.UnitZ, oppositeHand: false, "unused.chprt");
+        Assert.Equal("block.chprt", turned.Path);
+        using (var image = Modeling.Mirror(Placed(block), new Vec3(0, 0, 30), Vec3.UnitZ))
+        {
+            Assert.Equal(20 * 10 * 6, Overlap(image.Result, Placed(turned)), 1e-3);
+        }
+
+        // Clearance: the brackets sit either side of the mirror plane, within 25 mm of each other.
+        var close = AssemblyTools.Clearances(asm, 25);
+        var pair = Assert.Single(close, c => c.A == seed && c.B == mirrored);
+        Assert.Equal(Vec3.Distance(pair.OnA, pair.OnB), pair.Distance, 1e-9);
+        Assert.True(pair.Distance > 0);
+        Assert.DoesNotContain(AssemblyTools.Clearances(asm, 0.001), c => c.A == seed && c.B == mirrored);
+    }
 }
