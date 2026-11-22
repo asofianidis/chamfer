@@ -412,6 +412,11 @@ public sealed partial class AssemblyDocument
         }
 
         var doc = new AssemblyDocument { Directory = directory };
+        if (dto.Components.Find(c => !c.Transform.IsRigid || c.Path is null || c.Id is null) is { } bad)
+        {
+            throw new JsonException($"Component {bad.Name} has an invalid placement or path.");
+        }
+
         doc.Components.AddRange(dto.Components);
         doc.Mates.AddRange(dto.Mates);
         doc.Features.AddRange(dto.Features ?? []);

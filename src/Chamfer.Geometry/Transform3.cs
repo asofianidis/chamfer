@@ -61,6 +61,16 @@ public readonly record struct Transform3(
         (M10 * v.X) + (M11 * v.Y) + (M12 * v.Z),
         (M20 * v.X) + (M21 * v.Y) + (M22 * v.Z));
 
+    /// <summary>True when every value is a finite number and the matrix isn't singular.</summary>
+    public bool IsUsable =>
+        new[] { M00, M01, M02, Tx, M10, M11, M12, Ty, M20, M21, M22, Tz }.All(double.IsFinite) && Math.Abs(Determinant) > 1e-12;
+
+    /// <summary>True for a finite rotation plus translation (no scaling or shear).</summary>
+    public bool IsRigid => IsUsable && Math.Abs(Determinant - 1) < 1e-6 &&
+        Math.Abs((M00 * M00) + (M10 * M10) + (M20 * M20) - 1) < 1e-6 &&
+        Math.Abs((M01 * M01) + (M11 * M11) + (M21 * M21) - 1) < 1e-6 &&
+        Math.Abs((M02 * M02) + (M12 * M12) + (M22 * M22) - 1) < 1e-6;
+
     public double Determinant =>
         (M00 * ((M11 * M22) - (M12 * M21))) - (M01 * ((M10 * M22) - (M12 * M20))) + (M02 * ((M10 * M21) - (M11 * M20)));
 

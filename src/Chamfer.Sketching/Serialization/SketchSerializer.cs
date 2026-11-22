@@ -67,7 +67,20 @@ public static class SketchSerializer
 
     private static SketchEntity FromDto(EntityDto dto)
     {
-        var p = dto.Params;
+        var p = dto.Params ?? [];
+        var needed = dto.Kind switch
+        {
+            EntityKind.Point => 2,
+            EntityKind.Line => 4,
+            EntityKind.Circle => 3,
+            EntityKind.Arc => 6,
+            _ => 0,
+        };
+        if (p.Length < needed || p.Take(needed).Any(v => !double.IsFinite(v)))
+        {
+            throw new JsonException($"Entity {dto.Id} ({dto.Kind}) needs {needed} finite parameters.");
+        }
+
         Vec2 At(int i) => new(p[i], p[i + 1]);
         SketchEntity entity = dto.Kind switch
         {
@@ -111,11 +124,12 @@ public static class SketchSerializer
 
     private static SketchConstraint FromDto(ConstraintDto dto, Sketch sketch)
     {
-        var refs = dto.Refs.Select(id => sketch.FindEntity(id)
+        var refs = (dto.Refs ?? []).Select(id => sketch.FindEntity(id)
             ?? throw new JsonException($"Constraint {dto.Id} refers to missing entity {id}.")).ToArray();
+        SketchEntity At(int i) => i < refs.Length ? refs[i] : throw new JsonException($"Constraint {dto.Id} is missing reference {i}.");
         T Ref<T>(int i)
             where T : SketchEntity =>
-            refs[i] as T ?? throw new JsonException($"Constraint {dto.Id}: reference {i} is not a {typeof(T).Name}.");
+            At(i) as T ?? throw new JsonException($"Constraint {dto.Id}: reference {i} is not a {typeof(T).Name}.");
         var state = dto.State;
         var v = dto.Value;
 
@@ -132,14 +146,14 @@ public static class SketchSerializer
             ConstraintKind.Perpendicular => new PerpendicularConstraint(Ref<SketchLine>(0), Ref<SketchLine>(1)),
             ConstraintKind.Collinear => new CollinearConstraint(Ref<SketchLine>(0), Ref<SketchLine>(1)),
             ConstraintKind.PointOnLine => new PointOnLineConstraint(Ref<SketchPoint>(0), Ref<SketchLine>(1)),
-            ConstraintKind.PointOnCircle => new PointOnCircleConstraint(Ref<SketchPoint>(0), refs[1]),
+            ConstraintKind.PointOnCircle => new PointOnCircleConstraint(Ref<SketchPoint>(0), At(1)),
             ConstraintKind.Midpoint => new MidpointConstraint(Ref<SketchPoint>(0), Ref<SketchLine>(1)),
             ConstraintKind.Symmetric => new SymmetricConstraint(Ref<SketchPoint>(0), Ref<SketchPoint>(1), Ref<SketchLine>(2)),
-            ConstraintKind.Tangent => new TangentConstraint(refs[0], refs[1], state),
-            ConstraintKind.Concentric => new ConcentricConstraint(refs[0], refs[1]),
-            ConstraintKind.Equal => new EqualConstraint(refs[0], refs[1]),
-            ConstraintKind.Coradial => new CoradialConstraint(refs[0], refs[1]),
-            ConstraintKind.Fix => new FixConstraint(refs[0], state),
+            ConstraintKind.Tangent => new TangentConstraint(At(0), At(1), state),
+            ConstraintKind.Concentric => new ConcentricConstraint(At(0), At(1)),
+            ConstraintKind.Equal => new EqualConstraint(At(0), At(1)),
+            ConstraintKind.Coradial => new CoradialConstraint(At(0), At(1)),
+            ConstraintKind.Fix => new FixConstraint(At(0), state),
             ConstraintKind.Distance => refs.Length == 1
                 ? new DistanceConstraint(Ref<SketchLine>(0), v)
                 : new DistanceConstraint(Ref<SketchPoint>(0), Ref<SketchPoint>(1), v),
@@ -147,8 +161,8 @@ public static class SketchSerializer
             ConstraintKind.VerticalDistance => new AxisDistanceConstraint(Ref<SketchPoint>(0), Ref<SketchPoint>(1), true, v, state),
             ConstraintKind.PointLineDistance => new PointLineDistanceConstraint(Ref<SketchPoint>(0), Ref<SketchLine>(1), v, state),
             ConstraintKind.Angle => new AngleConstraint(Ref<SketchLine>(0), Ref<SketchLine>(1), v, state),
-            ConstraintKind.Radius => new RadialDimensionConstraint(refs[0], diameter: false, v),
-            ConstraintKind.Diameter => new RadialDimensionConstraint(refs[0], diameter: true, v),
+            ConstraintKind.Radius => new RadialDimensionConstraint(At(0), diameter: false, v),
+            ConstraintKind.Diameter => new RadialDimensionConstraint(At(0), diameter: true, v),
             _ => throw new JsonException($"Unknown constraint kind {dto.Kind}."),
         };
 

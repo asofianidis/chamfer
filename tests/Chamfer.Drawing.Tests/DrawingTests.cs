@@ -408,4 +408,86 @@ public class DrawingTests
         Assert.False(Assert.Single(loaded.Layers).Visible);
         Assert.Equal("Notes", loaded.Sheets[0].Notes[0].Layer);
     }
+
+    private static IEnumerable<string> Mutations(string text, int count, int seed)
+    {
+        var rng = new Random(seed);
+        string[] junk = ["", "null", "-1", "1e308", "NaN", "\"\"", "[]", "{}", "0", "true"];
+        for (var n = 0; n < count; n++)
+        {
+            var sb = new System.Text.StringBuilder(text);
+            for (var k = 1 + rng.Next(4); k > 0 && sb.Length > 0; k--)
+            {
+                var at = rng.Next(sb.Length);
+                switch (rng.Next(4))
+                {
+                    case 0:
+                        sb.Remove(at, Math.Min(sb.Length - at, 1 + rng.Next(8)));
+                        break;
+                    case 1:
+                        sb.Insert(at, (char)rng.Next(32, 127));
+                        break;
+                    case 2:
+                        var s = sb.ToString();
+                        var digit = s.IndexOfAny("0123456789".ToCharArray(), at);
+                        if (digit >= 0)
+                        {
+                            var end = digit;
+                            while (end < s.Length && (char.IsDigit(s[end]) || s[end] is '.' or 'e' or '-'))
+                            {
+                                end++;
+                            }
+
+                            sb.Remove(digit, end - digit).Insert(digit, junk[rng.Next(junk.Length)]);
+                        }
+
+                        break;
+                    default:
+                        sb[at] = (char)rng.Next(32, 127);
+                        break;
+                }
+            }
+
+            yield return sb.ToString();
+        }
+    }
+
+    private static bool Expected(Exception ex) => ex is System.Text.Json.JsonException or NotSupportedException or FormatException;
+
+    [Fact]
+    public void MutatedDrawingsLoadOrFailCleanly()
+    {
+        var (part, _) = Part();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        drawing.AddStandardViews(sheet);
+        sheet.Notes.Add(new Note { X = 20, Y = 60, Text = "NOTE" });
+        sheet.Tolerances.Add(new GeometricTolerance { Id = "gdt1", Datums = ["A"], X = 100, Y = 100, LeaderX = 90, LeaderY = 90 });
+        sheet.HoleTables.Add(new HoleTable { Id = "ht1", ViewId = sheet.Views[0].Id, X = 300, Y = 150 });
+        sheet.Revisions = new RevisionTable { X = 250, Y = 280, Rows = [new Revision { Description = "First" }] };
+        var json = drawing.Save();
+        var failures = new List<string>();
+        foreach (var text in Mutations(json, 150, 17))
+        {
+            try
+            {
+                var loaded = DrawingDocument.Load(text);
+                loaded.SetModel(part);
+                var renderer = new DrawingRenderer(loaded);
+                foreach (var sh in loaded.Sheets)
+                {
+                    renderer.Render(sh);
+                }
+            }
+            catch (Exception ex) when (Expected(ex))
+            {
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"{ex.GetType().Name}: {ex.Message} @ {ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join("\n", failures.Distinct().Take(10)));
+    }
 }
