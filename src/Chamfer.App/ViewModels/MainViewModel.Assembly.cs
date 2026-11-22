@@ -65,6 +65,8 @@ public sealed partial class MainViewModel
         new("Design Library", "Insert reusable parts from the library", new RelayCommand(ShowDesignLibrary), "▦"),
         new("Import STEP", "Open a STEP assembly as parts and an assembly", new AsyncRelayCommand(ImportStepAssemblyAsync), "⇩"),
         new("Explode", "Spread the components apart (toggle)", new RelayCommand(() => Exploded = !Exploded), "✳"),
+        new("Explode Step", "Move the selected components apart along an axis, in the exploded view", new RelayCommand(StartExplodeStep), "⇱"),
+        new("Collapse", "Put every component back (clear the explode steps)", new RelayCommand(CollapseExplode), "⇲"),
         new("Open Part", "Edit the selected component's part", new RelayCommand(OpenSelectedPart), "↗"),
         new("Sketch in Context", "Build a part from the selected face of another component", new RelayCommand(StartSketchInContext), "⇢"),
         new("External References", "In-context references between parts: lock or break them", new RelayCommand(ShowExternalReferences), "⛓"),
@@ -494,6 +496,88 @@ public sealed partial class MainViewModel
         }
 
         Editor = panel;
+    }
+
+    private void StartExplodeStep()
+    {
+        if (AssemblyDoc is not { } asm)
+        {
+            return;
+        }
+
+        var ids = Selection.Select(s => s.ComponentId).OfType<string>().Distinct().ToList();
+        var moving = ids.Select(asm.Find).OfType<Component>().ToList();
+        if (moving.Count == 0 && SelectedComponent() is { } one)
+        {
+            moving.Add(one);
+        }
+
+        if (moving.Count == 0)
+        {
+            MessageText = "Select the components to move apart.";
+            return;
+        }
+
+        CancelEditor();
+        var before = asm.Save();
+        var start = moving.ToDictionary(c => c.Id, c => c.ExplodeOffset);
+        (string Name, Vec3 Dir)[] directions = [("+X", Vec3.UnitX), ("-X", -Vec3.UnitX), ("+Y", Vec3.UnitY), ("-Y", -Vec3.UnitY), ("+Z", Vec3.UnitZ), ("-Z", -Vec3.UnitZ)];
+        var direction = 4;
+        var distance = 50.0;
+        void Apply()
+        {
+            foreach (var c in moving)
+            {
+                c.ExplodeOffset = start[c.Id] + (directions[direction].Dir * distance);
+            }
+
+            Exploded = true;
+            RaiseScene();
+        }
+
+        var panel = FeatureEditor.Command("Explode Step", Apply,
+            accept: () =>
+            {
+                _undo.Push("asm:" + before);
+                _redo.Clear();
+                _dirty = true;
+                UndoCommand.NotifyCanExecuteChanged();
+            },
+            cancel: () =>
+            {
+                asm.RestoreFrom(before);
+                RaiseScene();
+            });
+        panel.AddInfo(new InfoField("Components", string.Join(", ", moving.Select(c => c.Name))));
+        panel.AddField(new ChoiceField("Direction", [.. directions.Select(d => d.Name)], direction, i =>
+        {
+            direction = i;
+            Apply();
+        }));
+        panel.AddField(new NumberField("Distance", "mm", () => distance, v =>
+        {
+            distance = v;
+            Apply();
+        }));
+        Editor = panel;
+        Apply();
+    }
+
+    private void CollapseExplode()
+    {
+        if (AssemblyDoc is not { } asm)
+        {
+            return;
+        }
+
+        SnapshotAssembly();
+        foreach (var c in asm.Components)
+        {
+            c.ExplodeOffset = Vec3.Zero;
+        }
+
+        Exploded = false;
+        RaiseScene();
     }
 
     private void ShowClearance()

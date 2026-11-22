@@ -77,6 +77,13 @@ public sealed class AssemblyScene : IPickSource
 
                 scene.Meshes.Add(item);
             }
+
+            // Explode lines: from where the component sits assembled to where it's drawn.
+            if (exploded && c.ExplodeOffset.LengthSquared > 1e-12)
+            {
+                var center = AssemblyTools.Center(asm, c);
+                scene.Lines.Add(new LineItem { Points = [center, center + c.ExplodeOffset], Color = palette.Sketch, Width = 1.2, Dashed = true, ShowHidden = true });
+            }
         }
 
         return scene;
