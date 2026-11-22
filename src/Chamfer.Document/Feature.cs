@@ -62,6 +62,12 @@ public abstract class Feature
 
     public bool IsSuppressed { get; set; }
 
+    /// <summary>
+    /// Parameters driven by equations: property name → expression over the
+    /// document's global variables (e.g. "Depth" → "Thickness * 2").
+    /// </summary>
+    public Dictionary<string, string>? Links { get; set; }
+
     /// <summary>Base for display names ("Boss-Extrude", "Fillet", ...).</summary>
     [JsonIgnore]
     public abstract string DefaultName { get; }

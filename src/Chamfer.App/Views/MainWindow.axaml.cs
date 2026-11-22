@@ -399,13 +399,29 @@ public partial class MainWindow : Window
             HideDimensionInput();
             e.Handled = true;
         }
-        else if (e.Key == Key.Enter && _editing is { } dim && ViewModel?.Sketch is { } sketch)
+        else if (e.Key == Key.Enter && _editing is { } dim && ViewModel?.Sketch is { } sketch && ViewModel is { } vm)
         {
             e.Handled = true;
-            if (!ValueParser.TryParse(DimensionInput.Text, out var value))
+            var text = DimensionInput.Text?.Trim() ?? string.Empty;
+            double value;
+            if (text.StartsWith('='))
             {
-                sketch.Editor.SetMessage("Enter a number, for example 25, 25.4*2 or 1in.");
+                if (vm.LinkDimension(dim.Id, text[1..].Trim()) is not { } linked)
+                {
+                    sketch.Editor.SetMessage("That equation can't be evaluated. Check the variable names in Equations.");
+                    return;
+                }
+
+                value = linked;
+            }
+            else if (!ValueParser.TryParse(text, out value))
+            {
+                sketch.Editor.SetMessage("Enter a number (25, 25.4*2, 1in) or an equation (=Width/2).");
                 return;
+            }
+            else
+            {
+                vm.LinkDimension(dim.Id, null);
             }
 
             if (sketch.Editor.SetDimensionValue(dim, value))

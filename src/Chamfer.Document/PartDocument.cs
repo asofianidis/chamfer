@@ -56,6 +56,15 @@ public sealed class PartDocument
 
     public Material Material { get; set; } = Material.Steel;
 
+    /// <summary>Global variables, usable in equations for feature parameters and sketch dimensions.</summary>
+    public List<GlobalVariable> Variables { get; } = [];
+
+    /// <summary>Values of the global variables after the last rebuild.</summary>
+    public IReadOnlyDictionary<string, double> VariableValues { get; private set; } = new Dictionary<string, double>();
+
+    /// <summary>Variables that couldn't be evaluated, with the reason.</summary>
+    public IReadOnlyDictionary<string, string> VariableErrors { get; private set; } = new Dictionary<string, string>();
+
     /// <summary>Features at or after this index are rolled back (not built). Null = all built.</summary>
     public int? RollbackIndex { get; set; }
 
@@ -152,7 +161,10 @@ public sealed class PartDocument
         var end = Math.Min(RollbackIndex ?? Features.Count, Features.Count);
         var state = RebuildState.Initial;
         var reuse = true;
-        var fingerprint = string.Empty;
+        VariableValues = Equations.Evaluate(Variables, out var variableErrors);
+        VariableErrors = variableErrors;
+        var fingerprint = string.Join(";", VariableValues.OrderBy(kv => kv.Key, StringComparer.Ordinal).Select(kv => $"{kv.Key}={kv.Value:R}"));
+        var linkErrors = new Dictionary<string, string>();
         for (var i = 0; i < Features.Count; i++)
         {
             var f = Features[i];
@@ -160,6 +172,15 @@ public sealed class PartDocument
             {
                 _results[f.Id] = new FeatureResult(FeatureStatus.RolledBack, null);
                 continue;
+            }
+
+            try
+            {
+                Equations.Apply(f, VariableValues);
+            }
+            catch (FeatureException ex)
+            {
+                linkErrors[f.Id] = ex.Message;
             }
 
             fingerprint = Fingerprint(f, fingerprint);
@@ -178,6 +199,10 @@ public sealed class PartDocument
             if (f.IsSuppressed)
             {
                 _results[f.Id] = new FeatureResult(FeatureStatus.Suppressed, null);
+            }
+            else if (linkErrors.TryGetValue(f.Id, out var linkError))
+            {
+                _results[f.Id] = new FeatureResult(FeatureStatus.Error, linkError);
             }
             else
             {
@@ -210,6 +235,23 @@ public sealed class PartDocument
         }
 
         State = state;
+    }
+
+    /// <summary>Adds or replaces a global variable.</summary>
+    public void SetVariable(string name, string expression)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(expression);
+        var i = Variables.FindIndex(v => v.Name == name);
+        var variable = new GlobalVariable(name, expression);
+        if (i >= 0)
+        {
+            Variables[i] = variable;
+        }
+        else
+        {
+            Variables.Add(variable);
+        }
     }
 
     /// <summary>Drops cached states so the next rebuild re-executes everything.</summary>
@@ -307,6 +349,7 @@ public sealed class PartDocument
         public Material? Material { get; set; }
         public int? RollbackIndex { get; set; }
         public int NextId { get; set; }
+        public List<GlobalVariable>? Variables { get; set; }
         public List<Feature> Features { get; set; } = [];
     }
 
@@ -316,6 +359,7 @@ public sealed class PartDocument
         Material = Material,
         RollbackIndex = RollbackIndex,
         NextId = _nextId,
+        Variables = Variables.Count > 0 ? Variables : null,
         Features = Features,
     }, Options);
 
@@ -333,6 +377,7 @@ public sealed class PartDocument
             RollbackIndex = dto.RollbackIndex,
         };
         doc.Features.AddRange(dto.Features);
+        doc.Variables.AddRange(dto.Variables ?? []);
         doc._nextId = Math.Max(dto.NextId, doc.Features.Count + 1);
         return doc;
     }

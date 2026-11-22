@@ -174,4 +174,30 @@ public class PartWorkflowTests
         vm.AcceptEditorCommand.Execute(null);
         Assert.Contains(vm.Tree, n => n.Name == "Rod");
     }
+
+    [Fact]
+    public void EquationsDriveAFeatureParameterFromTheUi()
+    {
+        var vm = BlockOnFront();
+        vm.ShowEquationsCommand.Execute(null);
+        var input = vm.Editor!.Fields.OfType<TextField>().Single();
+        input.Text = "Thick = 5 * 3";
+        input.Commit();
+        Assert.Equal(15, vm.Document.VariableValues["Thick"]);
+
+        var extrude = vm.Document.Features.OfType<ExtrudeFeature>().Single();
+        vm.EditFeature(extrude);
+        var depth = vm.Editor!.Fields.OfType<NumberField>().First(f => f.Label == "Depth");
+        depth.Text = "=Thick";
+        depth.Commit();
+        Assert.True(depth.IsLinked);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(40 * 20 * 15, vm.Document.MassProperties().Volume, 1e-6);
+
+        vm.ShowEquationsCommand.Execute(null);
+        input = vm.Editor!.Fields.OfType<TextField>().Single();
+        input.Text = "Thick = 4";
+        input.Commit();
+        Assert.Equal(40 * 20 * 4, vm.Document.MassProperties().Volume, 1e-6);
+    }
 }

@@ -22,6 +22,9 @@ public sealed class SketchFeature : Feature
         set => Sketch = SketchSerializer.Deserialize(value.GetRawText());
     }
 
+    /// <summary>Sketch dimensions driven by equations: constraint id → expression (angles in degrees).</summary>
+    public Dictionary<int, string>? DimensionLinks { get; set; }
+
     public override IEnumerable<string> Dependencies => Plane.PlaneId is { } id && id is not ("front" or "top" or "right") ? [id] : [];
 
     public override void Execute(RebuildContext ctx)

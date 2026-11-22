@@ -99,6 +99,28 @@ public sealed partial class FeatureEditor : ObservableObject
         IEnumerable<SelectionItem> Refs(IEnumerable<TopoRef> refs, SelectionKind kind) =>
             refs.Select(r => new SelectionItem(kind, r, Label: $"{kind} <{r.Name}>"));
 
+        // A number field bound to a feature property by name, which also accepts "=expression" links.
+        NumberField Num(string label, string unit, Feature f, string prop, double min = double.NegativeInfinity, bool wholeNumber = false)
+        {
+            var property = f.GetType().GetProperty(prop)!;
+            return new NumberField(label, unit,
+                () => Convert.ToDouble(property.GetValue(f), System.Globalization.CultureInfo.InvariantCulture),
+                v => Set(() => property.SetValue(f, property.PropertyType == typeof(int) ? (object)(int)Math.Round(v) : v)),
+                min, wholeNumber,
+                getLink: () => f.Links?.GetValueOrDefault(prop),
+                setLink: expr => Set(() =>
+                {
+                    if (expr is null)
+                    {
+                        f.Links?.Remove(prop);
+                    }
+                    else
+                    {
+                        (f.Links ??= [])[prop] = expr;
+                    }
+                }));
+        }
+
         IEnumerable<SelectionItem> Pre(SelectionKind[] kinds) => isNew ? selection.Where(s => kinds.Contains(s.Kind)) : [];
 
         if (!isNew)
@@ -110,20 +132,20 @@ public sealed partial class FeatureEditor : ObservableObject
         {
             case ExtrudeFeature ex:
                 ed.Add(new ChoiceField("End condition", EndConditions, (int)ex.EndCondition, i => Set(() => ex.EndCondition = (EndCondition)i)));
-                ed.Add(new NumberField("Depth", "mm", () => ex.Depth, v => Set(() => ex.Depth = v), 1e-6));
+                ed.Add(Num("Depth", "mm", ex, nameof(ex.Depth), 1e-6));
                 ed.Add(new BoolField("Reverse direction", ex.Reverse, v => Set(() => ex.Reverse = v)));
                 ed.Add(new BoolField("Direction 2", ex.HasDirection2, v => Set(() => ex.HasDirection2 = v)));
                 ed.Add(new ChoiceField("Direction 2 end", ["Blind", "Through All"], ex.EndCondition2 == EndCondition.ThroughAll ? 1 : 0,
                     i => Set(() => ex.EndCondition2 = i == 1 ? EndCondition.ThroughAll : EndCondition.Blind)));
-                ed.Add(new NumberField("Depth 2", "mm", () => ex.Depth2, v => Set(() => ex.Depth2 = v), 1e-6));
-                ed.Add(new NumberField("Start offset", "mm", () => ex.StartOffset, v => Set(() => ex.StartOffset = v)));
+                ed.Add(Num("Depth 2", "mm", ex, nameof(ex.Depth2), 1e-6));
+                ed.Add(Num("Start offset", "mm", ex, nameof(ex.StartOffset)));
                 ed.Add(new SelectionField("Up to face", Faces, ex.UpToFace is { } upTo ? [new SelectionItem(SelectionKind.Face, upTo, Label: $"Face <{upTo.Name}>")] : [],
                     items => Set(() => ex.UpToFace = Last(items)?.Ref), max: 1));
-                ed.Add(new NumberField("Surface offset", "mm", () => ex.SurfaceOffset, v => Set(() => ex.SurfaceOffset = v), 0));
-                ed.Add(new NumberField("Draft angle", "°", () => ex.DraftAngle, v => Set(() => ex.DraftAngle = v), 0));
+                ed.Add(Num("Surface offset", "mm", ex, nameof(ex.SurfaceOffset), 0));
+                ed.Add(Num("Draft angle", "°", ex, nameof(ex.DraftAngle), 0));
                 ed.Add(new BoolField("Draft outward", ex.DraftOutward, v => Set(() => ex.DraftOutward = v)));
                 ed.Add(new BoolField("Thin feature", ex.IsThin, v => Set(() => ex.IsThin = v)));
-                ed.Add(new NumberField("Wall thickness", "mm", () => ex.ThinThickness, v => Set(() => ex.ThinThickness = v), 1e-6));
+                ed.Add(Num("Wall thickness", "mm", ex, nameof(ex.ThinThickness), 1e-6));
                 ed.Add(new BoolField("Reverse wall side", ex.ThinReverse, v => Set(() => ex.ThinReverse = v)));
                 ed.Activate(null);
                 if (!ex.IsCut)
@@ -134,7 +156,7 @@ public sealed partial class FeatureEditor : ObservableObject
                 break;
 
             case RevolveFeature rev:
-                ed.Add(new NumberField("Angle", "°", () => rev.Angle, v => Set(() => rev.Angle = v), 1e-6));
+                ed.Add(Num("Angle", "°", rev, nameof(rev.Angle), 1e-6));
                 ed.Add(new BoolField("Mid plane", rev.MidPlane, v => Set(() => rev.MidPlane = v)));
                 ed.Add(new BoolField("Reverse direction", rev.Reverse, v => Set(() => rev.Reverse = v)));
                 ed.Add(new InfoField("Axis", "The sketch's first centerline is the axis."));
@@ -164,13 +186,13 @@ public sealed partial class FeatureEditor : ObservableObject
                 break;
 
             case RibFeature rib:
-                ed.Add(new NumberField("Thickness", "mm", () => rib.Thickness, v => Set(() => rib.Thickness = v), 1e-6));
+                ed.Add(Num("Thickness", "mm", rib, nameof(rib.Thickness), 1e-6));
                 ed.Add(new BoolField("Both sides of sketch", rib.BothSides, v => Set(() => rib.BothSides = v)));
                 ed.Add(new BoolField("Flip side", rib.FlipSide, v => Set(() => rib.FlipSide = v)));
                 break;
 
             case FilletFeature fil:
-                ed.Add(new NumberField("Radius", "mm", () => fil.Radius, v => Set(() => fil.Radius = v), 1e-6));
+                ed.Add(Num("Radius", "mm", fil, nameof(fil.Radius), 1e-6));
                 ed.Add(new SelectionField("Edges and faces", Edges,
                     isNew ? Pre(Edges) : Refs(fil.Edges, SelectionKind.Edge).Concat(Refs(fil.Faces, SelectionKind.Face)),
                     items => Set(() =>
@@ -188,9 +210,9 @@ public sealed partial class FeatureEditor : ObservableObject
 
             case ChamferFeature ch:
                 ed.Add(new ChoiceField("Type", ["Equal distance", "Distance-distance", "Distance-angle"], (int)ch.Type, i => Set(() => ch.Type = (ChamferType)i)));
-                ed.Add(new NumberField("Distance", "mm", () => ch.Distance, v => Set(() => ch.Distance = v), 1e-6));
-                ed.Add(new NumberField("Distance 2", "mm", () => ch.Distance2, v => Set(() => ch.Distance2 = v), 1e-6));
-                ed.Add(new NumberField("Angle", "°", () => ch.Angle, v => Set(() => ch.Angle = v), 1e-6));
+                ed.Add(Num("Distance", "mm", ch, nameof(ch.Distance), 1e-6));
+                ed.Add(Num("Distance 2", "mm", ch, nameof(ch.Distance2), 1e-6));
+                ed.Add(Num("Angle", "°", ch, nameof(ch.Angle), 1e-6));
                 ed.Add(new BoolField("Flip direction", ch.Flip, v => Set(() => ch.Flip = v)));
                 ed.Add(new SelectionField("Edges and faces", Edges,
                     isNew ? Pre(Edges) : Refs(ch.Edges, SelectionKind.Edge).Concat(Refs(ch.Faces, SelectionKind.Face)),
@@ -208,7 +230,7 @@ public sealed partial class FeatureEditor : ObservableObject
                 break;
 
             case ShellFeature sh:
-                ed.Add(new NumberField("Thickness", "mm", () => sh.Thickness, v => Set(() => sh.Thickness = v), 1e-6));
+                ed.Add(Num("Thickness", "mm", sh, nameof(sh.Thickness), 1e-6));
                 ed.Add(new BoolField("Shell outward", sh.Outward, v => Set(() => sh.Outward = v)));
                 ed.Add(new SelectionField("Faces to remove", Faces, isNew ? Pre(Faces) : Refs(sh.FacesToRemove, SelectionKind.Face),
                     items => Set(() => sh.FacesToRemove = [.. items.Select(i => i.Ref!)])));
@@ -220,7 +242,7 @@ public sealed partial class FeatureEditor : ObservableObject
                 break;
 
             case DraftFeature dr:
-                ed.Add(new NumberField("Draft angle", "°", () => dr.Angle, v => Set(() => dr.Angle = v), 1e-6));
+                ed.Add(Num("Draft angle", "°", dr, nameof(dr.Angle), 1e-6));
                 ed.Add(new BoolField("Reverse direction", dr.Reverse, v => Set(() => dr.Reverse = v)));
                 ed.Add(new SelectionField("Neutral plane", Planes, [PlaneItem(doc, dr.NeutralPlane)],
                     items => Set(() => dr.NeutralPlane = Last(items)?.AsPlane() ?? PlaneRef.Top), max: 1));
@@ -249,31 +271,31 @@ public sealed partial class FeatureEditor : ObservableObject
                 })));
                 ed.Add(new ChoiceField("End condition", ["Blind", "Through All"], hole.EndCondition == EndCondition.ThroughAll ? 1 : 0,
                     i => Set(() => hole.EndCondition = i == 1 ? EndCondition.ThroughAll : EndCondition.Blind)));
-                ed.Add(new NumberField("Diameter", "mm", () => hole.Diameter, v => Set(() => hole.Diameter = v), 1e-6));
-                ed.Add(new NumberField("Depth", "mm", () => hole.Depth, v => Set(() => hole.Depth = v), 1e-6));
-                ed.Add(new NumberField("C'bore diameter", "mm", () => hole.CounterboreDiameter, v => Set(() => hole.CounterboreDiameter = v), 1e-6));
-                ed.Add(new NumberField("C'bore depth", "mm", () => hole.CounterboreDepth, v => Set(() => hole.CounterboreDepth = v), 1e-6));
-                ed.Add(new NumberField("C'sink diameter", "mm", () => hole.CountersinkDiameter, v => Set(() => hole.CountersinkDiameter = v), 1e-6));
-                ed.Add(new NumberField("C'sink angle", "°", () => hole.CountersinkAngle, v => Set(() => hole.CountersinkAngle = v), 1));
+                ed.Add(Num("Diameter", "mm", hole, nameof(hole.Diameter), 1e-6));
+                ed.Add(Num("Depth", "mm", hole, nameof(hole.Depth), 1e-6));
+                ed.Add(Num("C'bore diameter", "mm", hole, nameof(hole.CounterboreDiameter), 1e-6));
+                ed.Add(Num("C'bore depth", "mm", hole, nameof(hole.CounterboreDepth), 1e-6));
+                ed.Add(Num("C'sink diameter", "mm", hole, nameof(hole.CountersinkDiameter), 1e-6));
+                ed.Add(Num("C'sink angle", "°", hole, nameof(hole.CountersinkAngle), 1));
                 ed.Add(new InfoField("Positions", "Hole centres are the points in the hole's position sketch."));
                 break;
 
             case LinearPatternFeature lp:
                 ed.Add(SeedsField(doc, lp, isNew, selection, Set));
                 ed.Add(new SelectionField("Direction 1", Axes, [AxisItem(lp.Direction)], items => Set(() => lp.Direction = Last(items)?.AsAxis() ?? AxisRef.X), max: 1));
-                ed.Add(new NumberField("Spacing", "mm", () => lp.Spacing, v => Set(() => lp.Spacing = v)));
-                ed.Add(new NumberField("Instances", string.Empty, () => lp.Count, v => Set(() => lp.Count = (int)v), 1, wholeNumber: true));
+                ed.Add(Num("Spacing", "mm", lp, nameof(lp.Spacing)));
+                ed.Add(Num("Instances", string.Empty, lp, nameof(lp.Count), 1, wholeNumber: true));
                 ed.Add(new BoolField("Reverse direction", lp.Reverse, v => Set(() => lp.Reverse = v)));
                 ed.Add(new SelectionField("Direction 2", Axes, lp.Direction2 is null ? [] : [AxisItem(lp.Direction2)], items => Set(() => lp.Direction2 = Last(items)?.AsAxis()), max: 1));
-                ed.Add(new NumberField("Spacing 2", "mm", () => lp.Spacing2, v => Set(() => lp.Spacing2 = v)));
-                ed.Add(new NumberField("Instances 2", string.Empty, () => lp.Count2, v => Set(() => lp.Count2 = (int)v), 1, wholeNumber: true));
+                ed.Add(Num("Spacing 2", "mm", lp, nameof(lp.Spacing2)));
+                ed.Add(Num("Instances 2", string.Empty, lp, nameof(lp.Count2), 1, wholeNumber: true));
                 break;
 
             case CircularPatternFeature cp:
                 ed.Add(SeedsField(doc, cp, isNew, selection, Set));
                 ed.Add(new SelectionField("Axis", Axes, [AxisItem(cp.Axis)], items => Set(() => cp.Axis = Last(items)?.AsAxis() ?? AxisRef.Z), max: 1));
-                ed.Add(new NumberField("Instances", string.Empty, () => cp.Count, v => Set(() => cp.Count = (int)v), 1, wholeNumber: true));
-                ed.Add(new NumberField("Total angle", "°", () => cp.TotalAngle, v => Set(() => cp.TotalAngle = v), 1e-6));
+                ed.Add(Num("Instances", string.Empty, cp, nameof(cp.Count), 1, wholeNumber: true));
+                ed.Add(Num("Total angle", "°", cp, nameof(cp.TotalAngle), 1e-6));
                 ed.Add(new BoolField("Reverse direction", cp.Reverse, v => Set(() => cp.Reverse = v)));
                 break;
 
@@ -284,7 +306,7 @@ public sealed partial class FeatureEditor : ObservableObject
 
             case ReferencePlaneFeature rp:
                 ed.Add(new SelectionField("Reference", Planes, [PlaneItem(doc, rp.Base)], items => Set(() => rp.Base = Last(items)?.AsPlane() ?? PlaneRef.Front), max: 1));
-                ed.Add(new NumberField("Offset", "mm", () => rp.Offset, v => Set(() => rp.Offset = v)));
+                ed.Add(Num("Offset", "mm", rp, nameof(rp.Offset)));
                 ed.Add(new BoolField("Flip", rp.Flip, v => Set(() => rp.Flip = v)));
                 break;
         }

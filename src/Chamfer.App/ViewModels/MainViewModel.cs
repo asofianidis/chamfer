@@ -940,6 +940,79 @@ public sealed partial class MainViewModel : ViewModelBase
         Editor = panel;
     }
 
+
+    /// <summary>Global variables: list them and add, change or delete with "Name = expression".</summary>
+    [RelayCommand]
+    private void ShowEquations()
+    {
+        CancelEditor();
+        var panel = FeatureEditor.Info("Equations");
+        var inv = CultureInfo.InvariantCulture;
+        panel.AddInfo(new InfoField("How to use",
+            "Type Name = expression and press Enter to add or change a variable (Name = to delete it). " +
+            "Use a variable anywhere a number is asked for by typing =Name, or an expression such as =Width/2, including sketch dimensions."));
+        panel.AddInfo(new TextField("Name = expression", string.Empty, SetEquation));
+        foreach (var v in Document.Variables)
+        {
+            var value = Document.VariableValues.TryGetValue(v.Name, out var x) ? x.ToString("0.####", inv) : null;
+            var error = Document.VariableErrors.GetValueOrDefault(v.Name);
+            panel.AddInfo(new InfoField(v.Name, value is null ? $"= {v.Expression}  ⚠ {error}" : $"= {v.Expression}  →  {value}"));
+        }
+
+        Editor = panel;
+    }
+
+    private void SetEquation(string text)
+    {
+        var eq = text.IndexOf('=', StringComparison.Ordinal);
+        var name = (eq < 0 ? text : text[..eq]).Trim().Trim('"');
+        var expr = eq < 0 ? string.Empty : text[(eq + 1)..].Trim();
+        if (name.Length == 0 || !name.All(c => char.IsLetterOrDigit(c) || c is '_' or '@' or '.') || char.IsDigit(name[0]))
+        {
+            MessageText = "Variable names start with a letter and use letters, digits and underscores.";
+            return;
+        }
+
+        Snapshot();
+        if (expr.Length == 0)
+        {
+            Document.Variables.RemoveAll(v => v.Name == name);
+        }
+        else
+        {
+            Document.SetVariable(name, expr);
+        }
+
+        RebuildAndRefresh();
+        ShowEquations();
+    }
+
+    /// <summary>
+    /// Links (or unlinks, when <paramref name="expression"/> is null) a dimension of the sketch being
+    /// edited to an equation, and returns the value it evaluates to.
+    /// </summary>
+    public double? LinkDimension(int constraintId, string? expression)
+    {
+        if (EditingSketch is not { } sf)
+        {
+            return null;
+        }
+
+        if (expression is null)
+        {
+            sf.DimensionLinks?.Remove(constraintId);
+            return null;
+        }
+
+        if (!Expressions.TryEvaluate(expression, n => Document.VariableValues.TryGetValue(n, out var v) ? v : null, out var value))
+        {
+            return null;
+        }
+
+        (sf.DimensionLinks ??= [])[constraintId] = expression;
+        return value;
+    }
+
     [RelayCommand]
     private void Measure()
     {

@@ -150,6 +150,7 @@
           <Border Classes="separator" />
           <Button Classes="command" Content="Mass Properties" Command="{Binding ShowMassPropertiesCommand}" />
           <Button Classes="command" Content="Measure" Command="{Binding MeasureCommand}" />
+          <Button Classes="command" Content="Equations" Command="{Binding ShowEquationsCommand}" ToolTip.Tip="Global variables and equations" />
         </WrapPanel>
 
         <!-- Sketch tools -->
