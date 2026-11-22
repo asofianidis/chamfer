@@ -540,6 +540,28 @@ public class AdvancedMateTests
             Assert.Contains("COLOUR_RGB", text, StringComparison.Ordinal);
             Assert.Contains("cube<2>", text, StringComparison.Ordinal);
 
+            // Round trip into a Chamfer assembly: two part files, three placed components.
+            var folder = Path.Combine(Path.GetTempPath(), $"chamfer-imp-{Guid.NewGuid():N}");
+            try
+            {
+                var (imported, asmPath) = AssemblyImport.FromStep(path, folder);
+                Assert.True(File.Exists(asmPath));
+                Assert.Equal(2, Directory.GetFiles(folder, "*.chprt").Length);
+                Assert.Equal(3, imported.Components.Count);
+                Assert.Contains(imported.Components, c => c.Name == "cube<2>" && Math.Abs(c.Transform.Tx - 30) < 1e-6);
+                var reloaded = AssemblyDocument.Load(File.ReadAllText(asmPath), folder);
+                var red = reloaded.PartOf(reloaded.Components.First(c => c.Name.StartsWith("cube", StringComparison.Ordinal)));
+                red.Rebuild();
+                Assert.Equal(0xFF0000u, red.Bodies[0].Color);
+                Assert.Equal("cube", PropertyEvaluator.Get(red, PropertyEvaluator.PartNumber));
+                var total = reloaded.Components.Sum(c => reloaded.PlacedBodies(c).Sum(b => b.Placed.MassProperties.Volume));
+                Assert.Equal((2 * cube.MassProperties().Volume) + pin.MassProperties().Volume, total, 1e-3);
+            }
+            finally
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+
             using var back = Shape.ReadStep(path);
             Assert.Equal(3, back.SolidCount);
             var expected = (2 * cube.MassProperties().Volume) + pin.MassProperties().Volume;

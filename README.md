@@ -248,7 +248,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Patterns | Select a component, then **Linear Pattern** (direction, spacing, instances) or **Circular Pattern** (axis, instances). Copies are locked to the seed. |
 | Move | **Move** translates or rotates the selected component; **Fix / Float** toggles whether it can move. |
 | Motion | **Motion Study**: pick a face or edge on the component to drive, choose a rotary (rpm) or linear (mm/s) motor and a duration, then **Calculate**. Scrub with **Time** or **Play** the animation; **Detect collisions** reports the first new contact. |
-| Evaluate | **Interference** lists overlapping components and volumes; **Bill of Materials** lists parts (by PartNumber and Description when set), quantities and masses; **Pack and Go** copies the assembly and its parts to one folder; **Explode** spreads the components apart. |
+| Evaluate | **Interference** lists overlapping components and volumes; **Bill of Materials** lists parts (by PartNumber and Description when set), quantities and masses; **Pack and Go** copies the assembly and its parts to one folder; **Import STEP** turns a STEP assembly into part files (with names and colours) and an assembly; **Explode** spreads the components apart. |
 | Edit parts | **Open Part** edits the selected component's part; **Back to Assembly** returns. |
 | Toolbox | **Toolbox** inserts ISO socket head cap screws, hex bolts, nuts and washers (M3 to M20, standard lengths). They're generated parts, and the BOM lists them by standard. |
 
@@ -433,7 +433,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Scale, parting lines, shut-off surfaces, parting surfaces, tooling split, core/cavity *(scale, parting lines, flat-parting tooling split into core and cavity with shrinkage)*
 
 ### Phase 8: Data Exchange & Interop
-- [~] STEP AP203/AP214/AP242 import and export with colors, names, assembly structure, and PMI where possible *(export with product structure, names and colours; import as shapes)*
+- [~] STEP AP203/AP214/AP242 import and export with colors, names, assembly structure, and PMI where possible *(export and import with product structure, names and colours)*
 - [ ] IGES, ACIS (`.sat`), Parasolid (`.x_t`, if a licensing path exists), JT
 - [x] STL, 3MF, OBJ, glTF export (for 3D printing and visualization) *(STL, 3MF, OBJ, glTF binary with instancing)*
 - [~] DXF/DWG import into sketches *(ASCII DXF: lines, arcs, circles, polylines with bulges, splines as polylines, units)*
