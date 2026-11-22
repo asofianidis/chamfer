@@ -47,6 +47,21 @@ public sealed unsafe class Shape : IDisposable
 
     public bool IsValid => Native.chf_shape_is_valid(Handle) != 0;
 
+    /// <summary>Checks the shape for problems typical of imported geometry.</summary>
+    public unsafe ShapeDiagnostics Diagnose(double tolerance = 1e-4)
+    {
+        var o = stackalloc int[7];
+        if (Native.chf_diagnose(Handle, tolerance, o) == 0)
+        {
+            throw new KernelException("Shape diagnostics failed.");
+        }
+
+        return new ShapeDiagnostics(o[0], o[1], o[2], o[3], o[4], o[5], o[6]);
+    }
+
+    /// <summary>Sews gaps within the tolerance, fixes faces and shells, and turns closed shells into solids.</summary>
+    public Shape Heal(double tolerance = 1e-3) => Wrap(Native.chf_heal(Handle, tolerance), "healing");
+
     /// <summary>A new shape referencing sub-shape <paramref name="index"/> of <paramref name="kind"/>.</summary>
     public Shape Sub(TopoKind kind, int index) => Wrap(Native.chf_shape_sub(Handle, (int)kind, index), "sub-shape");
 

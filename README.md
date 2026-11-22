@@ -231,7 +231,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Macros | **Macro** opens a C# editor. Scripts get `Api` (sketch builders, `Extrude`, `FilletEdges`, `Variable`, `Link`, queries and export) and `Print`. **Record** captures what you do as a replayable macro; **Open/Save Macro** use `.csx` files. |
 | Plugins | .NET assemblies in `plugins/` next to the app (or `%APPDATA%/Chamfer/plugins`) implementing `IChamferPlugin` can add commands; they appear under a **Plugins** tab. |
 | Weldments | Sketch centre lines, then **Structural Member** (profile and size from the library, rotation). Each line becomes a body and corners are mitred; optional **end caps** close free ends and **gussets** brace the corners. **Cut List** groups members by profile and length. |
-| Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Scale** (about the centroid or origin), **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
+| Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Scale** (about the centroid or origin), **Import Diagnostics** and **Heal** (sew gaps, repair faces, close shells into solids), **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
 
 ### Assemblies
 
@@ -433,7 +433,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] IGES, ACIS (`.sat`), Parasolid (`.x_t`, if a licensing path exists), JT
 - [~] STL, 3MF, OBJ, glTF export (for 3D printing and visualization) *(STL, 3MF, OBJ)*
 - [~] DXF/DWG import into sketches *(ASCII DXF: lines, arcs, circles, polylines with bulges, splines as polylines, units)*
-- [ ] Import diagnostics and healing (gap repair, face healing)
+- [x] Import diagnostics and healing (gap repair, face healing) *(open/bad/tiny edge and face checks; sewing, ShapeFix and closing shells into solids)*
 - [ ] FeatureWorks-style feature recognition on imported solids (stretch goal)
 
 ### Phase 9: Simulation & Motion

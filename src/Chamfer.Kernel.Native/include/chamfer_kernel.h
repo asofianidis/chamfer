@@ -235,6 +235,15 @@ CHF_API void chf_lines_counts(const chf_lines* l, int* out2);
 /* points: 2 doubles per point; offsets: lineCount+1; kinds: lineCount. */
 CHF_API void chf_lines_copy(const chf_lines* l, double* points, int* offsets, int* kinds);
 
+/* -------------------------------------------------------------- healing */
+/*
+ * Diagnostics: out7 = invalid faces, invalid edges, free edges (gaps or open
+ * boundaries), edges shorter than tolerance, solids, shells, faces.
+ */
+CHF_API int chf_diagnose(const chf_shape* s, double tolerance, int* out7);
+/* Sews gaps within tolerance, fixes wires, faces and shells, and makes closed shells solid. */
+CHF_API chf_shape* chf_heal(const chf_shape* s, double tolerance);
+
 /* ------------------------------------------------------------------- I/O */
 CHF_API int chf_write_step(const chf_shape* s, const char* path);
 CHF_API chf_shape* chf_read_step(const char* path);

@@ -148,3 +148,10 @@ public sealed class KernelException : Exception
     {
     }
 }
+
+/// <summary>What <see cref="Shape.Diagnose"/> found.</summary>
+public sealed record ShapeDiagnostics(int InvalidFaces, int InvalidEdges, int FreeEdges, int SmallEdges, int Solids, int Shells, int Faces)
+{
+    /// <summary>No invalid geometry, no gaps or open edges, and at least one solid.</summary>
+    public bool IsClean => InvalidFaces == 0 && InvalidEdges == 0 && FreeEdges == 0 && Solids > 0;
+}

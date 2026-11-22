@@ -219,3 +219,50 @@ public sealed class AppearanceFeature : Feature
         }
     }
 }
+
+/// <summary>Repairs bodies (typically imported ones): sews gaps, fixes faces and shells, makes closed shells solid.</summary>
+public sealed class HealFeature : Feature
+{
+    public override string DefaultName => "Heal";
+
+    /// <summary>Bodies to heal; empty heals all of them.</summary>
+    public List<string> Bodies { get; set; } = [];
+
+    /// <summary>Gaps up to this size (mm) are closed.</summary>
+    public double Tolerance { get; set; } = 0.01;
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (Tolerance <= 0)
+        {
+            throw new FeatureException("The tolerance must be positive.");
+        }
+
+        var targets = Bodies.Count == 0 ? [.. ctx.Bodies] : Bodies.Select(ctx.FindBody).ToList();
+        var fixedCount = 0;
+        foreach (var body in targets)
+        {
+            var before = body.Shape.Diagnose(Tolerance);
+            if (before.IsClean)
+            {
+                continue;
+            }
+
+            var healed = body.Shape.Heal(Tolerance);
+            var after = healed.Diagnose(Tolerance);
+            var names = Naming.Finish(healed, new string?[healed.FaceCount], $"{Id}:{ctx.Bodies.IndexOf(body)}");
+            ctx.Bodies[ctx.Bodies.IndexOf(body)] = new Body(healed, names, body.Name, body.Color);
+            fixedCount++;
+            if (!after.IsClean)
+            {
+                ctx.Warn($"{body.Name} still has {after.FreeEdges} open edge(s) and {after.InvalidFaces} bad face(s) after healing.");
+            }
+        }
+
+        if (fixedCount == 0)
+        {
+            ctx.Warn("Nothing needed healing.");
+        }
+    }
+}
