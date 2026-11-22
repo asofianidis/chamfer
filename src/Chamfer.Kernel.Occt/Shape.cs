@@ -335,14 +335,47 @@ public sealed unsafe class Shape : IDisposable
 
     public static Shape FromBrep(string text) => Wrap(Native.chf_from_brep(text), "BRep import");
 
-    public void WriteStep(string path) => CheckWrite(Native.chf_write_step(Handle, path), "STEP export");
-    public void WriteIges(string path) => CheckWrite(Native.chf_write_iges(Handle, path), "IGES export");
+    /// <summary>
+    /// OCCT's STEP and IGES translators share global settings, so only one runs at a time.
+    /// </summary>
+    internal static readonly Lock TranslatorLock = new();
+
+    public void WriteStep(string path)
+    {
+        lock (TranslatorLock)
+        {
+            CheckWrite(Native.chf_write_step(Handle, path), "STEP export");
+        }
+    }
+
+    public void WriteIges(string path)
+    {
+        lock (TranslatorLock)
+        {
+            CheckWrite(Native.chf_write_iges(Handle, path), "IGES export");
+        }
+    }
+
     public void WriteStl(string path, double deflection = 0.05, bool ascii = false) =>
         CheckWrite(Native.chf_write_stl(Handle, path, deflection, ascii ? 1 : 0), "STL export");
     public void WriteBrep(string path) => CheckWrite(Native.chf_write_brep(Handle, path), "BRep export");
 
-    public static Shape ReadStep(string path) => Wrap(Native.chf_read_step(path), "STEP import");
-    public static Shape ReadIges(string path) => Wrap(Native.chf_read_iges(path), "IGES import");
+    public static Shape ReadStep(string path)
+    {
+        lock (TranslatorLock)
+        {
+            return Wrap(Native.chf_read_step(path), "STEP import");
+        }
+    }
+
+    public static Shape ReadIges(string path)
+    {
+        lock (TranslatorLock)
+        {
+            return Wrap(Native.chf_read_iges(path), "IGES import");
+        }
+    }
+
     public static Shape ReadBrep(string path) => Wrap(Native.chf_read_brep(path), "BRep import");
 
     private static void CheckWrite(int ok, string what)

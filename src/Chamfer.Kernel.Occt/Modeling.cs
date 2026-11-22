@@ -343,7 +343,10 @@ public static unsafe class Modeling
                 fixed (double* pm = matrices)
                 fixed (IntPtr* inames = instanceNames)
                 {
-                    return Native.chf_write_step_assembly(n, handles, pn, pc, which.Length, pw, pm, inames, assemblyName, path);
+                    lock (Shape.TranslatorLock)
+                    {
+                        return Native.chf_write_step_assembly(n, handles, pn, pc, which.Length, pw, pm, inames, assemblyName, path);
+                    }
                 }
             });
             if (ok == 0)
@@ -368,7 +371,12 @@ public static unsafe class Modeling
         ReadStepAssembly(string path)
     {
         ArgumentNullException.ThrowIfNull(path);
-        var x = Native.chf_xcaf_read_step(path);
+        IntPtr x;
+        lock (Shape.TranslatorLock)
+        {
+            x = Native.chf_xcaf_read_step(path);
+        }
+
         if (x == IntPtr.Zero)
         {
             throw new KernelException($"STEP import failed: {Native.LastError()}");
