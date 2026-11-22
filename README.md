@@ -406,7 +406,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target
 - [x] **GD&T** feature control frames (ASME Y14.5 / ISO 1101) *(all 14 characteristics, Ø zones, MMC/LMC, datum references, datum feature symbols)*
 - [x] Centerlines, center marks, cosmetic threads in drawings *(automatic centre marks and centrelines; tapped holes show their thread end-on and side-on)*
-- [~] BOM tables, hole tables, revision tables, general tables *(BOM, hole and revision tables)*
+- [x] BOM tables, hole tables, revision tables, general tables
 - [x] Layers, line styles, drafting standards (ANSI, ISO, DIN, JIS) *(coloured layers with visibility and DXF layers; ISO, ANSI, DIN and JIS with their projection angles)*
 - [~] Export to PDF, DXF, DWG, SVG; printing *(PDF, DXF and SVG)*
 - [x] Associativity: drawings update when the model changes

@@ -370,6 +370,28 @@ public class DrawingTests
     }
 
     [Fact]
+    public void GeneralTablesHoldAnyText()
+    {
+        var rows = GeneralTable.Parse("PART | QTY | FINISH\nBracket | 2 | Anodised\n\nPlate | 1");
+        Assert.Equal(3, rows.Count);
+        Assert.Equal(["Plate", "1"], rows[2]);
+        var table = new GeneralTable { Id = "t1", X = 20, Y = 200, Rows = rows };
+        Assert.Equal(rows, GeneralTable.Parse(table.Format()));
+
+        var (part, _) = Part();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        sheet.Tables.Add(table);
+        var g = new DrawingRenderer(drawing).Render(sheet);
+        foreach (var text in new[] { "PART", "QTY", "FINISH", "Bracket", "Anodised", "Plate" })
+        {
+            Assert.Contains(g.Items.OfType<TextPrimitive>(), t => t.Text == text && g.Owners.TryGetValue(t, out var o) && o == "t1");
+        }
+
+        Assert.Equal(rows, DrawingDocument.Load(drawing.Save()).Sheets[0].Tables.Single().Rows);
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();
