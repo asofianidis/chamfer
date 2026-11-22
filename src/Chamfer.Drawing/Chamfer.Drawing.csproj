@@ -4,5 +4,6 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Chamfer.Document\Chamfer.Document.csproj" />
+    <ProjectReference Include="..\Chamfer.Assembly\Chamfer.Assembly.csproj" />
   </ItemGroup>
 </Project>

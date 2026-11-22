@@ -17,13 +17,18 @@ public sealed partial class MainViewModel
     private static readonly FilePickerFileType DxfFileType = new("DXF") { Patterns = ["*.dxf"] };
 
     private DrawingRenderer? _drawingRenderer;
-    private (PartDocument Part, string? Path)? _drawingSource;
+    private (PartDocument Part, Chamfer.Assembly.AssemblyDocument? Assembly, string? Path)? _drawingSource;
+
+    [ObservableProperty]
+    public partial int SheetIndex { get; set; }
+
+    partial void OnSheetIndexChanged(int value) => OnPropertyChanged(nameof(CurrentSheet));
 
     public DrawingDocument? DrawingDoc { get; private set; }
 
     public bool IsDrawingMode => DrawingDoc is not null;
 
-    public Sheet? CurrentSheet => DrawingDoc?.Sheets.FirstOrDefault();
+    public Sheet? CurrentSheet => DrawingDoc is { } d && d.Sheets.Count > 0 ? d.Sheets[Math.Clamp(SheetIndex, 0, d.Sheets.Count - 1)] : null;
 
     /// <summary>Selected views and dimensions on the sheet.</summary>
     public HashSet<string> DrawingSelection { get; } = [];
@@ -39,6 +44,10 @@ public sealed partial class MainViewModel
         new("Detail View", "Magnify part of the selected view", new RelayCommand(StartDetail), "⊙"),
         new("Auto Dimension", "Overall sizes and hole diameters in the selected view", new RelayCommand(AutoDimension), "↔"),
         new("Note", "Add a text note", new RelayCommand(StartNote), "✎"),
+        new("BOM Table", "Bill of materials table (assembly drawings)", new RelayCommand(AddBomTable), "☰"),
+        new("Auto Balloon", "Number the parts in the selected view (assembly drawings)", new RelayCommand(AutoBalloon), "①"),
+        new("Add Sheet", "Add another sheet", new RelayCommand(AddSheet), "⊞"),
+        new("Next Sheet", "Show the next sheet", new RelayCommand(NextSheet), "→"),
         new("Hidden Lines", "Show or hide hidden lines in the selected view", new RelayCommand(ToggleHiddenLines), "┅"),
         new("Sheet", "Sheet size, scale and title block", new RelayCommand(ShowSheetProperties), "▭"),
         new("Delete", "Delete the selected views or dimensions", new RelayCommand(DeleteDrawingSelection), "✕"),
@@ -64,7 +73,23 @@ public sealed partial class MainViewModel
         }
 
         CancelEditor();
-        if (AssemblyDoc is not null || Document.Bodies.Count == 0)
+        if (AssemblyDoc is { } asm)
+        {
+            if (asm.Components.Count == 0)
+            {
+                MessageText = "Insert components first; the drawing shows the current assembly.";
+                return;
+            }
+
+            var asmDrawing = new DrawingDocument { ModelPath = FilePath ?? "Assembly1.chasm" };
+            asmDrawing.SetAssembly(asm);
+            asmDrawing.Properties["Title"] = FilePath is null ? "Assembly1" : Path.GetFileNameWithoutExtension(FilePath);
+            asmDrawing.AddStandardViews(asmDrawing.Sheets[0]);
+            OpenDrawing(asmDrawing, null);
+            return;
+        }
+
+        if (Document.Bodies.Count == 0)
         {
             MessageText = "Open or build a part first; the drawing shows the current part.";
             return;
@@ -79,7 +104,9 @@ public sealed partial class MainViewModel
 
     private void OpenDrawing(DrawingDocument drawing, string? path)
     {
-        _drawingSource = (Document, FilePath);
+        _drawingSource = (Document, AssemblyDoc, FilePath);
+        AssemblyDoc = null;
+        SheetIndex = 0;
         DrawingDoc = drawing;
         _drawingRenderer = new DrawingRenderer(drawing);
         FilePath = path;
@@ -105,6 +132,7 @@ public sealed partial class MainViewModel
         if (_drawingSource is { } src)
         {
             Document = src.Part;
+            AssemblyDoc = src.Assembly;
             FilePath = src.Path;
         }
 
@@ -159,10 +187,18 @@ public sealed partial class MainViewModel
             return;
         }
 
-        Tree.Add(new FeatureNode($"{sheet.Name} ({sheet.Size}, {Scales.Format(sheet.Scale)})", "▭"));
-        foreach (var v in sheet.Views)
+        foreach (var s in DrawingDoc!.Sheets)
         {
-            Tree.Add(new FeatureNode(v.Name, "⊞", indent: 1, tag: v));
+            Tree.Add(new FeatureNode($"{s.Name} ({s.Size}, {Scales.Format(s.Scale)}){(s == sheet ? "  ◀" : string.Empty)}", "▭", tag: s));
+            if (s != sheet)
+            {
+                continue;
+            }
+
+            foreach (var v in s.Views)
+            {
+                Tree.Add(new FeatureNode(v.Name, "⊞", indent: 1, tag: v));
+            }
         }
     }
 
@@ -187,7 +223,14 @@ public sealed partial class MainViewModel
         }
 
         var restored = DrawingDocument.Load(json, current.Directory);
-        restored.SetModel(current.Model);
+        if (current.IsAssembly)
+        {
+            restored.SetAssembly(current.Assembly);
+        }
+        else
+        {
+            restored.SetModel(current.Model);
+        }
         DrawingDoc = restored;
         _drawingRenderer = new DrawingRenderer(restored);
         DrawingSelection.Clear();
@@ -520,6 +563,68 @@ public sealed partial class MainViewModel
         Editor = panel;
     }
 
+    private void AddBomTable()
+    {
+        if (DrawingDoc is not { IsAssembly: true } || CurrentSheet is not { } sheet)
+        {
+            MessageText = "BOM tables are for assembly drawings.";
+            return;
+        }
+
+        SnapshotDrawing();
+        var (_, h) = sheet.Dimensions2D;
+        sheet.Bom = sheet.Bom is null ? new BomTable { X = 15, Y = h - 15 } : null;
+        RefreshDrawing();
+    }
+
+    private void AutoBalloon()
+    {
+        if (DrawingDoc is not { IsAssembly: true } d || CurrentSheet is not { } sheet || _drawingRenderer is null)
+        {
+            MessageText = "Balloons are for assembly drawings.";
+            return;
+        }
+
+        var view = sheet.Views.LastOrDefault(v => DrawingSelection.Contains(v.Id)) ?? sheet.Views.FirstOrDefault(v => v.Kind == ViewKind.Isometric) ?? sheet.Views.FirstOrDefault();
+        if (view is null)
+        {
+            return;
+        }
+
+        SnapshotDrawing();
+        sheet.Balloons.RemoveAll(b => b.ViewId == view.Id);
+        d.AutoBalloon(sheet, view, _drawingRenderer);
+        RefreshDrawing();
+    }
+
+    private void AddSheet()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet)
+        {
+            return;
+        }
+
+        SnapshotDrawing();
+        d.Sheets.Add(new Sheet { Name = $"Sheet{d.Sheets.Count + 1}", Size = sheet.Size, Landscape = sheet.Landscape, Scale = sheet.Scale });
+        SheetIndex = d.Sheets.Count - 1;
+        DrawingSelection.Clear();
+        RaiseDrawingMode();
+        RefreshDrawing();
+    }
+
+    private void NextSheet()
+    {
+        if (DrawingDoc is not { } d || d.Sheets.Count < 2)
+        {
+            return;
+        }
+
+        SheetIndex = (SheetIndex + 1) % d.Sheets.Count;
+        DrawingSelection.Clear();
+        OnPropertyChanged(nameof(CurrentSheet));
+        RefreshDrawing();
+    }
+
     private void ToggleHiddenLines()
     {
         if (SelectedView() is not { } view)
@@ -687,7 +792,7 @@ public sealed partial class MainViewModel
         var drawing = DrawingDocument.Load(text, Path.GetDirectoryName(Path.GetFullPath(path)));
         try
         {
-            _ = drawing.Model;
+            _ = drawing.Bodies;
         }
         catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or UnauthorizedAccessException)
         {

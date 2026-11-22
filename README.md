@@ -238,7 +238,8 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 
 | Action | How |
 |---|---|
-| Start | With a part open, **New Drawing** creates a sheet with front, top, right and isometric views at a fitting standard scale. |
+| Start | With a part or assembly open, **New Drawing** creates a sheet with front, top, right and isometric views at a fitting standard scale. **Add Sheet** and **Next Sheet** handle multiple sheets. |
+| Assemblies | **BOM Table** adds a bill of materials; **Auto Balloon** numbers each distinct part in the selected (or isometric) view to match it. |
 | Views | Select a view, then **Section View** (horizontal or vertical cut, hatched) or **Detail View** (magnified circle). Drag views to move them. **Hidden Lines** toggles hidden edges. |
 | Annotate | **Auto Dimension** adds overall sizes and hole diameters to the selected view, tied to model edges, so they update when the part changes. **Note** adds text. **Sheet** sets size, scale, projection angle and title block fields. |
 | Export | **Export PDF**, **SVG** or **DXF**. Drawings save as `.chdrw`. |
@@ -376,15 +377,15 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] Pack and Go
 
 ### Phase 5: Drawings
-- [x] Drawing document (`.chdrw`), sheets, sheet formats, title blocks *(A4–A0, Letter, Tabloid; editable title block fields)*
+- [x] Drawing document (`.chdrw`), sheets, sheet formats, title blocks *(A4–A0, Letter, Tabloid; multiple sheets; editable title block fields; part and assembly drawings)*
 - [x] Hidden-line-removal (HLR) projection engine *(OCCT exact HLR: visible, tangent, silhouette and hidden edges)*
 - [~] Standard 3 views, projected, auxiliary, section, detail, broken-out section, break, crop, and alternate-position views *(standard, isometric, section with hatching, detail)*
 - [~] Model items import (dimensions from the model), reference dimensions *(auto overall and hole dimensions anchored to model edges)*
 - [~] Ordinate, baseline, and chain dimensions; tolerances and fits *(horizontal, vertical, aligned, diameter, radius; tolerance text)*
-- [~] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target *(notes)*
+- [~] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target *(notes, auto balloons)*
 - [ ] **GD&T** feature control frames (ASME Y14.5 / ISO 1101)
 - [~] Centerlines, center marks, cosmetic threads in drawings *(automatic centre marks)*
-- [ ] BOM tables, hole tables, revision tables, general tables
+- [~] BOM tables, hole tables, revision tables, general tables *(BOM tables)*
 - [ ] Layers, line styles, drafting standards (ANSI, ISO, DIN, JIS)
 - [~] Export to PDF, DXF, DWG, SVG; printing *(PDF, DXF and SVG)*
 - [x] Associativity: drawings update when the model changes
@@ -466,7 +467,7 @@ A high-level tracker against SolidWorks capability areas.
 | Parametrics | Equations, global variables, configurations, design tables | 3 | 🟩 Done |
 | Assemblies | Standard, advanced, and mechanical mates; exploded views | 4 | 🟨 Standard mates, BOM, interference, explode |
 | Large assemblies | Lightweight, Large Design Review | 4, 11 | ⬜ |
-| Drawings | Views, dimensions, GD&T, BOM, tables | 5 | 🟨 Views, sections, details, dimensions, export |
+| Drawings | Views, dimensions, GD&T, BOM, tables | 5 | 🟨 Part and assembly drawings, sections, details, dimensions, BOM, balloons, export |
 | Surfacing | Surface features, knit, trim, analysis | 6 | 🟨 Core surfaces, knit, thicken |
 | Sheet metal | Flanges, bends, flat pattern | 7 | 🟨 Base and edge flanges, flat pattern, DXF |
 | Weldments | Structural members, cut lists | 7 | ⬜ |
