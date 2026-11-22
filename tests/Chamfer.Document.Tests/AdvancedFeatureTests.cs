@@ -299,6 +299,37 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void RuledSurfacesFromEdges()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 20));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var topEdges = Enumerable.Range(1, body.EdgeCount)
+            .Where(i => Math.Abs(body.Edge(i).Start.Z - 10) < 1e-6 && Math.Abs(body.Edge(i).End.Z - 10) < 1e-6)
+            .Select(body.EdgeRef).ToList();
+        Assert.Equal(4, topEdges.Count);
+
+        // Along +Z from the top edges: a 5 mm wall standing on the rim, 120 x 5 mm.
+        var ruled = doc.Add(new RuledSurfaceFeature { Edges = topEdges, Distance = 5, Type = RuledDirection.AlongDirection, Direction = AxisRef.Z });
+        doc.Rebuild();
+        AssertOk(doc);
+        var surface = Assert.Single(doc.Bodies, b => b.IsSurface);
+        Assert.Equal(4, surface.FaceCount);
+        Assert.Equal(120 * 5, surface.Shape.MassProperties.SurfaceArea, 1e-6);
+        Assert.Equal(15, surface.Shape.Bounds.Max.Z, 1e-6);
+
+        // Normal to a face beside each edge: still 120 x 5 of strip, whichever face it is.
+        ruled.Type = RuledDirection.NormalToFace;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(120 * 5, doc.Bodies.Single(b => b.IsSurface).Shape.MassProperties.SurfaceArea, 1e-6);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

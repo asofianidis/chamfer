@@ -109,6 +109,10 @@ public sealed partial class MainViewModel : ViewModelBase
                 Plane = SelectedPlane() ?? PlaneRef.Right,
             })), "⫻", "Surfaces"),
             new("Thicken", "Give a surface thickness", new RelayCommand(() => StartFeature(new ThickenFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Thickness = 1 })), "▥", "Surfaces"),
+            new("Ruled Surface", "Strips of surface from model edges, square to a face or along a direction", new RelayCommand(() => StartFeature(new RuledSurfaceFeature
+            {
+                Edges = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => s.Ref!)],
+            })), "▦", "Surfaces"),
             new("Thickened Cut", "Cut away a thickened surface's volume", new RelayCommand(() => StartFeature(new ThickenFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Thickness = 1, IsCut = true })), "▤", "Surfaces"),
 
             new("Base Flange", "Sheet metal from a sketch: closed makes a plate, open makes a bent sheet", new RelayCommand(() => StartSketchFeature(sf => new BaseFlangeFeature { SketchId = sf.Id })), "▬", "Sheet Metal"),

@@ -413,7 +413,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ### Phase 6: Surfacing
 - [x] Extruded, revolved, swept, lofted, and boundary surfaces
-- [~] Planar, offset, ruled, and filled surfaces *(planar, offset, filled)*
+- [x] Planar, offset, ruled, and filled surfaces
 - [~] Knit (sew), trim, untrim, extend, and delete face *(knit, forming solids from closed sets)*
 - [x] Thicken, and thickened cut
 - [~] Replace face, cut with surface *(cut with surface or plane)*
