@@ -374,6 +374,25 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new InfoField("Tab", "The sketch's closed regions become sheet of the same thickness, added to the flat pattern."));
                 break;
 
+            case RouteFeature rt:
+                ed.Add(new TextField("Points (x,y,z | @dx,dy,dz ...)", Sketch3DFeature.Format(rt.Points), text =>
+                {
+                    try
+                    {
+                        var pts = Sketch3DFeature.Parse(text);
+                        Set(() => rt.Points = pts);
+                    }
+                    catch (FormatException ex)
+                    {
+                        ed.Message = ex.Message;
+                    }
+                }));
+                ed.Add(Num("Outside diameter", "mm", rt, nameof(rt.OuterDiameter), 1e-3));
+                ed.Add(Num("Wall (0 = solid)", "mm", rt, nameof(rt.Wall), 0));
+                ed.Add(Num("Bend radius (0 = sharp)", "mm", rt, nameof(rt.BendRadius), 0));
+                ed.Add(new InfoField("Length", "The body's name gives the centreline length for cut lists."));
+                break;
+
             case Sketch3DFeature s3:
                 ed.Add(new TextField("Points (x,y,z | @dx,dy,dz ...)", Sketch3DFeature.Format(s3.Points), text =>
                 {

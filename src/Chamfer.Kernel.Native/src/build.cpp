@@ -27,6 +27,7 @@
 #include <gp_Ax3.hxx>
 #include <gp_Circ.hxx>
 #include <gp_Elips.hxx>
+#include <GC_MakeArcOfCircle.hxx>
 #include <Geom_BezierCurve.hxx>
 #include <TColgp_Array1OfPnt.hxx>
 #include <gp_Pln.hxx>
@@ -196,6 +197,30 @@ chf_shape* chf_make_wire_3d(int pointCount, const double* points, int spline, in
     if (!interp.IsDone()) throw std::runtime_error("spline interpolation failed");
     TopoDS_Edge e = BRepBuilderAPI_MakeEdge(interp.Curve()).Edge();
     return new chf_shape(BRepBuilderAPI_MakeWire(e).Wire());
+  });
+}
+
+chf_shape* chf_make_wire_3d_mixed(int segCount, const int* kinds, const double* data9) {
+  return chf_guard<chf_shape*>(nullptr, [&]() -> chf_shape* {
+    if (segCount < 1) throw std::runtime_error("a wire needs at least one segment");
+    BRepBuilderAPI_MakeWire mw;
+    for (int i = 0; i < segCount; ++i) {
+      const double* d = data9 + 9 * i;
+      gp_Pnt a(d[0], d[1], d[2]), m(d[3], d[4], d[5]), b(d[6], d[7], d[8]);
+      TopoDS_Edge e;
+      if (kinds[i] == 1) {
+        GC_MakeArcOfCircle arc(a, m, b);
+        if (!arc.IsDone()) throw std::runtime_error("degenerate arc in the path");
+        e = BRepBuilderAPI_MakeEdge(arc.Value()).Edge();
+      } else {
+        BRepBuilderAPI_MakeEdge me(a, b);
+        if (!me.IsDone()) throw std::runtime_error("degenerate line in the path");
+        e = me.Edge();
+      }
+      mw.Add(e);
+      if (!mw.IsDone()) throw std::runtime_error("path segments don't connect");
+    }
+    return new chf_shape(mw.Wire());
   });
 }
 

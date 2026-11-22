@@ -58,6 +58,19 @@ public static unsafe class Modeling
         }
     }
 
+    /// <summary>A 3D path of straight lines (Mid is ignored) and arcs through three points, joined end to end.</summary>
+    public static Shape Path3D(IReadOnlyList<(bool Arc, Vec3 Start, Vec3 Mid, Vec3 End)> segments)
+    {
+        ArgumentNullException.ThrowIfNull(segments);
+        var kinds = segments.Select(s => s.Arc ? 1 : 0).ToArray();
+        var data = segments.SelectMany(s => new[] { s.Start.X, s.Start.Y, s.Start.Z, s.Mid.X, s.Mid.Y, s.Mid.Z, s.End.X, s.End.Y, s.End.Z }).ToArray();
+        fixed (int* pk = kinds)
+        fixed (double* pd = data)
+        {
+            return Shape.Wrap(Native.chf_make_wire_3d_mixed(kinds.Length, pk, pd), "3D path");
+        }
+    }
+
     /// <summary>A helix around the plane's normal starting on its X axis.</summary>
     public static Shape Helix(Plane3 axis, double pitch, double height, double radius, bool leftHanded = false)
     {
