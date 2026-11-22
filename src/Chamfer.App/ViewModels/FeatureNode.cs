@@ -96,6 +96,7 @@ public sealed partial class FeatureNode : ObservableObject
         SketchedBendFeature => "⌒",
         HealFeature => "✚",
         DomeFeature => "◠",
+        FreeformFeature => "≋",
         ToolingSplitFeature => "⊟",
         DimpleFeature => "◉",
         DeleteFaceFeature => "⌫",

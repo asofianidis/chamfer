@@ -189,6 +189,21 @@ public static unsafe class Modeling
         }
     }
 
+    /// <summary>
+    /// Reshapes a face (1-based) into a smooth patch on its own boundary that passes through
+    /// <paramref name="points"/>, sewn back into the solid. Face history isn't kept.
+    /// </summary>
+    public static Operation Freeform(Shape s, int face, IReadOnlyList<Vec3> points)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(points);
+        var xyz = points.SelectMany(p => new[] { p.X, p.Y, p.Z }).ToArray();
+        fixed (double* px = xyz)
+        {
+            return new Operation(Native.chf_freeform(s.Handle, face, points.Count, px), "freeform");
+        }
+    }
+
     /// <summary>Applies a rigid transform. Use <see cref="Mirror"/> for reflections.</summary>
     public static Operation Transform(Shape s, Transform3 t, bool copy = true)
     {

@@ -104,6 +104,52 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void FreeformPullsATopFaceIntoADome()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 40));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var top = body.FaceRef(Enumerable.Range(1, body.FaceCount).First(i => body.Face(i).Normal.Z > 0.99));
+        var free = doc.Add(new FreeformFeature { Face = top });
+
+        // Nothing moved: unchanged, with a warning.
+        doc.Rebuild();
+        Assert.Equal(16000, Volume(doc), 1e-6);
+
+        // The middle control point pulled out 5 mm: a smooth bump, still on the same edges.
+        free.SetOffset(1, 1, 5);
+        doc.Rebuild();
+        AssertOk(doc);
+        var bumped = Volume(doc);
+        Assert.InRange(bumped, 16000 + 100, 16000 + (40 * 40 * 5));
+        Assert.Equal(15, doc.Bodies[0].Shape.Bounds.Max.Z, 0.3);
+        Assert.Equal(40, doc.Bodies[0].Shape.Bounds.Size.X, 1e-3);
+        Assert.Equal(6, doc.Bodies[0].FaceCount);
+
+        // Pushed in instead: a dent.
+        free.SetOffset(1, 1, -4);
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.InRange(Volume(doc), 16000 - (40 * 40 * 4), 16000 - 100);
+
+        // A side face keeps its name, so features placed on it afterwards still find it.
+        var side = body.FaceRef(Enumerable.Range(1, body.FaceCount).First(i => body.Face(i).Normal.X > 0.99));
+        var boss = new Sketch();
+        boss.AddCircle(new Vec2(0, 0), 2);
+        var onSide = doc.Add(new SketchFeature { Plane = new PlaneRef(Face: side), Sketch = boss });
+        doc.Add(new ExtrudeFeature { SketchId = onSide.Id, Depth = 3 });
+        doc.Rebuild();
+        AssertOk(doc);
+
+        var reloaded = PartDocument.Load(doc.Save());
+        Assert.Equal(-4, reloaded.Features.OfType<FreeformFeature>().Single().OffsetAt(1, 1));
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

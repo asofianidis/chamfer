@@ -9,6 +9,8 @@
 #include <BRepAlgoAPI_Splitter.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
+#include <BRepLib.hxx>
+#include <BRep_Tool.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepFeat_MakeLinearForm.hxx>
 #include <BRepFilletAPI_MakeChamfer.hxx>
@@ -404,6 +406,45 @@ chf_op* chf_offset_shape(chf_shape* s, double offset) {
     auto algo = std::make_unique<BRepOffsetAPI_MakeOffsetShape>();
     algo->PerformByJoin(s->shape, offset, 1e-4, BRepOffset_Skin, false, false, GeomAbs_Intersection);
     return chf_make_op(std::move(algo), "offset");
+  });
+}
+
+chf_op* chf_freeform(chf_shape* s, int face, int count, const double* points) {
+  return chf_guard<chf_op*>(nullptr, [&] {
+    requireShape(s);
+    TopoDS_Face target = TopoDS::Face(sub(s, CHF_FACE, face));
+    // A smooth patch on the face's own boundary, pulled through the given points.
+    BRepOffsetAPI_MakeFilling fill(3, 15, 2, Standard_False, 1e-5, 1e-4, 1e-2, 0.1, 9, 12);
+    for (TopExp_Explorer ex(target, TopAbs_EDGE); ex.More(); ex.Next()) {
+      fill.Add(TopoDS::Edge(ex.Current()), GeomAbs_C0);
+    }
+    for (int i = 0; i < count; ++i) {
+      fill.Add(gp_Pnt(points[3 * i], points[3 * i + 1], points[3 * i + 2]));
+    }
+    fill.Build();
+    if (!fill.IsDone()) throw std::runtime_error("couldn't shape the face through these points");
+
+    // Every other face, plus the new one, sewn back into a closed solid.
+    BRepBuilderAPI_Sewing sew(1e-3);
+    for (TopExp_Explorer ex(s->shape, TopAbs_FACE); ex.More(); ex.Next()) {
+      if (!ex.Current().IsSame(target)) sew.Add(ex.Current());
+    }
+    sew.Add(fill.Shape());
+    sew.Perform();
+    TopoDS_Shape sewn = sew.SewedShape();
+    TopoDS_Shell shell;
+    for (TopExp_Explorer ex(sewn, TopAbs_SHELL); ex.More(); ex.Next()) {
+      shell = TopoDS::Shell(ex.Current());
+      break;
+    }
+    if (shell.IsNull() || !BRep_Tool::IsClosed(shell)) throw std::runtime_error("the reshaped face doesn't close up with its neighbours");
+    BRepBuilderAPI_MakeSolid ms(shell);
+    if (!ms.IsDone()) throw std::runtime_error("couldn't make a solid from the reshaped faces");
+    TopoDS_Solid solid = ms.Solid();
+    BRepLib::OrientClosedSolid(solid);
+    ShapeFix_Solid fix(solid);
+    fix.Perform();
+    return chf_make_op_plain(fix.Solid());
   });
 }
 

@@ -200,6 +200,9 @@ CHF_API chf_op* chf_thicken(chf_shape* s, double thickness);
 CHF_API chf_op* chf_offset_shape(chf_shape* s, double offset);
 /* A smooth patch filling a closed wire (n-sided boundary surface). */
 CHF_API chf_shape* chf_fill(chf_shape* wire);
+/* Reshapes a face into a smooth patch on its own boundary passing through count points (xyz triples),
+   and sews it back into a solid (Freeform). */
+CHF_API chf_op* chf_freeform(chf_shape* s, int face, int count, const double* points);
 /* Sew faces/shells into a shell or solid. */
 CHF_API chf_op* chf_sew(int count, chf_shape* const* shapes, double tolerance);
 /* Split a shape by a tool shape (e.g. a plane face). */
