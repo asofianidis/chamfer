@@ -40,7 +40,7 @@ public sealed class AssemblyScene : IPickSource
             var placement = exploded ? Transform3.Translation(c.ExplodeOffset) * c.Transform : c.Transform;
             var tint = Tints[paths.IndexOf(c.Path) % Tints.Length];
             var componentSelected = selection.Any(s => s.Kind == SelectionKind.Feature && s.FeatureId == c.Id);
-            foreach (var body in asm.PartOf(c).Bodies)
+            foreach (var body in asm.BodiesOf(c))
             {
                 if (!_meshes.TryGetValue((body, placement), out var mesh))
                 {

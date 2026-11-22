@@ -313,4 +313,42 @@ public class AdvancedMateTests
             Directory.Delete(root, recursive: true);
         }
     }
+
+    [Fact]
+    public void AssemblyCutGoesThroughSeveralComponentsOnly()
+    {
+        var asm = new AssemblyDocument();
+        var plate = Block(40, 40, 10);
+        asm.RegisterPart("plate.chprt", plate);
+        var lower = asm.AddComponent("plate.chprt");
+        var upper = asm.AddComponent("plate.chprt", Transform3.Translation(new Vec3(0, 0, 10)));
+        var partVolume = plate.MassProperties().Volume;
+
+        // A Ø10 hole through both plates at (20, 20), sketched on the assembly's Front plane.
+        var s = new Sketch();
+        s.AddCircle(new Vec2(20, 20), 5);
+        var cut = asm.AddCut(new AssemblyCut { Sketch = s, ThroughAll = true });
+        var hole = Math.PI * 25 * 10;
+        Assert.Equal(partVolume - hole, asm.BodiesOf(lower)[0].Shape.MassProperties.Volume, 1e-6);
+        Assert.Equal(partVolume - hole, asm.BodiesOf(upper)[0].Shape.MassProperties.Volume, 1e-6);
+        Assert.Equal(partVolume, plate.MassProperties().Volume, 1e-9); // the part itself is untouched
+
+        // Only the upper plate, and only 5 mm deep from z = 15 downward.
+        cut.Components = [upper.Id];
+        cut.ThroughAll = false;
+        cut.PlaneOffset = 20;
+        cut.Reverse = true;
+        cut.Depth = 5;
+        Assert.Equal(partVolume, asm.BodiesOf(lower)[0].Shape.MassProperties.Volume, 1e-6);
+        Assert.Equal(partVolume - (hole / 2), asm.BodiesOf(upper)[0].Shape.MassProperties.Volume, 1e-6);
+        Assert.Equal(partVolume - (hole / 2), asm.PlacedBodies(upper).Single().Placed.MassProperties.Volume, 1e-6);
+
+        // Saved with the assembly; suppressing restores the parts.
+        var loaded = AssemblyDocument.Load(asm.Save());
+        loaded.RegisterPart("plate.chprt", plate);
+        Assert.Single(loaded.Features);
+        Assert.Equal(partVolume - (hole / 2), loaded.BodiesOf(loaded.Components[1])[0].Shape.MassProperties.Volume, 1e-6);
+        cut.Suppressed = true;
+        Assert.Equal(partVolume, asm.BodiesOf(upper)[0].Shape.MassProperties.Volume, 1e-6);
+    }
 }

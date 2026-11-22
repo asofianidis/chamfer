@@ -237,6 +237,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 |---|---|
 | Start | **New Assembly**, then **Insert Component** for saved parts. The first component is fixed. |
 | Mate | Select a face or edge on each of two components, then **Mate**. The panel suggests a type (coincident, concentric, distance, angle, parallel, perpendicular, tangent, lock) and alignment, and previews live. Advanced types: **Symmetric** (third entity is the symmetry plane), **Width** (tab faces first, slot faces third and fourth), **Limit Distance/Angle** (minimum and maximum), **Gear** (ratio), **Rack Pinion** (mm per radian) and **Screw** (pitch). The status bar shows the remaining degrees of freedom. |
+| Assembly features | **Assembly Cut** removes a circle or rectangle profile (on an assembly origin plane, through all or to a depth) from the chosen components, in the assembly only; the part files don't change. It appears under Assembly Features in the tree, where it can be suppressed or deleted. |
 | Patterns | Select a component, then **Linear Pattern** (direction, spacing, instances) or **Circular Pattern** (axis, instances). Copies are locked to the seed. |
 | Move | **Move** translates or rotates the selected component; **Fix / Float** toggles whether it can move. |
 | Motion | **Motion Study**: pick a face or edge on the component to drive, choose a rotary (rpm) or linear (mm/s) motor and a duration, then **Calculate**. Scrub with **Time** or **Play** the animation; **Detect collisions** reports the first new contact. |
@@ -381,7 +382,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Exploded views and explode lines *(automatic radial explode)*
 - [~] Component patterns, mirror components *(linear and circular component patterns)*
 - [ ] In-context (top-down) design with external references
-- [ ] Assembly features: cuts and holes
+- [~] Assembly features: cuts and holes *(assembly cuts: circle or rectangle profiles, through all or to a depth, per component)*
 - [x] Bill of Materials data model
 - [ ] Large-assembly mode: lightweight components, LOD, instancing, frustum culling
 - [x] Pack and Go *(copy an assembly and its parts to one folder with prefix/suffix, optional zip)*

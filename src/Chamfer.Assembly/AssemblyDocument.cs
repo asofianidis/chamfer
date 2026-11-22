@@ -127,7 +127,7 @@ public sealed class Mate
 /// Parts are loaded through <see cref="PartLoader"/> and cached; their bodies
 /// are rebuilt once and shared by every instance.
 /// </summary>
-public sealed class AssemblyDocument
+public sealed partial class AssemblyDocument
 {
     public const int FormatVersion = 1;
     public const string FileExtension = "chasm";
@@ -294,10 +294,10 @@ public sealed class AssemblyDocument
     public IEnumerable<(Body Body, Shape Placed)> PlacedBodies(Component c)
     {
         ArgumentNullException.ThrowIfNull(c);
-        var part = PartOf(c);
-        for (var i = 0; i < part.Bodies.Count; i++)
+        var bodies = BodiesOf(c);
+        for (var i = 0; i < bodies.Count; i++)
         {
-            var body = part.Bodies[i];
+            var body = bodies[i];
             var key = ($"{c.Id}/{i}/{body.GetHashCode()}", c.Transform);
             if (!_placed.TryGetValue(key, out var shape))
             {
@@ -335,6 +335,7 @@ public sealed class AssemblyDocument
         public int NextId { get; set; }
         public List<Component> Components { get; set; } = [];
         public List<Mate> Mates { get; set; } = [];
+        public List<AssemblyCut>? Features { get; set; }
     }
 
     public string Save() => JsonSerializer.Serialize(new AssemblyDto
@@ -343,6 +344,7 @@ public sealed class AssemblyDocument
         NextId = _nextId,
         Components = Components,
         Mates = Mates,
+        Features = Features.Count > 0 ? Features : null,
     }, Options);
 
     /// <summary>
@@ -396,6 +398,8 @@ public sealed class AssemblyDocument
         }).ToList();
         Mates.Clear();
         Mates.AddRange(mates);
+        Features.Clear();
+        Features.AddRange(other.Features);
         _nextId = Math.Max(_nextId, other._nextId);
     }
 
@@ -410,7 +414,8 @@ public sealed class AssemblyDocument
         var doc = new AssemblyDocument { Directory = directory };
         doc.Components.AddRange(dto.Components);
         doc.Mates.AddRange(dto.Mates);
-        doc._nextId = Math.Max(dto.NextId, doc.Components.Count + doc.Mates.Count + 1);
+        doc.Features.AddRange(dto.Features ?? []);
+        doc._nextId = Math.Max(dto.NextId, doc.Components.Count + doc.Mates.Count + doc.Features.Count + 1);
         return doc;
     }
 }

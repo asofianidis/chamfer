@@ -54,6 +54,7 @@ public sealed partial class MainViewModel
         new("Circular Pattern", "Copy the selected component around an axis", new RelayCommand(() => StartComponentPattern(circular: true)), "⟳"),
         new("Move", "Move or rotate the selected component", new RelayCommand(StartMove), "✥"),
         new("Fix / Float", "Fix the selected component in place, or let it move", new RelayCommand(ToggleFixed), "⚓"),
+        new("Assembly Cut", "Cut a hole or pocket through components in the assembly only", new RelayCommand(StartAssemblyCut), "⊘"),
         new("Interference", "Find overlapping components", new RelayCommand(ShowInterference), "⧉"),
         new("Motion Study", "Drive a component with a motor and animate the mechanism", new RelayCommand(StartMotionStudy), "▶"),
         new("Bill of Materials", "List parts and quantities", new RelayCommand(ShowBom), "☰"),
@@ -547,6 +548,15 @@ public sealed partial class MainViewModel
                     Status = m.Suppressed ? FeatureStatus.Suppressed : failed ? FeatureStatus.Error : FeatureStatus.Ok,
                     Message = failed ? "This mate can't be satisfied with the others." : null,
                 });
+            }
+        }
+
+        if (asm.Features.Count > 0)
+        {
+            Tree.Add(new FeatureNode("Assembly Features", "⊘"));
+            foreach (var f in asm.Features)
+            {
+                Tree.Add(new FeatureNode(f.Name, "⊘", indent: 1, tag: f) { Status = f.Suppressed ? FeatureStatus.Suppressed : FeatureStatus.Ok });
             }
         }
 
