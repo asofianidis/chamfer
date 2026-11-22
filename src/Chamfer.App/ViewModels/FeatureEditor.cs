@@ -257,6 +257,32 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(BodyField(doc, feature, "Bodies (empty = all)", sp.Bodies, names => Set(() => sp.Bodies = names)));
                 break;
 
+            case CutWithSurfaceFeature cws:
+                ed.Add(new SelectionField("Cutting surface or plane", Planes,
+                    cws.Surface is { } cutFace ? [new SelectionItem(SelectionKind.Face, cutFace, Label: $"Face <{cutFace.Name}>")] : [PlaneItem(doc, cws.Plane)],
+                    items => Set(() =>
+                    {
+                        var pick = Last(items);
+                        if (pick is { Kind: SelectionKind.Face, Ref: { } r } && doc.Bodies.Any(b => b.IsSurface && b.HasFace(r.Name)))
+                        {
+                            cws.Surface = r;
+                        }
+                        else
+                        {
+                            cws.Surface = null;
+                            cws.Plane = pick?.AsPlane() ?? PlaneRef.Right;
+                        }
+                    }), max: 1));
+                ed.Add(new BoolField("Flip side to remove", cws.Flip, v => Set(() => cws.Flip = v)));
+                ed.Add(BodyField(doc, feature, "Bodies (empty = all)", cws.Bodies, names => Set(() => cws.Bodies = names)));
+                break;
+
+            case ScaleFeature sc:
+                ed.Add(Num("Scale factor", string.Empty, sc, nameof(sc.Factor), 1e-6));
+                ed.Add(new BoolField("About the centroid (else the origin)", sc.AboutCentroid, v => Set(() => sc.AboutCentroid = v)));
+                ed.Add(BodyField(doc, feature, "Bodies (empty = all)", sc.Bodies, names => Set(() => sc.Bodies = names)));
+                break;
+
             case MoveCopyBodyFeature mv:
                 ed.Add(BodyField(doc, feature, "Bodies", mv.Bodies, names => Set(() => mv.Bodies = names)));
                 ed.Add(Num("Move X", "mm", mv, nameof(mv.Dx)));

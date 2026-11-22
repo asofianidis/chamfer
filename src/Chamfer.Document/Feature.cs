@@ -73,6 +73,8 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(TablePatternFeature), "tablePattern")]
 [JsonDerivedType(typeof(CurveDrivenPatternFeature), "curvePattern")]
 [JsonDerivedType(typeof(FillPatternFeature), "fillPattern")]
+[JsonDerivedType(typeof(CutWithSurfaceFeature), "cutWithSurface")]
+[JsonDerivedType(typeof(ScaleFeature), "scale")]
 public abstract class Feature
 {
     /// <summary>Stable identifier used by references and persistent names. Never shown to users.</summary>
