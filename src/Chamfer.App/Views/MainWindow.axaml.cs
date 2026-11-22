@@ -26,6 +26,7 @@ public partial class MainWindow : Window
     private SketchViewModel? _wiredSketch;
     private readonly SoftwareRenderer _underlayRenderer = new();
     private WriteableBitmap? _underlayBitmap;
+    private PartScene? _underlayScene;
 
     public MainWindow()
     {
@@ -82,6 +83,7 @@ public partial class MainWindow : Window
         };
         vm.SceneChanged += OnSceneChanged;
         vm.PropertyChanged += OnViewModelPropertyChanged;
+        vm.PickUnderlayEdge = PickUnderlayEdge;
         ApplyTheme();
         Viewport.Camera.SetView(StandardView.Trimetric);
         OnSceneChanged(this, EventArgs.Empty);
@@ -175,7 +177,8 @@ public partial class MainWindow : Window
         var palette = ActualThemeVariant == ThemeVariant.Dark ? ViewPalette.Dark : ViewPalette.Light;
         var background = ActualThemeVariant == ThemeVariant.Dark ? Rgba.FromHex(0x1E1F22) : Rgba.FromHex(0xFFFFFF);
         var faded = palette with { Top = background, Bottom = background, Body = Rgba.Lerp(palette.Body, background, 0.35), Edge = Rgba.Lerp(palette.Edge, background, 0.5) };
-        var scene = new PartScene().Build(_vm.Document, [], null, faded, DisplayStyle.ShadedWithEdges, _vm.EditingSketch?.Id);
+        _underlayScene = new PartScene();
+        var scene = _underlayScene.Build(_vm.Document, [], null, faded, DisplayStyle.ShadedWithEdges, _vm.EditingSketch?.Id);
         scene.Quads.Clear();
         scene.Lines.Clear();
         scene.Points.Clear();
@@ -202,6 +205,20 @@ public partial class MainWindow : Window
         }
 
         context.DrawImage(_underlayBitmap, new Rect(0, 0, w, h), new Rect(size));
+    }
+
+    /// <summary>The model edge drawn behind the sketch at a sketch-space point, from the last underlay render.</summary>
+    private (Body Body, int Edge)? PickUnderlayEdge(SkVec2 at)
+    {
+        if (_underlayScene is null || _underlayRenderer.Width <= 1)
+        {
+            return null;
+        }
+
+        var screen = Canvas.ToScreen(at);
+        var scale = RenderScaling;
+        var id = _underlayRenderer.Pick((int)(screen.X * scale), (int)(screen.Y * scale), (int)Math.Ceiling(5 * scale));
+        return _underlayScene.Target(id) is EdgePick edge ? (edge.Body, edge.Index) : null;
     }
 
     protected override void OnClosed(EventArgs e)

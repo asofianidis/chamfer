@@ -672,7 +672,7 @@ public sealed partial class MainViewModel : ViewModelBase
         editor.Load(SketchSerializer.Serialize(sf.Sketch), null);
         EditingSketch = sf;
         _afterSketch = after;
-        Sketch = new SketchViewModel(editor);
+        Sketch = new SketchViewModel(editor, ConvertAt);
         Sketch.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(SketchViewModel.StatusText))
@@ -723,6 +723,56 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             SetSelection([SelectionItem.ForFeature(sf)]);
         }
+    }
+
+    /// <summary>Set by the window: the model edge drawn behind the sketch at a sketch-space point.</summary>
+    public Func<Sketching.Vec2, (Body Body, int Edge)?>? PickUnderlayEdge { get; set; }
+
+    private bool ConvertAt(Sketching.Vec2 at)
+    {
+        if (PickUnderlayEdge?.Invoke(at) is not { } hit || Sketch is null || EditingPlane is not { } plane)
+        {
+            return false;
+        }
+
+        var editor = Sketch.Editor;
+        editor.BeginChange();
+        var made = EdgeProjection.Project(editor.Sketch, hit.Body, hit.Edge, plane);
+        if (made.Count == 0)
+        {
+            editor.CancelChange();
+            return false;
+        }
+
+        editor.EndChange(solve: true);
+        return true;
+    }
+
+    /// <summary>Converts the outline of the face the sketch is on.</summary>
+    [RelayCommand]
+    private void ConvertFace()
+    {
+        if (Sketch is null || EditingSketch?.Plane.Face is not { } faceRef || EditingPlane is not { } plane)
+        {
+            MessageText = "Convert Face works on sketches placed on a model face.";
+            return;
+        }
+
+        var body = Document.Bodies.FirstOrDefault(b => b.HasFace(faceRef.Name));
+        if (body is null)
+        {
+            return;
+        }
+
+        var face = body.ResolveFace(faceRef, out _);
+        var editor = Sketch.Editor;
+        editor.BeginChange();
+        foreach (var edge in body.Shape.EdgesOfFace(face))
+        {
+            EdgeProjection.Project(editor.Sketch, body, edge, plane);
+        }
+
+        editor.EndChange(solve: true);
     }
 
     /// <summary>Plane of the sketch being edited.</summary>
