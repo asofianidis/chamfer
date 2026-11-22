@@ -117,4 +117,10 @@ public abstract class Feature
 
     /// <summary>Builds the feature's geometry into the context. Throws <see cref="FeatureException"/> on failure.</summary>
     public abstract void Execute(RebuildContext ctx);
+
+    /// <summary>
+    /// What identifies this feature's inputs for the rebuild cache. By default its saved form;
+    /// features that are never saved (built in memory by other documents) give their own.
+    /// </summary>
+    public virtual string? CacheKey => null;
 }

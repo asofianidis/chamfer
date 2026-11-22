@@ -37,41 +37,72 @@ public static class PackAndGo
             return name;
         }
 
-        foreach (var path in asm.Components.Select(c => c.Path).Distinct(StringComparer.Ordinal))
+        // Copies of everything reached so far, by source (full path, or path within its assembly when in memory).
+        var written = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        // Writes an assembly (and, first, everything it uses) and returns its new file name.
+        string Pack(AssemblyDocument a, string name)
         {
-            if (Toolbox.IsToolboxPath(path))
+            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            foreach (var path in a.Components.Select(c => c.Path).Distinct(StringComparer.Ordinal))
             {
-                continue;
+                if (Toolbox.IsToolboxPath(path))
+                {
+                    continue;
+                }
+
+                var source = a.Resolve(path);
+                var key = File.Exists(source) ? Path.GetFullPath(source) : $"{a.GetHashCode()}:{path}";
+                if (!written.TryGetValue(key, out var newName))
+                {
+                    var component = a.Components.First(c => c.Path == path);
+                    if (SubAssemblies.IsAssemblyPath(path))
+                    {
+                        newName = Pack(a.SubAssemblyOf(component)!, Path.GetFileNameWithoutExtension(path));
+                    }
+                    else
+                    {
+                        newName = Unique(Path.GetFileNameWithoutExtension(path), PartDocument.FileExtension);
+                        var target = Path.Combine(targetDirectory, newName);
+                        if (File.Exists(source))
+                        {
+                            File.Copy(source, target, overwrite: true);
+                        }
+                        else
+                        {
+                            // A part that only exists in memory (new or registered): save it.
+                            File.WriteAllText(target, a.PartOf(component).Save());
+                        }
+
+                        files.Add(target);
+                    }
+
+                    written[key] = newName;
+                }
+
+                map[path] = newName;
             }
 
-            var newName = Unique(Path.GetFileNameWithoutExtension(path), PartDocument.FileExtension);
-            var target = Path.Combine(targetDirectory, newName);
-            var source = asm.Resolve(path);
-            if (File.Exists(source))
+            var copy = AssemblyDocument.Load(a.Save(), targetDirectory);
+            foreach (var c in copy.Components)
             {
-                File.Copy(source, target, overwrite: true);
-            }
-            else
-            {
-                // A part that only exists in memory (new or registered): save it.
-                File.WriteAllText(target, asm.PartOf(asm.Components.First(c => c.Path == path)).Save());
+                if (map.TryGetValue(c.Path, out var newPath))
+                {
+                    c.Path = newPath;
+                }
             }
 
-            map[path] = newName;
-            files.Add(target);
+            var fileName = Unique(name, AssemblyDocument.FileExtension);
+            var assemblyFile = Path.Combine(targetDirectory, fileName);
+            File.WriteAllText(assemblyFile, copy.Save());
+            files.Add(assemblyFile);
+            return fileName;
         }
 
-        var copy = AssemblyDocument.Load(asm.Save(), targetDirectory);
-        foreach (var c in copy.Components)
-        {
-            if (map.TryGetValue(c.Path, out var newPath))
-            {
-                c.Path = newPath;
-            }
-        }
+        var assemblyPath = Path.Combine(targetDirectory, Pack(asm, assemblyName));
 
-        var assemblyPath = Path.Combine(targetDirectory, Unique(assemblyName, AssemblyDocument.FileExtension));
-        File.WriteAllText(assemblyPath, copy.Save());
+        // The top assembly first.
+        files.Remove(assemblyPath);
         files.Insert(0, assemblyPath);
 
         string? zipPath = null;
