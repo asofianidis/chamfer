@@ -40,6 +40,8 @@ public sealed partial class MainViewModel : ViewModelBase
     private static readonly FilePickerFileType IgesFileType = new("IGES") { Patterns = ["*.iges", "*.igs"] };
     private static readonly FilePickerFileType StlFileType = new("STL") { Patterns = ["*.stl"] };
     private static readonly FilePickerFileType ThreeMfFileType = new("3MF") { Patterns = ["*.3mf"] };
+    private static readonly FilePickerFileType GlbFileType = new("glTF binary") { Patterns = ["*.glb"] };
+    private static readonly FilePickerFileType HtmlFileType = new("3D web page (HTML viewer)") { Patterns = ["*.html"] };
     private static readonly FilePickerFileType ObjFileType = new("OBJ") { Patterns = ["*.obj"] };
     private static readonly FilePickerFileType CsvFileType = new("Design table (CSV)") { Patterns = ["*.csv"] };
 
@@ -1930,7 +1932,7 @@ public sealed partial class MainViewModel : ViewModelBase
             Title = "Export",
             DefaultExtension = "step",
             SuggestedFileName = FilePath is null ? "Part1" : Path.GetFileNameWithoutExtension(FilePath),
-            FileTypeChoices = [StepFileType, IgesFileType, StlFileType, ThreeMfFileType, ObjFileType],
+            FileTypeChoices = [StepFileType, IgesFileType, StlFileType, ThreeMfFileType, ObjFileType, GlbFileType, HtmlFileType],
         });
         if (file?.TryGetLocalPath() is not { } path)
         {

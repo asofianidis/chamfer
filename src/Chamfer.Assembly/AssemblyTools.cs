@@ -120,6 +120,45 @@ public static class AssemblyTools
     {
         ArgumentNullException.ThrowIfNull(asm);
         ArgumentNullException.ThrowIfNull(path);
+        var ext = Path.GetExtension(path).ToUpperInvariant();
+        if (ext is ".GLB" or ".HTML" or ".HTM")
+        {
+            // Each distinct body is stored once; components place it.
+            var meshes = new List<ExportMesh>();
+            var index = new Dictionary<Body, int>(ReferenceEqualityComparer.Instance);
+            var instances = new List<ExportInstance>();
+            foreach (var c in asm.Components.Where(c => !c.Suppressed && !c.Hidden))
+            {
+                foreach (var body in asm.BodiesOf(c))
+                {
+                    if (!index.TryGetValue(body, out var k))
+                    {
+                        k = meshes.Count;
+                        index[body] = k;
+                        meshes.Add(new ExportMesh($"{Path.GetFileNameWithoutExtension(c.Path)} {body.Name}", body.Mesh, body.Color ?? 0xB9C3CE));
+                    }
+
+                    instances.Add(new ExportInstance(k, c.Transform, c.Name));
+                }
+            }
+
+            if (instances.Count == 0)
+            {
+                throw new InvalidOperationException("There is nothing to export.");
+            }
+
+            if (ext == ".GLB")
+            {
+                File.WriteAllBytes(path, SceneExport.Glb(meshes, instances));
+            }
+            else
+            {
+                File.WriteAllText(path, SceneExport.Html(meshes, instances, Path.GetFileNameWithoutExtension(path)));
+            }
+
+            return;
+        }
+
         var shapes = asm.Components.Where(c => !c.Suppressed && !c.Hidden).SelectMany(c => asm.PlacedBodies(c).Select(p => p.Placed)).ToList();
         if (shapes.Count == 0)
         {

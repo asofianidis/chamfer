@@ -485,4 +485,34 @@ public class AdvancedMateTests
 
         Assert.True(failures.Count == 0, string.Join("\n", failures.Distinct().Take(10)));
     }
+
+    [Fact]
+    public void AssemblyGlbStoresEachPartOnce()
+    {
+        var asm = new AssemblyDocument();
+        asm.RegisterPart("cube.chprt", Block(10, 10, 10));
+        for (var i = 0; i < 3; i++)
+        {
+            asm.AddComponent("cube.chprt", Transform3.Translation(new Vec3(i * 20, 0, 0)));
+        }
+
+        var path = Path.Combine(Path.GetTempPath(), $"chamfer-{Guid.NewGuid():N}.glb");
+        try
+        {
+            AssemblyTools.Export(asm, path);
+            var glb = File.ReadAllBytes(path);
+            var jsonLength = (int)BitConverter.ToUInt32(glb, 12);
+            using var json = System.Text.Json.JsonDocument.Parse(System.Text.Encoding.UTF8.GetString(glb, 20, jsonLength));
+            var root = json.RootElement;
+            Assert.Equal(1, root.GetProperty("meshes").GetArrayLength());
+            var nodes = root.GetProperty("nodes");
+            Assert.Equal(4, nodes.GetArrayLength());
+            Assert.Equal(40, nodes[2].GetProperty("matrix")[12].GetDouble(), 1e-9); // third copy at x = 40
+            Assert.Equal(3, nodes[3].GetProperty("children").GetArrayLength());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }
