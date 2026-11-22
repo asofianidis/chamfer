@@ -107,7 +107,7 @@ public sealed class AssemblyDocument
 
     public AssemblyDocument()
     {
-        PartLoader = path => PartDocument.Load(File.ReadAllText(Resolve(path)));
+        PartLoader = path => Toolbox.IsToolboxPath(path) ? Toolbox.Create(path) : PartDocument.Load(File.ReadAllText(Resolve(path)));
     }
 
     public string Resolve(string path) =>
@@ -157,7 +157,7 @@ public sealed class AssemblyDocument
     public Component AddComponent(string path, Transform3? placement = null, string? configuration = null)
     {
         ArgumentNullException.ThrowIfNull(path);
-        var baseName = System.IO.Path.GetFileNameWithoutExtension(path);
+        var baseName = Toolbox.IsToolboxPath(path) ? path["toolbox:".Length..] : System.IO.Path.GetFileNameWithoutExtension(path);
         var instance = Components.Count(c => c.Path == path) + 1;
         var c = new Component
         {

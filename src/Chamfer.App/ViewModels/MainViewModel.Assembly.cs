@@ -48,6 +48,7 @@ public sealed partial class MainViewModel
     public IReadOnlyList<CommandItem> AssemblyCommands => _assemblyCommands ??=
     [
         new("Insert Component", "Insert a saved part", new AsyncRelayCommand(InsertComponent), "⊕"),
+        new("Toolbox", "Insert standard screws, bolts, nuts and washers", new RelayCommand(StartToolbox), "⚙"),
         new("Mate", "Mate two faces or edges", new RelayCommand(StartMate), "⫘"),
         new("Move", "Move or rotate the selected component", new RelayCommand(StartMove), "✥"),
         new("Fix / Float", "Fix the selected component in place, or let it move", new RelayCommand(ToggleFixed), "⚓"),
@@ -147,6 +148,35 @@ public sealed partial class MainViewModel
         { ComponentId: { } id, Kind: SelectionKind.Edge, Ref: { } r } => new MateRef(id, Edge: r),
         _ => null,
     };
+
+    private void StartToolbox()
+    {
+        if (AssemblyDoc is null)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var kinds = Enum.GetValues<FastenerKind>();
+        var kindNames = new[] { "Socket head cap screw (ISO 4762)", "Hex bolt (ISO 4017)", "Hex nut (ISO 4032)", "Flat washer (ISO 7089)" };
+        var spec = new FastenerSpec(FastenerKind.SocketHeadCapScrew, "M6", 20);
+        var panel = FeatureEditor.Command("Toolbox", () => { },
+            accept: () => InsertPart(spec.Path),
+            cancel: () => { });
+        var preview = new InfoField("Part", spec.Description);
+        void Update(FastenerSpec next)
+        {
+            spec = next;
+            preview.Text = spec.Description;
+        }
+
+        panel.AddField(new ChoiceField("Type", kindNames, 0, i => Update(spec with { Kind = kinds[i] })));
+        panel.AddField(new ChoiceField("Size", [.. Toolbox.SizeNames], Toolbox.SizeNames.ToList().IndexOf("M6"), i => Update(spec with { Size = Toolbox.SizeNames[i] })));
+        var lengths = Toolbox.StandardLengths.Select(l => l.ToString("0", CultureInfo.InvariantCulture)).ToList();
+        panel.AddField(new ChoiceField("Length (screws, bolts)", lengths, lengths.IndexOf("20"), i => Update(spec with { Length = Toolbox.StandardLengths[i] })));
+        panel.AddField(preview);
+        Editor = panel;
+    }
 
     // ------------------------------------------------------------- mates
 

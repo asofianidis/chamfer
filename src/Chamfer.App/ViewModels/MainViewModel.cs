@@ -73,6 +73,8 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Circular Pattern", "Repeat features around an axis", new RelayCommand(() => StartFeature(new CircularPatternFeature { Count = 6 })), "⟳"),
             new("Mirror", "Mirror features about a plane", new RelayCommand(() => StartFeature(new MirrorFeature())), "⇋"),
             new("Plane", "Reference plane", new RelayCommand(() => StartFeature(new ReferencePlaneFeature { Base = SelectedPlane() ?? PlaneRef.Front })), "▱"),
+            new("Helix", "Helix on a sketch circle, for springs and sweeps", new RelayCommand(() => StartSketchFeature(sf => new HelixFeature { SketchId = sf.Id })), "➰"),
+            new("Thread", "Model a metric thread on a cylindrical face", new RelayCommand(StartThread), "⩫"),
 
             new("Extruded Surface", "Extrude sketch curves into a surface", new RelayCommand(() => StartSketchFeature(sf => new SurfaceExtrudeFeature { SketchId = sf.Id })), "▤", "Surfaces"),
             new("Revolved Surface", "Revolve sketch curves about a centerline", new RelayCommand(() => StartSketchFeature(sf => new SurfaceRevolveFeature { SketchId = sf.Id })), "◐", "Surfaces"),
@@ -237,6 +239,27 @@ public sealed partial class MainViewModel : ViewModelBase
     /// <summary>Names of the bodies owning the selected faces and edges.</summary>
     private List<string> SelectedBodyNames() =>
         [.. Selection.Where(s => s.Ref is not null).Select(s => Document.Bodies.FirstOrDefault(b => b.HasFace(s.Ref!.Name) || b.HasEdge(s.Ref!.Name))?.Name).OfType<string>().Distinct()];
+
+    /// <summary>ISO coarse pitch for a nominal diameter.</summary>
+    private static double CoarsePitch(double diameter) =>
+        new (double D, double P)[] { (3, 0.5), (4, 0.7), (5, 0.8), (6, 1), (8, 1.25), (10, 1.5), (12, 1.75), (16, 2), (20, 2.5), (24, 3), (30, 3.5) }
+            .MinBy(x => Math.Abs(x.D - diameter)).P;
+
+    private void StartThread()
+    {
+        var face = Selection.LastOrDefault(s => s.Kind == SelectionKind.Face);
+        var pitch = 1.0;
+        if (face?.Ref is { } r && Document.Bodies.FirstOrDefault(b => b.HasFace(r.Name)) is { } body)
+        {
+            var info = body.Face(body.ResolveFace(r, out _));
+            if (info.Surface == Chamfer.Kernel.Occt.SurfaceKind.Cylinder)
+            {
+                pitch = CoarsePitch(2 * info.Radius);
+            }
+        }
+
+        StartFeature(new ThreadFeature { Face = face?.Ref, Pitch = pitch });
+    }
 
     private void StartCombine()
     {

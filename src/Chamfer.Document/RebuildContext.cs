@@ -24,6 +24,9 @@ public sealed record RebuildState(
     /// <summary>Sheet metal parameters and flat-pattern data, once a base flange exists.</summary>
     public Features.SheetMetalState? SheetMetal { get; init; }
 
+    /// <summary>3D curves (helices and the like) by feature id, usable as sweep paths.</summary>
+    public IReadOnlyDictionary<string, Shape> Curves { get; init; } = new Dictionary<string, Shape>();
+
     public static RebuildState Initial { get; } = new([], new Dictionary<string, PlacedSketch>(),
         new Dictionary<string, Plane3>
         {
@@ -45,6 +48,7 @@ public sealed class RebuildContext
         Planes = new Dictionary<string, Plane3>(state.Planes);
         Tools = new Dictionary<string, FeatureTool>(state.Tools);
         SheetMetal = state.SheetMetal;
+        Curves = new Dictionary<string, Shape>(state.Curves);
     }
 
     public PartDocument Document { get; }
@@ -56,7 +60,10 @@ public sealed class RebuildContext
     public List<string> Warnings { get; } = [];
 
     internal RebuildState Capture() => new([.. Bodies], new Dictionary<string, PlacedSketch>(Sketches),
-        new Dictionary<string, Plane3>(Planes), new Dictionary<string, FeatureTool>(Tools)) { SheetMetal = SheetMetal };
+        new Dictionary<string, Plane3>(Planes), new Dictionary<string, FeatureTool>(Tools)) { SheetMetal = SheetMetal, Curves = new Dictionary<string, Shape>(Curves) };
+
+    /// <summary>3D curves by feature id.</summary>
+    public Dictionary<string, Shape> Curves { get; }
 
     /// <summary>Sheet metal state; features replace it rather than mutate it.</summary>
     public Features.SheetMetalState? SheetMetal { get; set; }

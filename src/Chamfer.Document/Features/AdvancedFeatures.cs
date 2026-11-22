@@ -26,8 +26,11 @@ public sealed class SweepFeature : Feature
     {
         ArgumentNullException.ThrowIfNull(ctx);
         var profile = ctx.Sketch(ProfileSketchId);
-        var path = ctx.Sketch(PathSketchId);
-        using var wire = AdvancedShapes.Wire(path, "The path must be one connected chain of lines and arcs, or a circle.");
+
+        // The path is a sketch, or a 3D curve feature such as a helix.
+        using var wire = ctx.Curves.TryGetValue(PathSketchId, out var curve)
+            ? Modeling.Transform(curve, Transform3.Identity).Result
+            : AdvancedShapes.Wire(ctx.Sketch(PathSketchId), "The path must be one connected chain of lines and arcs, or a circle.");
 
         if (IsSurface)
         {
