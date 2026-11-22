@@ -95,6 +95,7 @@ public sealed partial class FeatureNode : ObservableObject
         HealFeature => "✚",
         DomeFeature => "◠",
         ToolingSplitFeature => "⊟",
+        DimpleFeature => "◉",
         _ => "•",
     };
 }

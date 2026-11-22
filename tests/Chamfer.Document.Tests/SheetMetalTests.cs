@@ -227,4 +227,35 @@ public class SheetMetalTests
         AssertOk(doc);
         Assert.Equal(-(30 - (Math.PI / 2) + 1), doc.Bodies[0].Shape.Bounds.Min.Z, 1e-6);
     }
+
+    [Fact]
+    public void DimplesPressAHollowBump()
+    {
+        var (doc, _) = Plate();
+        var body = doc.Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99 && body.Face(i).Centroid.Z > 1.9);
+        var plane = body.Shape.FacePlane(top)!.Value;
+        var pts = new Sketch();
+        var (u, v) = plane.ToLocal(new Vec3(50, 30, 2));
+        pts.AddPoint(new Vec2(u, v));
+        var sf = doc.Add(new SketchFeature { Plane = new PlaneRef(Face: body.FaceRef(top)), Sketch = pts });
+        var dimple = (DimpleFeature)doc.Add(new DimpleFeature { SketchId = sf.Id, Diameter = 20, Height = 4 });
+        doc.Rebuild();
+        AssertOk(doc);
+        var shape = Assert.Single(doc.Bodies).Shape;
+        Assert.True(shape.IsValid);
+
+        // The bump and the cavity behind it are the same cap shifted by the thickness: volume unchanged.
+        Assert.Equal(100 * 50 * 2, shape.MassProperties.Volume, 1e-3);
+        Assert.Equal(2 + 4, shape.Bounds.Max.Z, 1e-6);
+        var inside = shape.Classify([new Vec3(50, 30, 1), new Vec3(50, 30, 5), new Vec3(20, 30, 1)]);
+        Assert.Equal([0, 1, 1], inside.Select(b => (int)b)); // hollow behind, solid shell above, plate elsewhere
+
+        // Pressed the other way, it bulges below the plate; the flat pattern ignores it.
+        dimple.Reverse = true;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(-4, doc.Bodies[0].Shape.Bounds.Min.Z, 1e-6);
+        Assert.Equal((100.0, 50.0), FlatPattern.Size(doc));
+    }
 }
