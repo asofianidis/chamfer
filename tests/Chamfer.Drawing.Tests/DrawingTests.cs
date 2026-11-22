@@ -358,4 +358,54 @@ public class DrawingTests
         Assert.Equal("Z", many.Rows[25].Rev);
         Assert.Equal("AA", many.Rows[26].Rev);
     }
+
+    [Fact]
+    public void LayersAndDraftingStandards()
+    {
+        var (part, _) = Part();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        drawing.AddStandardViews(sheet);
+        drawing.Layers.Add(new DrawingLayer { Name = "Notes", Color = 0xFF0000 });
+        sheet.Notes.Add(new Note { X = 20, Y = 60, Text = "DEBURR", Layer = "Notes" });
+        var front = sheet.Views[0];
+        var renderer = new DrawingRenderer(drawing);
+
+        // Notes on the red layer: DXF layer and true colour, red in SVG.
+        var g = renderer.Render(sheet);
+        var text = g.Items.OfType<TextPrimitive>().Single(t => t.Text == "DEBURR");
+        Assert.Equal("Notes", g.Layers[text]);
+        var dxf = Exporters.Dxf(g);
+        Assert.Contains("\n8\nNOTES\n420\n16711680\n", dxf, StringComparison.Ordinal);
+        Assert.Contains("fill=\"#FF0000\"", Exporters.Svg(g), StringComparison.Ordinal);
+
+        // A hidden layer isn't drawn.
+        drawing.Layers[0].Visible = false;
+        Assert.DoesNotContain(renderer.Render(sheet).Items.OfType<TextPrimitive>(), t => t.Text == "DEBURR");
+
+        // ANSI: third-angle projection and horizontal text on vertical dimensions.
+        var body = part.Bodies[0];
+        var vg = renderer.Geometry(sheet, front);
+        var left = Enumerable.Range(1, body.EdgeCount).First(i => body.Edge(i).Curve == Kernel.Occt.CurveKind.Line &&
+            Math.Abs(Math.Abs(Vec3.Dot((body.Edge(i).End - body.Edge(i).Start).Normalized(), vg.YAxis)) - 1) < 1e-6);
+        sheet.Dimensions.Add(new DrawingDimension
+        {
+            Id = drawing.NextId("dim"), ViewId = front.Id, Kind = DimensionKind.Vertical,
+            A = new DimensionAnchor(body.EdgeRef(left), DimensionAnchor.Start, Vec3.Zero),
+            B = new DimensionAnchor(body.EdgeRef(left), DimensionAnchor.End, Vec3.Zero),
+        });
+        drawing.ApplyStandard(DraftingStandard.Iso);
+        Assert.True(drawing.FirstAngle);
+        var iso = renderer.Render(sheet).Items.OfType<TextPrimitive>().Single(t => t.Text == "50");
+        Assert.Equal(90, Math.Abs(iso.Angle), 1e-6);
+        drawing.ApplyStandard(DraftingStandard.Ansi);
+        Assert.False(drawing.FirstAngle);
+        var ansi = renderer.Render(sheet).Items.OfType<TextPrimitive>().Single(t => t.Text == "50");
+        Assert.Equal(0, ansi.Angle, 1e-9);
+
+        var loaded = DrawingDocument.Load(drawing.Save());
+        Assert.Equal(DraftingStandard.Ansi, loaded.Standard);
+        Assert.False(Assert.Single(loaded.Layers).Visible);
+        Assert.Equal("Notes", loaded.Sheets[0].Notes[0].Layer);
+    }
 }

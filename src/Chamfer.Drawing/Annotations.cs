@@ -37,6 +37,8 @@ public sealed class GeometricTolerance
 {
     public string Id { get; set; } = string.Empty;
 
+    public string? Layer { get; set; }
+
     public GeometricCharacteristic Characteristic { get; set; } = GeometricCharacteristic.Position;
 
     /// <summary>Tolerance value as written, e.g. "0.05".</summary>
@@ -66,6 +68,8 @@ public sealed class DatumFeature
 {
     public string Id { get; set; } = string.Empty;
 
+    public string? Layer { get; set; }
+
     public string Label { get; set; } = "A";
 
     /// <summary>Centre of the letter box (sheet mm).</summary>
@@ -83,6 +87,8 @@ public sealed class DatumFeature
 public sealed class SurfaceFinish
 {
     public string Id { get; set; } = string.Empty;
+
+    public string? Layer { get; set; }
 
     /// <summary>Roughness requirement, e.g. "Ra 1.6".</summary>
     public string Roughness { get; set; } = "Ra 3.2";

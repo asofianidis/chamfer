@@ -52,6 +52,8 @@ public sealed class DrawingDimension
 {
     public string Id { get; set; } = string.Empty;
 
+    public string? Layer { get; set; }
+
     public string ViewId { get; set; } = string.Empty;
 
     public DimensionKind Kind { get; set; }
@@ -71,9 +73,32 @@ public sealed class DrawingDimension
     public string? Tolerance { get; set; }
 }
 
+/// <summary>A named drawing layer: annotations on it share a colour and can be hidden together.</summary>
+public sealed class DrawingLayer
+{
+    public string Name { get; set; } = "Annotations";
+
+    /// <summary>Colour as 0xRRGGBB.</summary>
+    public uint Color { get; set; }
+
+    public bool Visible { get; set; } = true;
+}
+
+/// <summary>Drafting standard: sets the projection angle and how dimension text reads.</summary>
+public enum DraftingStandard
+{
+    /// <summary>First-angle projection, dimension text aligned with the dimension line.</summary>
+    Iso,
+
+    /// <summary>Third-angle projection, dimension text horizontal (unidirectional).</summary>
+    Ansi,
+}
+
 /// <summary>A free text note on a sheet.</summary>
 public sealed class Note
 {
+    public string? Layer { get; set; }
+
     public double X { get; set; }
     public double Y { get; set; }
     public string Text { get; set; } = string.Empty;
@@ -218,6 +243,20 @@ public sealed class DrawingDocument
 
     /// <summary>Third-angle (ANSI) or first-angle (ISO) projection for standard views.</summary>
     public bool FirstAngle { get; set; }
+
+    public DraftingStandard Standard { get; set; } = DraftingStandard.Iso;
+
+    public List<DrawingLayer> Layers { get; } = [];
+
+    /// <summary>Sets the standard and the projection angle that goes with it.</summary>
+    public void ApplyStandard(DraftingStandard standard)
+    {
+        Standard = standard;
+        FirstAngle = standard == DraftingStandard.Iso;
+    }
+
+    /// <summary>False when the named layer exists and is hidden.</summary>
+    public bool IsLayerVisible(string? layer) => layer is null || Layers.Find(l => l.Name == layer) is not { Visible: false };
 
     /// <summary>Where the drawing file lives; the model path is resolved relative to it.</summary>
     [JsonIgnore]
@@ -484,6 +523,8 @@ public sealed class DrawingDocument
         public string ModelPath { get; set; } = string.Empty;
         public string? Configuration { get; set; }
         public bool FirstAngle { get; set; }
+        public DraftingStandard Standard { get; set; }
+        public List<DrawingLayer>? Layers { get; set; }
         public Dictionary<string, string> Properties { get; set; } = [];
         public List<Sheet> Sheets { get; set; } = [];
     }
@@ -495,6 +536,8 @@ public sealed class DrawingDocument
         ModelPath = ModelPath,
         Configuration = Configuration,
         FirstAngle = FirstAngle,
+        Standard = Standard,
+        Layers = Layers.Count > 0 ? Layers : null,
         Properties = Properties,
         Sheets = Sheets,
     }, Options);
@@ -512,6 +555,7 @@ public sealed class DrawingDocument
             ModelPath = dto.ModelPath,
             Configuration = dto.Configuration,
             FirstAngle = dto.FirstAngle,
+            Standard = dto.Standard,
             Directory = directory,
             _nextId = dto.NextId,
         };
@@ -520,6 +564,7 @@ public sealed class DrawingDocument
             doc.Properties[k] = v;
         }
 
+        doc.Layers.AddRange(dto.Layers ?? []);
         doc.Sheets.Clear();
         doc.Sheets.AddRange(dto.Sheets.Count > 0 ? dto.Sheets : [new Sheet()]);
         return doc;

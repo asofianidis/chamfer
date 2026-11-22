@@ -54,6 +54,15 @@ public sealed class SheetGraphics(double width, double height)
     /// <summary>Which view (if any) each primitive belongs to, for picking.</summary>
     public Dictionary<Primitive, string> Owners { get; } = new(ReferenceEqualityComparer.Instance);
 
+    /// <summary>The drawing layer of primitives drawn on one (others are on a layer named after their pen).</summary>
+    public Dictionary<Primitive, string> Layers { get; } = new(ReferenceEqualityComparer.Instance);
+
+    /// <summary>Colours (0xRRGGBB) of the drawing layers in use.</summary>
+    public Dictionary<string, uint> LayerColors { get; } = [];
+
+    /// <summary>Layer assigned to primitives as they're added; null for none.</summary>
+    public string? CurrentLayer { get; set; }
+
     public void Line(Pen pen, Point2 a, Point2 b, string? owner = null) => Add(new PolylinePrimitive(pen, [a, b]), owner);
 
     public void Polyline(Pen pen, IReadOnlyList<Point2> points, bool closed = false, string? owner = null) =>
@@ -71,6 +80,11 @@ public sealed class SheetGraphics(double width, double height)
     private void Add(Primitive p, string? owner)
     {
         Items.Add(p);
+        if (CurrentLayer is { } layer)
+        {
+            Layers[p] = layer;
+        }
+
         if (owner is not null)
         {
             Owners[p] = owner;

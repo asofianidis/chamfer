@@ -131,6 +131,18 @@ public sealed class RenderTests
         description.Commit();
         Assert.Equal("A", vm.CurrentSheet!.Revisions!.Rows.Single().Rev);
         Assert.Contains(vm.SheetGraphics!.Items.OfType<Chamfer.Drawing.TextPrimitive>(), t => t.Text == "A1");
+        // A red Notes layer becomes active; a note placed now goes on it.
+        vm.DrawingCommands.Single(c => c.Label == "Layers").Command.Execute(null);
+        var newLayer = vm.Editor!.Fields.OfType<TextField>().Single();
+        newLayer.Text = "Notes #C00000";
+        newLayer.Commit();
+        Assert.Equal("Notes", vm.ActiveLayer);
+        vm.DrawingCommands.Single(c => c.Label == "Note").Command.Execute(null);
+        var noteText = vm.Editor!.Fields.OfType<TextField>().Single();
+        noteText.Text = "BREAK SHARP EDGES";
+        noteText.Commit();
+        vm.OnSheetClick(new Geometry.Point2(20, 40), null, add: false);
+        Assert.Equal("Notes", vm.CurrentSheet!.Notes.Last().Layer);
         vm.OnSheetClick(new Geometry.Point2(2, 2), null, add: false); // clear the selection for the screenshot
 
         window.FindControl<Controls.DrawingCanvas>("Sheet")!.Fit();
