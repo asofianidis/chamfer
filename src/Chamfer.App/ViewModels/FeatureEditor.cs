@@ -200,6 +200,9 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new SelectionField("Profiles (in order)", FeatureKinds, SketchItems(doc, lo.SectionSketchIds),
                     items => Set(() => lo.SectionSketchIds = [.. items.Select(i => i.FeatureId!).Where(id => doc.Find(id) is SketchFeature)])));
                 ed.Add(new BoolField("Ruled (straight) sides", lo.Ruled, v => Set(() => lo.Ruled = v)));
+                string[] loftEnds = ["None", "Normal to profile"];
+                ed.Add(new ChoiceField("Start constraint", loftEnds, (int)lo.StartConstraint, i => Set(() => lo.StartConstraint = (BoundaryTangency)i)));
+                ed.Add(new ChoiceField("End constraint", loftEnds, (int)lo.EndConstraint, i => Set(() => lo.EndConstraint = (BoundaryTangency)i)));
                 if (!lo.IsCut)
                 {
                     ed.Add(new BoolField("Merge result", lo.Merge, v => Set(() => lo.Merge = v)));

@@ -112,6 +112,16 @@ public sealed class LoftFeature : Feature
     /// <summary>Straight (ruled) faces between sections instead of smooth ones.</summary>
     public bool Ruled { get; set; }
 
+    /// <summary>Leave the first profile normal to its sketch plane (smooth lofts only).</summary>
+    public BoundaryTangency StartConstraint { get; set; }
+
+    /// <summary>Meet the last profile normal to its sketch plane (smooth lofts only).</summary>
+    public BoundaryTangency EndConstraint { get; set; }
+
+    public double StartTangentLength { get; set; } = 1;
+
+    public double EndTangentLength { get; set; } = 1;
+
     public override IEnumerable<string> Dependencies => SectionSketchIds;
 
     public override void Execute(RebuildContext ctx)
@@ -123,16 +133,19 @@ public sealed class LoftFeature : Feature
         }
 
         var faces = new List<Shape>();
+        var guides = new List<Shape>();
         Dictionary<int, int>? firstMap = null;
         var key = 0;
         try
         {
+            var normals = new List<Vec3>();
             foreach (var id in SectionSketchIds)
             {
                 var sketch = ctx.Sketch(id);
                 var regions = ProfileShapes.Regions(sketch);
                 var region = regions.OrderByDescending(r => Math.Abs(r.Area)).First();
                 faces.Add(ProfileShapes.Face(sketch.Plane, region with { Holes = [] }, out var map));
+                normals.Add(sketch.Plane.Normal);
                 if (firstMap is null)
                 {
                     firstMap = map;
@@ -140,7 +153,19 @@ public sealed class LoftFeature : Feature
                 }
             }
 
-            using var op = SweepFeature.Run(() => Modeling.Loft(faces, solid: true, ruled: Ruled),
+            // End constraints: guide sections just off the end profiles (as Boundary does).
+            var sections = new List<Shape>(faces);
+            if (!Ruled && StartConstraint == BoundaryTangency.NormalToProfile)
+            {
+                sections.Insert(1, BoundaryFeature.Offset((faces[0], normals[0], faces[0].Bounds.Center), faces[1].Bounds.Center, StartTangentLength, guides));
+            }
+
+            if (!Ruled && EndConstraint == BoundaryTangency.NormalToProfile)
+            {
+                sections.Insert(sections.Count - 1, BoundaryFeature.Offset((faces[^1], normals[^1], faces[^1].Bounds.Center), faces[^2].Bounds.Center, EndTangentLength, guides));
+            }
+
+            using var op = SweepFeature.Run(() => Modeling.Loft(sections, solid: true, ruled: Ruled),
                 "The loft can't be built. Profiles should be similar shapes, in order, and not intersect.");
             var solid = op.Result;
             var names = ProfileShapes.NameSweep(op, solid, faces[0], firstMap!, Id, "loft", key);
@@ -148,7 +173,7 @@ public sealed class LoftFeature : Feature
         }
         finally
         {
-            foreach (var f in faces)
+            foreach (var f in faces.Concat(guides))
             {
                 f.Dispose();
             }

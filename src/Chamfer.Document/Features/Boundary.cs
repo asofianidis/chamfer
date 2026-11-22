@@ -111,7 +111,7 @@ public sealed class BoundaryFeature : Feature
     }
 
     /// <summary>A copy of a profile moved along its normal, towards its neighbour, by a fraction of the gap.</summary>
-    private static Shape Offset((Shape Face, Vec3 Normal, Vec3 Center) profile, Vec3 neighbour, double length, List<Shape> owned)
+    internal static Shape Offset((Shape Face, Vec3 Normal, Vec3 Center) profile, Vec3 neighbour, double length, List<Shape> owned)
     {
         var gap = neighbour - profile.Center;
         var along = Vec3.Dot(gap, profile.Normal);
