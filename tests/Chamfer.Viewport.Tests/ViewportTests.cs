@@ -256,4 +256,43 @@ public class ViewportTests
         var metal = tracer.Render(scene, cam, 120, 120, settings, cancel: TestContext.Current.CancellationToken);
         Assert.NotEqual(pixels[(60 * 120) + 60], metal[(60 * 120) + 60]);
     }
+
+    [Fact]
+    public void InstancedMeshesAreCulledAndPicked()
+    {
+        using var box = Modeling.Box(10, 10, 10);
+        var mesh = box.Tessellate();
+        var scene = new Scene();
+        for (var i = 0; i < 10; i++)
+        {
+            for (var j = 0; j < 10; j++)
+            {
+                scene.Meshes.Add(new MeshItem
+                {
+                    Mesh = mesh, // shared
+                    Transform = Transform3.Translation(new Vec3(i * 30, j * 30, 0)),
+                    FacePickBase = 1000 * ((i * 10) + j + 1),
+                });
+            }
+        }
+
+        Assert.Equal(new Vec3(270 + 10, 270 + 10, 10), scene.Bounds.Max);
+        Assert.Same(scene.Meshes[0].Mesh, scene.Meshes[99].Mesh);
+
+        // Zoomed in on the first box: most instances are off screen and skipped.
+        var cam = new Camera();
+        cam.SetView(StandardView.Front);
+        cam.Fit(new Box3(new Vec3(-5, -5, 0), new Vec3(45, 45, 10)), 200, 200);
+        var r = new SoftwareRenderer();
+        r.Resize(200, 200);
+        r.Render(scene, cam);
+        Assert.True(r.CulledLastFrame >= 90, $"culled {r.CulledLastFrame}");
+
+        // The instance at (30, 30) is drawn where its transform puts it.
+        var at = cam.Project(new Vec3(35, 35, 10), 200, 200);
+        var id = r.Pick((int)at.X, (int)at.Y);
+        Assert.InRange(id, 1000 * 12, (1000 * 12) + 6);
+        var hit = r.PointAt((int)at.X, (int)at.Y);
+        Assert.Equal(10, hit!.Value.Z, 1);
+    }
 }

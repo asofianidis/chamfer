@@ -50,6 +50,46 @@ public sealed class MeshItem
 
     /// <summary>0-1; values below 1 draw the mesh see-through, without writing depth.</summary>
     public double Opacity { get; set; } = 1;
+
+    /// <summary>
+    /// Placement of the mesh in the scene (instancing: many items can share one mesh). Null means
+    /// the mesh is already in scene coordinates.
+    /// </summary>
+    public Transform3? Transform { get; set; }
+
+    /// <summary>The mesh's bounds in scene coordinates.</summary>
+    public Box3 WorldBounds
+    {
+        get
+        {
+            var b = Mesh.Bounds;
+            if (Transform is not { } t || b.IsEmpty)
+            {
+                return b;
+            }
+
+            var box = Box3.Empty;
+            for (var k = 0; k < 8; k++)
+            {
+                box = box.Include(t.Apply(new Vec3((k & 1) == 0 ? b.Min.X : b.Max.X, (k & 2) == 0 ? b.Min.Y : b.Max.Y, (k & 4) == 0 ? b.Min.Z : b.Max.Z)));
+            }
+
+            return box;
+        }
+    }
+
+    /// <summary>A vertex in scene coordinates.</summary>
+    public Vec3 WorldVertex(int i) => Transform is { } t ? t.Apply(Mesh.Vertex(i)) : Mesh.Vertex(i);
+
+    /// <summary>A vertex normal in scene coordinates.</summary>
+    public Vec3 WorldNormal(int i)
+    {
+        var n = new Vec3(Mesh.Normals[3 * i], Mesh.Normals[(3 * i) + 1], Mesh.Normals[(3 * i) + 2]);
+        return Transform is { } t ? t.ApplyVector(n) : n;
+    }
+
+    /// <summary>An edge polyline point in scene coordinates.</summary>
+    public Vec3 WorldEdgePoint(int k) => Transform is { } t ? t.Apply(Mesh.EdgePoint(k)) : Mesh.EdgePoint(k);
 }
 
 /// <summary>A polyline overlay: sketch geometry, axes, plane borders.</summary>
@@ -128,7 +168,7 @@ public sealed class Scene
             var box = Box3.Empty;
             foreach (var m in Meshes)
             {
-                box = box.Union(m.Mesh.Bounds);
+                box = box.Union(m.WorldBounds);
             }
 
             foreach (var l in Lines)

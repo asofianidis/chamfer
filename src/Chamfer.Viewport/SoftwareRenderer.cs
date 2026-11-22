@@ -67,14 +67,22 @@ public sealed class SoftwareRenderer
         _clip = scene.ClipPlane;
         _cap = scene.CapColor;
         _zebra = scene.Zebra;
-        var projected = scene.Meshes.Select(m => Project(m.Mesh)).ToList();
+        // Frustum culling: items entirely off screen are skipped.
+        var visible = scene.Meshes.Select(m => OnScreen(m.WorldBounds)).ToList();
+        CulledLastFrame = visible.Count(v => !v);
+        var projected = scene.Meshes.Select((m, i) => visible[i] ? Project(m) : null).ToList();
         if (drawFaces)
         {
             for (var i = 0; i < scene.Meshes.Count; i++)
             {
+                if (projected[i] is null)
+                {
+                    continue;
+                }
+
                 if (scene.Meshes[i].Opacity >= 1)
                 {
-                    DrawMesh(scene.Meshes[i], projected[i], hlr ? Blend(scene.BackgroundTop, scene.BackgroundBottom, 0.3) : null, opaque: true);
+                    DrawMesh(scene.Meshes[i], projected[i]!, hlr ? Blend(scene.BackgroundTop, scene.BackgroundBottom, 0.3) : null, opaque: true);
                 }
             }
         }
@@ -88,17 +96,23 @@ public sealed class SoftwareRenderer
         {
             for (var i = 0; i < scene.Meshes.Count; i++)
             {
-                if (scene.Meshes[i].Opacity < 1)
+                if (projected[i] is not null && scene.Meshes[i].Opacity < 1)
                 {
-                    DrawMesh(scene.Meshes[i], projected[i], null, opaque: false);
+                    DrawMesh(scene.Meshes[i], projected[i]!, null, opaque: false);
                 }
             }
         }
 
         if (drawEdges || scene.Meshes.Any(m => m.EdgeColors.Count > 0))
         {
-            foreach (var m in scene.Meshes)
+            for (var mi = 0; mi < scene.Meshes.Count; mi++)
             {
+                if (projected[mi] is null)
+                {
+                    continue;
+                }
+
+                var m = scene.Meshes[mi];
                 var mesh = m.Mesh;
                 for (var e = 0; e < mesh.EdgeCount; e++)
                 {
@@ -112,7 +126,7 @@ public sealed class SoftwareRenderer
                     var pts = new List<Vec3>();
                     for (var k = mesh.EdgeOffsets[e]; k < mesh.EdgeOffsets[e + 1]; k++)
                     {
-                        pts.Add(mesh.EdgePoint(k));
+                        pts.Add(m.WorldEdgePoint(k));
                     }
 
                     DrawPolyline(pts, false, c, highlighted ? 2.5 : 1.2, m.EdgePickBase == 0 ? 0 : m.EdgePickBase + e,
@@ -224,8 +238,34 @@ public sealed class SoftwareRenderer
         public required float[] Clip { get; init; }
     }
 
-    private Projected Project(TriangleMesh mesh)
+    /// <summary>How many meshes the last frame skipped because they were off screen.</summary>
+    public int CulledLastFrame { get; private set; }
+
+    /// <summary>True when any part of the box can be on screen.</summary>
+    private bool OnScreen(Box3 box)
     {
+        if (box.IsEmpty)
+        {
+            return false;
+        }
+
+        double minX = double.MaxValue, minY = double.MaxValue, maxX = double.MinValue, maxY = double.MinValue;
+        for (var k = 0; k < 8; k++)
+        {
+            var p = new Vec3((k & 1) == 0 ? box.Min.X : box.Max.X, (k & 2) == 0 ? box.Min.Y : box.Max.Y, (k & 4) == 0 ? box.Min.Z : box.Max.Z);
+            var s = _camera.Project(p, Width, Height);
+            minX = Math.Min(minX, s.X);
+            maxX = Math.Max(maxX, s.X);
+            minY = Math.Min(minY, s.Y);
+            maxY = Math.Max(maxY, s.Y);
+        }
+
+        return maxX >= -2 && minX <= Width + 2 && maxY >= -2 && minY <= Height + 2;
+    }
+
+    private Projected Project(MeshItem item)
+    {
+        var mesh = item.Mesh;
         var n = mesh.VertexCount;
         var p = new Projected
         {
@@ -241,17 +281,18 @@ public sealed class SoftwareRenderer
             var end = Math.Min(n, (chunk + 1) * 4096);
             for (var i = chunk * 4096; i < end; i++)
             {
-                var s = cam.Project(mesh.Vertex(i), w, h);
+                var world = item.WorldVertex(i);
+                var s = cam.Project(world, w, h);
                 p.X[i] = (float)s.X;
                 p.Y[i] = (float)s.Y;
                 p.Z[i] = (float)s.Z;
-                var nn = new Vec3(mesh.Normals[3 * i], mesh.Normals[(3 * i) + 1], mesh.Normals[(3 * i) + 2]);
+                var nn = item.WorldNormal(i);
                 p.Nx[i] = (float)Vec3.Dot(nn, cam.Right);
                 p.Ny[i] = (float)Vec3.Dot(nn, cam.Up);
                 p.Nz[i] = (float)Vec3.Dot(nn, cam.Back);
                 if (clip is { } cp)
                 {
-                    p.Clip[i] = (float)cp.SignedDistance(mesh.Vertex(i));
+                    p.Clip[i] = (float)cp.SignedDistance(world);
                 }
             }
         });
