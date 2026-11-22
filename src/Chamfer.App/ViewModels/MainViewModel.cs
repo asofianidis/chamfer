@@ -79,6 +79,11 @@ public sealed partial class MainViewModel : ViewModelBase
                 Vertices = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => new VertexRef(s.Ref!, AtEnd: false))],
             })), "◸"),
             new("Full Round", "Round off a face between two parallel side faces", new RelayCommand(StartFullRound), "◠"),
+            new("Wrap", "Emboss or deboss a sketch onto a cylindrical face", new RelayCommand(() => StartFeature(new WrapFeature
+            {
+                SketchId = SelectedSketches().Select(s => s.Id).FirstOrDefault() ?? string.Empty,
+                Face = Selection.FirstOrDefault(s => s.Kind == SelectionKind.Face)?.Ref,
+            })), "⌒"),
             new("Indent", "Press a tool body into a target body, with a clearance", new RelayCommand(() =>
             {
                 var bodies = SelectedBodyNames().ToList();

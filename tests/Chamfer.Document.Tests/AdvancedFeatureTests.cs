@@ -518,6 +518,39 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void WrapEmbossesAndDebossesOntoACylinder()
+    {
+        // A cylinder of radius 20, 60 long along Z; a 20 x 20 square sketched on a plane beside it (x = 20).
+        var doc = new PartDocument();
+        var disc = new Sketch();
+        disc.AddCircle(Vec2.Zero, 20);
+        var df = doc.Add(new SketchFeature { Sketch = disc });
+        doc.Add(new ExtrudeFeature { SketchId = df.Id, Depth = 60 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var side = body.FaceRef(Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Surface == Chamfer.Kernel.Occt.SurfaceKind.Cylinder));
+        var beside = doc.Add(new ReferencePlaneFeature { Base = PlaneRef.Right, Offset = 20 });
+        var square = new Sketch();
+        square.AddCornerRectangle(new Vec2(-40, -10), new Vec2(-20, 10)); // (u, v) = (-z, y): z 20..40, y -10..10
+        var sf = doc.Add(new SketchFeature { Plane = new PlaneRef(beside.Id), Sketch = square });
+        var wrap = doc.Add(new WrapFeature { SketchId = sf.Id, Face = side, Depth = 2 });
+        doc.Rebuild();
+        AssertOk(doc);
+
+        // 20 mm round a radius-20 cylinder is one radian; raised 2 over 20 high.
+        var cylinder = Math.PI * 400 * 60;
+        var shell = 0.5 * 1 * ((22 * 22) - (20 * 20)) * 20;
+        Assert.Equal(cylinder + shell, Volume(doc), shell * 0.02);
+        Assert.Single(doc.Bodies);
+
+        wrap.Deboss = true;
+        doc.Rebuild();
+        AssertOk(doc);
+        var sunk = 0.5 * 1 * ((20 * 20) - (18 * 18)) * 20;
+        Assert.Equal(cylinder - sunk, Volume(doc), sunk * 0.02);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();
