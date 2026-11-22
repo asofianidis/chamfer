@@ -366,7 +366,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 3: Advanced Part Modeling
 - [~] **Swept** Boss and Cut (with guide curves, twist) *(profile along a path with sharp or smooth corners; guide curves and twist not yet)*
 - [~] **Lofted** Boss and Cut (guide curves, centerline, start/end constraints) *(smooth or ruled through any number of profiles; guides and end constraints not yet)*
-- [ ] **Boundary** Boss and Cut
+- [~] **Boundary** Boss and Cut *(boss, cut and surface through profiles in order, leaving and meeting the end profiles normal with a tangent length; direction-2 curves not yet)*
 - [~] 3D sketches *(polylines and splines through typed points, absolute or relative; usable as sweep paths)*
 - [~] Curves: helix and spiral, projected, composite, curve through points, split line *(helix, usable as a sweep path)*
 - [x] Multibody parts: combine, intersect, split, move/copy body, delete body
