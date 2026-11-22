@@ -226,7 +226,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Equations | **Equations** defines global variables (`Width = 40`, `Wall = Width / 20`). Type `=Width/2` in any number box or sketch dimension to link it. |
 | Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
 | Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids), **Thicken** and **Cut With Surface** (removes the material on one side of a surface body or plane). |
-| Sheet metal | The **Sheet Metal** tab: **Base Flange** from a sketch (closed makes a plate, open lines make a bent sheet with the bend radius), **Edge Flange** on straight edges (length, angle, either direction), **Hem** (closed, or open with a gap), **Tab** (flat sheet from a sketch on the sheet face), **Flatten** to see the blank with bend lines, and **Export Flat DXF**. |
+| Sheet metal | The **Sheet Metal** tab: **Base Flange** from a sketch (closed makes a plate, open lines make a bent sheet with the bend radius), **Edge Flange** on straight edges (length, angle, either direction), **Hem** (closed, or open with a gap), **Sketched Bend** (fold along a sketched line), **Tab** (flat sheet from a sketch on the sheet face), **Flatten** to see the blank with bend lines, and **Export Flat DXF**. |
 | Simulation | The **Simulation** tab: select faces and click **Fixture**, **Force** (normal or along an axis) or **Pressure**, then **Run Study**. **Frequency** finds the first four natural frequencies with the same fixtures and plots each mode shape. **Buckling** gives the load factors at which the static loads would buckle the part. For heat, put **Temperature**, **Heat Power** or **Convection** on faces and **Run Thermal** for the steady-state temperature plot and the heat flow. The static plot shows the part deformed and coloured by von Mises stress, with max stress, max displacement and factor of safety against the material's yield strength. |
 | Macros | **Macro** opens a C# editor. Scripts get `Api` (sketch builders, `Extrude`, `FilletEdges`, `Variable`, `Link`, queries and export) and `Print`. **Record** captures what you do as a replayable macro; **Open/Save Macro** use `.csx` files. |
 | Plugins | .NET assemblies in `plugins/` next to the app (or `%APPDATA%/Chamfer/plugins`) implementing `IChamferPlugin` can add commands; they appear under a **Plugins** tab. |
@@ -415,7 +415,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ### Phase 7: Specialized Toolsets
 **Sheet Metal**
-- [~] Base flange, edge flange, miter flange, sketched bend, hem, jog *(base flange from closed or open profiles, edge flanges at any angle either way, closed and open hems, tabs)*
+- [~] Base flange, edge flange, miter flange, sketched bend, hem, jog *(base flange from closed or open profiles, edge flanges at any angle either way, sketched bends, closed and open hems, tabs)*
 - [~] Bend tables, K-factor, bend allowance and deduction *(K-factor bend allowance)*
 - [x] Flat pattern and flat-pattern DXF export
 - [ ] Lofted bends, convert to sheet metal, forming tools
@@ -483,7 +483,7 @@ A high-level tracker against SolidWorks capability areas.
 | Large assemblies | Lightweight, Large Design Review | 4, 11 | ⬜ |
 | Drawings | Views, dimensions, GD&T, BOM, tables | 5 | 🟨 Part and assembly drawings, sections, details, dimensions, BOM, balloons, export |
 | Surfacing | Surface features, knit, trim, analysis | 6 | 🟨 Core surfaces, knit, thicken |
-| Sheet metal | Flanges, bends, flat pattern | 7 | 🟨 Base and edge flanges, hems, tabs, flat pattern, DXF |
+| Sheet metal | Flanges, bends, flat pattern | 7 | 🟨 Base and edge flanges, sketched bends, hems, tabs, flat pattern, DXF |
 | Weldments | Structural members, cut lists | 7 | 🟨 Members, mitres, cut lists |
 | Mold tools | Parting line/surface, core/cavity | 7 | ⬜ |
 | Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | 🟨 STEP/IGES in and out; STL, 3MF, OBJ out; drawing DXF |

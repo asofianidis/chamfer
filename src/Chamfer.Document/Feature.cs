@@ -78,6 +78,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(Sketch3DFeature), "sketch3d")]
 [JsonDerivedType(typeof(HemFeature), "hem")]
 [JsonDerivedType(typeof(TabFeature), "tab")]
+[JsonDerivedType(typeof(SketchedBendFeature), "sketchedBend")]
 public abstract class Feature
 {
     /// <summary>Stable identifier used by references and persistent names. Never shown to users.</summary>

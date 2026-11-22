@@ -331,6 +331,13 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Fold the other way", hm.Reverse, v => Set(() => hm.Reverse = v)));
                 break;
 
+            case SketchedBendFeature sb:
+                ed.Add(Num("Bend angle", "°", sb, nameof(sb.Angle), 1e-3));
+                ed.Add(new BoolField("Fold the other side", sb.FlipSide, v => Set(() => sb.FlipSide = v)));
+                ed.Add(new BoolField("Fold the other way", sb.Reverse, v => Set(() => sb.Reverse = v)));
+                ed.Add(new InfoField("Bend line", "The sketch's first straight line; it must cross the flat sheet."));
+                break;
+
             case TabFeature:
                 ed.Add(new InfoField("Tab", "The sketch's closed regions become sheet of the same thickness, added to the flat pattern."));
                 break;
