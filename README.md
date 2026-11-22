@@ -412,10 +412,10 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Associativity: drawings update when the model changes
 
 ### Phase 6: Surfacing
-- [~] Extruded, revolved, swept, lofted, and boundary surfaces *(extruded, revolved, swept)*
+- [x] Extruded, revolved, swept, lofted, and boundary surfaces
 - [~] Planar, offset, ruled, and filled surfaces *(planar, offset, filled)*
 - [~] Knit (sew), trim, untrim, extend, and delete face *(knit, forming solids from closed sets)*
-- [~] Thicken, and thickened cut *(thicken)*
+- [x] Thicken, and thickened cut
 - [~] Replace face, cut with surface *(cut with surface or plane)*
 - [~] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection *(zebra stripes, draft analysis)*
 - [~] Freeform *(flat faces reshaped through a grid of up to 5 x 5 control points pulled in or out, staying on their edges)*

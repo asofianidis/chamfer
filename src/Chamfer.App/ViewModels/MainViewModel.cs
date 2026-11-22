@@ -62,9 +62,9 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Extruded Cut", "Cut by extruding a sketch", new RelayCommand(() => StartSketchFeature(sf => new ExtrudeFeature { SketchId = sf.Id, IsCut = true, EndCondition = EndCondition.ThroughAll })), "▭"),
             new("Revolved Cut", "Cut by revolving a sketch", new RelayCommand(() => StartSketchFeature(sf => new RevolveFeature { SketchId = sf.Id, IsCut = true })), "◑"),
             new("Swept Boss", "Sweep a profile sketch along a path sketch", new RelayCommand(() => StartFeature(NewSweep(cut: false))), "⤳"),
-            new("Lofted Boss", "Loft through profile sketches in order", new RelayCommand(() => StartFeature(NewLoft(cut: false))), "⏢"),
+            new("Lofted Boss", "Loft through profile sketches in order", new RelayCommand(() => StartFeature(NewLoft(cut: false, surface: false))), "⏢"),
             new("Swept Cut", "Cut by sweeping a profile along a path", new RelayCommand(() => StartFeature(NewSweep(cut: true))), "⤳"),
-            new("Lofted Cut", "Cut by lofting through profiles", new RelayCommand(() => StartFeature(NewLoft(cut: true))), "⏢"),
+            new("Lofted Cut", "Cut by lofting through profiles", new RelayCommand(() => StartFeature(NewLoft(cut: true, surface: false))), "⏢"),
             new("Boundary Boss", "Smooth solid through profiles, leaving and meeting them normal", new RelayCommand(() => StartFeature(NewBoundary())), "⬭"),
             new("Boundary Cut", "Cut with a boundary shape through profiles", new RelayCommand(() => StartFeature(NewBoundary(cut: true))), "⬭"),
             new("Rib", "Thicken an open sketch into the part", new RelayCommand(() => StartSketchFeature(sf => new RibFeature { SketchId = sf.Id, Thickness = 2 })), "⊿"),
@@ -98,6 +98,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Revolved Surface", "Revolve sketch curves about a centerline", new RelayCommand(() => StartSketchFeature(sf => new SurfaceRevolveFeature { SketchId = sf.Id })), "◐", "Surfaces"),
             new("Planar Surface", "Flat surface from closed sketch regions", new RelayCommand(() => StartSketchFeature(sf => new PlanarSurfaceFeature { SketchId = sf.Id })), "▭", "Surfaces"),
             new("Filled Surface", "Smooth patch inside a closed sketch boundary", new RelayCommand(() => StartSketchFeature(sf => new FilledSurfaceFeature { SketchId = sf.Id })), "◍", "Surfaces"),
+            new("Lofted Surface", "Smooth or ruled surface through profile outlines", new RelayCommand(() => StartFeature(NewLoft(cut: false, surface: true))), "⏢", "Surfaces"),
             new("Boundary Surface", "Smooth surface through profile outlines", new RelayCommand(() => StartFeature(NewBoundary(surface: true))), "⬭", "Surfaces"),
             new("Swept Surface", "Sweep a profile sketch's curves along a path", new RelayCommand(() => StartFeature(NewSweep(cut: false, surface: true))), "⤳", "Surfaces"),
             new("Offset Surface", "Copy faces offset along their normals", new RelayCommand(() => StartFeature(new OffsetSurfaceFeature { Distance = 2 })), "⧈", "Surfaces"),
@@ -108,6 +109,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 Plane = SelectedPlane() ?? PlaneRef.Right,
             })), "⫻", "Surfaces"),
             new("Thicken", "Give a surface thickness", new RelayCommand(() => StartFeature(new ThickenFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Thickness = 1 })), "▥", "Surfaces"),
+            new("Thickened Cut", "Cut away a thickened surface's volume", new RelayCommand(() => StartFeature(new ThickenFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Thickness = 1, IsCut = true })), "▤", "Surfaces"),
 
             new("Base Flange", "Sheet metal from a sketch: closed makes a plate, open makes a bent sheet", new RelayCommand(() => StartSketchFeature(sf => new BaseFlangeFeature { SketchId = sf.Id })), "▬", "Sheet Metal"),
             new("Edge Flange", "Bend a flange up from straight edges", new RelayCommand(() => StartFeature(new EdgeFlangeFeature { Edges = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => s.Ref!)] })), "⌐", "Sheet Metal"),
@@ -990,7 +992,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private BoundaryFeature NewBoundary(bool cut = false, bool surface = false) =>
         new() { IsCut = cut, IsSurface = surface, ProfileSketchIds = [.. SelectedSketches().Select(s => s.Id)] };
 
-    private LoftFeature NewLoft(bool cut) => new() { IsCut = cut, SectionSketchIds = [.. SelectedSketches().Select(s => s.Id)] };
+    private LoftFeature NewLoft(bool cut, bool surface) => new() { IsCut = cut, IsSurface = surface, SectionSketchIds = [.. SelectedSketches().Select(s => s.Id)] };
 
     private void StartHole()
     {

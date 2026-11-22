@@ -266,6 +266,39 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void LoftedSurfaceThickenedIntoACut()
+    {
+        var doc = new PartDocument();
+        var block = new Sketch();
+        block.AddCornerRectangle(new Vec2(-30, -30), new Vec2(30, 30));
+        var bf = doc.Add(new SketchFeature { Plane = PlaneRef.Top, Sketch = block });
+        doc.Add(new ExtrudeFeature { SketchId = bf.Id, Depth = 40 });
+
+        // A lofted cone surface from a circle at y = 10 up to a wider one at y = 30, inside the block.
+        var lowPlane = doc.Add(new ReferencePlaneFeature { Base = PlaneRef.Top, Offset = 10 });
+        var highPlane = doc.Add(new ReferencePlaneFeature { Base = PlaneRef.Top, Offset = 30 });
+        var square = new Sketch();
+        square.AddCircle(Vec2.Zero, 8);
+        var circle = new Sketch();
+        circle.AddCircle(Vec2.Zero, 12);
+        var s1 = doc.Add(new SketchFeature { Plane = new PlaneRef(lowPlane.Id), Sketch = square });
+        var s2 = doc.Add(new SketchFeature { Plane = new PlaneRef(highPlane.Id), Sketch = circle });
+        var loft = doc.Add(new LoftFeature { SectionSketchIds = [s1.Id, s2.Id], IsSurface = true });
+        doc.Rebuild();
+        AssertOk(doc);
+        var surface = Assert.Single(doc.Bodies, b => b.IsSurface);
+
+        // Thickened into the block as a cut: a thin-walled slot, material removed.
+        doc.Add(new ThickenFeature { Body = surface.Name, Thickness = 1, IsCut = true });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.DoesNotContain(doc.Bodies, b => b.IsSurface);
+        var removed = (60 * 60 * 40) - Volume(doc);
+        var wall = Math.PI * (8 + 12) * Math.Sqrt((20 * 20) + (4 * 4)); // the cone's side area
+        Assert.Equal(wall, removed, wall * 0.05); // a 1 mm wall of it
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

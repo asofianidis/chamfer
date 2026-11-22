@@ -247,9 +247,12 @@ public sealed class KnitFeature : Feature
 /// <summary>Turns a surface body into a solid of the given thickness.</summary>
 public sealed class ThickenFeature : Feature
 {
-    public override string DefaultName => "Thicken";
+    public override string DefaultName => IsCut ? "Thicken-Cut" : "Thicken";
 
     public string Body { get; set; } = string.Empty;
+
+    /// <summary>Remove the thickened volume from the other bodies instead of adding it (Thickened Cut).</summary>
+    public bool IsCut { get; set; }
 
     public double Thickness { get; set; } = 1;
 
@@ -283,7 +286,14 @@ public sealed class ThickenFeature : Feature
             var solid = op.Result;
             ctx.Bodies.Remove(surface);
             var names = Naming.Finish(solid, new string?[solid.FaceCount], Id);
-            ctx.AddMaterial(solid, names, Merge);
+            if (IsCut)
+            {
+                ctx.RemoveMaterial(solid, names);
+            }
+            else
+            {
+                ctx.AddMaterial(solid, names, Merge);
+            }
         }
     }
 }
