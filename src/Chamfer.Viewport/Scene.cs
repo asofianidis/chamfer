@@ -92,6 +92,9 @@ public sealed class MeshItem
     public Vec3 WorldEdgePoint(int k) => Transform is { } t ? t.Apply(Mesh.EdgePoint(k)) : Mesh.EdgePoint(k);
 }
 
+/// <summary>A text label anchored at a model point.</summary>
+public sealed record LabelItem(Vec3 At, string Text, Rgba Color);
+
 /// <summary>A polyline overlay: sketch geometry, axes, plane borders.</summary>
 public sealed class LineItem
 {
@@ -146,6 +149,9 @@ public sealed class Scene
     public List<LineItem> Lines { get; } = [];
     public List<PointItem> Points { get; } = [];
     public List<QuadItem> Quads { get; } = [];
+
+    /// <summary>Text anchored at points in the model (3D annotations), drawn over the image.</summary>
+    public List<LabelItem> Labels { get; } = [];
 
     public DisplayStyle Style { get; set; } = DisplayStyle.ShadedWithEdges;
 

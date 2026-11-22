@@ -215,6 +215,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Patterns and mirror | Select features in the tree, then **Linear Pattern**, **Circular Pattern** or **Mirror**, and pick a direction, axis or plane in the view. **Sketch Pattern** copies to a sketch's points, **Table Pattern** to typed X,Y offsets, **Curve Pattern** along a sketched path (evenly or by spacing, optionally turning with it) and **Fill Pattern** over a selected face on a square or staggered grid. |
 | Property panel | Changes preview live. Type values or expressions (`25.4*2`, `1in`) and press Enter. Click a selection box to make it active, then pick in the view; Ctrl/⌘-click or Shift-click adds and removes. **OK** (Enter) or **Cancel** (Esc). |
 | Feature tree | Double-click to edit. **Suppress**, **Delete** (with dependents), **Roll Here** and **Roll Forward** act on the selected feature. Errors are red, warnings amber. |
+| 3D annotations | **3D Annotations** shows the part's overall sizes and hole callouts (grouped by size, e.g. 4× Ø6 THRU) on the model, in the document's units. |
 | Render | **Render** path-traces the current view: metals glossy, wood matte, other materials as coated plastic, with a soft sun, sky light and a shadow-catching floor. Pick the quality, then **Render** and **Save PNG**. Click the view to return to the live model. |
 | Analysis | **Section** cuts the part with the Front, Top or Right plane (offset, flip) and shows the cut faces. **Draft Analysis** colours faces green, red or yellow by draft against a pull direction. **Zebra** shows stripes for judging surface smoothness. |
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
@@ -456,7 +457,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Design Library, favorites, templates *(part templates; design library folders to open or insert from)*
 - [~] Custom properties, property tab builder *(custom properties with {Mass}/{Material}/variable tokens, used by BOMs and title blocks)*
 - [~] Photorealistic rendering (path tracer, PBR materials, HDRI environments) *(CPU path tracer: BVH, plastic/metal/matte finishes from the material, soft sun shadows, sky, floor, PNG output)*
-- [ ] Model-Based Definition (3D PMI)
+- [~] Model-Based Definition (3D PMI) *(3D size dimensions and grouped hole callouts on the model)*
 - [ ] Routing: piping, tubing, electrical harnesses
 - [~] Basic PDM: check-in/out, revisions, where-used (Git-backed or server-backed) *(folder vault: locks, check-in with revision letters and comments, history and restore, where-used)*
 - [~] eDrawings-style lightweight viewer *(export a self-contained HTML/WebGL viewer page)*

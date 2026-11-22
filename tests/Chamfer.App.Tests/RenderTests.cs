@@ -287,6 +287,24 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task ThreeDAnnotationsRender()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            vm.LoadFile("plate.chprt", PlateWithHole().Save());
+            vm.TogglePmiCommand.Execute(null);
+            Assert.True(vm.ShowPmi);
+            var scene = vm.BuildScene();
+            Assert.Contains(scene.Labels, l => l.Text == "60");
+            Assert.Contains(scene.Labels, l => l.Text.StartsWith("Ø12", StringComparison.Ordinal));
+            window.FindControl<Controls.ModelViewport>("Viewport")!.SetView(StandardView.Isometric);
+            Capture(window, "pmi");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static PartDocument PlateWithHole()
     {
         var doc = new PartDocument();

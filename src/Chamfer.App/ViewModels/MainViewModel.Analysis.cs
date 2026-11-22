@@ -1,3 +1,4 @@
+using Chamfer.Document;
 using Chamfer.Geometry;
 using Chamfer.Viewport;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -35,6 +36,15 @@ public sealed partial class MainViewModel
 
     [ObservableProperty]
     public partial bool ZebraStripes { get; set; }
+
+    /// <summary>Show model-based dimensions and hole callouts in the 3D view.</summary>
+    [ObservableProperty]
+    public partial bool ShowPmi { get; set; }
+
+    partial void OnShowPmiChanged(bool value) => RaiseScene();
+
+    [RelayCommand]
+    private void TogglePmi() => ShowPmi = !ShowPmi;
 
     partial void OnSectionViewChanged(bool value) => RaiseScene();
 
@@ -104,6 +114,20 @@ public sealed partial class MainViewModel
     private Scene ApplyAnalysis(Scene scene)
     {
         scene.Zebra = ZebraStripes;
+        if (ShowPmi)
+        {
+            var ink = Rgba.FromHex(0x0F766E);
+            foreach (var a in Pmi.Build(Document, Document.Units))
+            {
+                foreach (var (p, q) in a.Lines)
+                {
+                    scene.Lines.Add(new LineItem { Points = [p, q], Color = ink, Width = 1.2, OnTop = true });
+                }
+
+                scene.Labels.Add(new LabelItem(a.TextAt, a.Text, ink));
+            }
+        }
+
         if (SectionView && Document.State.Planes.TryGetValue(SectionPlanes[Math.Clamp(SectionPlaneIndex, 0, 2)], out var plane))
         {
             var p = plane.Offset(SectionOffset);
