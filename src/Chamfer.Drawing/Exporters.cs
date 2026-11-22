@@ -23,6 +23,9 @@ public static class Exporters
         sb.Append(Inv, $"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{F(g.Width)}mm\" height=\"{F(g.Height)}mm\" viewBox=\"0 0 {F(g.Width)} {F(g.Height)}\">\n");
         sb.Append(Inv, $"<rect width=\"{F(g.Width)}\" height=\"{F(g.Height)}\" fill=\"white\"/>\n");
         double Y(double y) => g.Height - y;
+        string Color(Primitive p) => g.Layers.TryGetValue(p, out var layer) && g.LayerColors.TryGetValue(layer, out var c) && c != 0
+            ? $"#{c:X6}"
+            : "black";
         foreach (var item in g.Items)
         {
             switch (item)
@@ -30,7 +33,7 @@ public static class Exporters
                 case PolylinePrimitive p when p.Points.Count > 1:
                     var dash = SheetGraphics.Dashes(p.Pen);
                     var points = string.Join(' ', p.Points.Select(q => $"{F(q.X)},{F(Y(q.Y))}"));
-                    sb.Append(Inv, $"<{(p.Closed ? "polygon" : "polyline")} points=\"{points}\" fill=\"none\" stroke=\"black\" stroke-width=\"{F(SheetGraphics.PenWidth(p.Pen))}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"");
+                    sb.Append(Inv, $"<{(p.Closed ? "polygon" : "polyline")} points=\"{points}\" fill=\"none\" stroke=\"{Color(p)}\" stroke-width=\"{F(SheetGraphics.PenWidth(p.Pen))}\" stroke-linecap=\"round\" stroke-linejoin=\"round\"");
                     if (dash.Length > 0)
                     {
                         sb.Append(Inv, $" stroke-dasharray=\"{string.Join(',', dash.Select(F))}\"");
@@ -40,12 +43,12 @@ public static class Exporters
                     break;
                 case ArrowPrimitive a:
                     var (l, r) = ArrowWings(a);
-                    sb.Append(Inv, $"<polygon points=\"{F(a.Tip.X)},{F(Y(a.Tip.Y))} {F(l.X)},{F(Y(l.Y))} {F(r.X)},{F(Y(r.Y))}\" fill=\"black\"/>\n");
+                    sb.Append(Inv, $"<polygon points=\"{F(a.Tip.X)},{F(Y(a.Tip.Y))} {F(l.X)},{F(Y(l.Y))} {F(r.X)},{F(Y(r.Y))}\" fill=\"{Color(a)}\"/>\n");
                     break;
                 case TextPrimitive t:
                     var anchor = t.Anchor switch { TextAnchor.Center => "middle", TextAnchor.Right => "end", _ => "start" };
                     var esc = System.Security.SecurityElement.Escape(t.Text);
-                    sb.Append(Inv, $"<text x=\"{F(t.At.X)}\" y=\"{F(Y(t.At.Y))}\" font-family=\"Arial, Helvetica, sans-serif\" font-size=\"{F(t.Height * 1.4)}\" text-anchor=\"{anchor}\"");
+                    sb.Append(Inv, $"<text fill=\"{Color(t)}\" x=\"{F(t.At.X)}\" y=\"{F(Y(t.At.Y))}\" font-family=\"Arial, Helvetica, sans-serif\" font-size=\"{F(t.Height * 1.4)}\" text-anchor=\"{anchor}\"");
                     if (Math.Abs(t.Angle) > 1e-9)
                     {
                         sb.Append(Inv, $" transform=\"rotate({F(-t.Angle)} {F(t.At.X)} {F(Y(t.At.Y))})\"");
@@ -58,6 +61,13 @@ public static class Exporters
 
         sb.Append("</svg>\n");
         return sb.ToString();
+    }
+
+    /// <summary>A layer name DXF accepts: letters, digits, '_' and '-'.</summary>
+    private static string DxfName(string name)
+    {
+        var clean = new string([.. name.ToUpperInvariant().Select(c => char.IsLetterOrDigit(c) || c is '_' or '-' ? c : '_')]);
+        return clean.Length == 0 ? "LAYER" : clean;
     }
 
     public static (Point2 Left, Point2 Right) ArrowWings(ArrowPrimitive a)
@@ -82,10 +92,20 @@ public static class Exporters
         Pair(0, "ENDSEC");
         Pair(0, "SECTION");
         Pair(2, "ENTITIES");
-        void Line(string layer, Point2 a, Point2 b)
+        string LayerOf(Primitive p, string fallback) => g.Layers.TryGetValue(p, out var l) ? DxfName(l) : fallback;
+        void Color(Primitive p)
+        {
+            if (g.Layers.TryGetValue(p, out var l) && g.LayerColors.TryGetValue(l, out var c) && c != 0)
+            {
+                Pair(420, ((int)c).ToString(Inv)); // true colour
+            }
+        }
+
+        void Line(string layer, Point2 a, Point2 b, Primitive owner)
         {
             Pair(0, "LINE");
             Pair(8, layer);
+            Color(owner);
             Pair(10, F(a.X));
             Pair(20, F(a.Y));
             Pair(30, "0");
@@ -99,22 +119,23 @@ public static class Exporters
             switch (item)
             {
                 case PolylinePrimitive p:
-                    var layer = p.Pen.ToString().ToUpperInvariant();
+                    var layer = LayerOf(p, p.Pen.ToString().ToUpperInvariant());
                     for (var i = 0; i + 1 < p.Points.Count; i++)
                     {
-                        Line(layer, p.Points[i], p.Points[i + 1]);
+                        Line(layer, p.Points[i], p.Points[i + 1], p);
                     }
 
                     if (p.Closed && p.Points.Count > 2)
                     {
-                        Line(layer, p.Points[^1], p.Points[0]);
+                        Line(layer, p.Points[^1], p.Points[0], p);
                     }
 
                     break;
                 case ArrowPrimitive a:
                     var (l, r) = ArrowWings(a);
                     Pair(0, "SOLID");
-                    Pair(8, "THIN");
+                    Pair(8, LayerOf(a, "THIN"));
+                    Color(a);
                     foreach (var (code, p) in new[] { (10, a.Tip), (11, l), (12, r), (13, r) })
                     {
                         Pair(code, F(p.X));
@@ -125,7 +146,8 @@ public static class Exporters
                     break;
                 case TextPrimitive t:
                     Pair(0, "TEXT");
-                    Pair(8, "TEXT");
+                    Pair(8, LayerOf(t, "TEXT"));
+                    Color(t);
                     Pair(10, F(t.At.X));
                     Pair(20, F(t.At.Y));
                     Pair(30, "0");

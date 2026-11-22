@@ -354,16 +354,26 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             Labels(g, sheet, view, vg);
         }
 
+        foreach (var layer in doc.Layers)
+        {
+            g.LayerColors[layer.Name] = layer.Color;
+        }
+
         foreach (var d in sheet.Dimensions)
         {
-            if (sheet.Views.Find(v => v.Id == d.ViewId) is { } view)
+            if (doc.IsLayerVisible(d.Layer) && sheet.Views.Find(v => v.Id == d.ViewId) is { } view)
             {
                 try
                 {
+                    g.CurrentLayer = d.Layer;
                     Dimension(g, d, Geometry(sheet, view));
                 }
                 catch (Exception ex) when (ex is KernelException or InvalidOperationException)
                 {
+                }
+                finally
+                {
+                    g.CurrentLayer = null;
                 }
             }
         }
@@ -373,20 +383,25 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             BomAndBalloons(g, sheet);
         }
 
-        foreach (var t in sheet.Tolerances)
+        foreach (var t in sheet.Tolerances.Where(t => doc.IsLayerVisible(t.Layer)))
         {
+            g.CurrentLayer = t.Layer;
             AnnotationGraphics.Draw(g, t);
         }
 
-        foreach (var d in sheet.Datums)
+        foreach (var d in sheet.Datums.Where(d => doc.IsLayerVisible(d.Layer)))
         {
+            g.CurrentLayer = d.Layer;
             AnnotationGraphics.Draw(g, d);
         }
 
-        foreach (var f in sheet.Finishes)
+        foreach (var f in sheet.Finishes.Where(f => doc.IsLayerVisible(f.Layer)))
         {
+            g.CurrentLayer = f.Layer;
             AnnotationGraphics.Draw(g, f);
         }
+
+        g.CurrentLayer = null;
 
         foreach (var table in sheet.HoleTables)
         {
@@ -407,8 +422,9 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             DrawingTables.DrawRevisionTable(g, revisions);
         }
 
-        foreach (var n in sheet.Notes)
+        foreach (var n in sheet.Notes.Where(n => doc.IsLayerVisible(n.Layer)))
         {
+            g.CurrentLayer = n.Layer;
             var lines = n.Text.Split('\n');
             for (var i = 0; i < lines.Length; i++)
             {
@@ -416,6 +432,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             }
         }
 
+        g.CurrentLayer = null;
         return g;
     }
 
@@ -642,7 +659,20 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         }
 
         var textAt = mid + (normal * (side > 0 ? 1.2 : -1.2 - textHeight));
-        g.Text(textAt, Label(value), textHeight, TextAnchor.Center, angle, owner);
+        var anchor = TextAnchor.Center;
+        if (doc.Standard == DraftingStandard.Ansi)
+        {
+            // ANSI: text always reads horizontally; beside vertical dimension lines.
+            angle = 0;
+            if (Math.Abs(along.X) < 0.5)
+            {
+                var outward = normal * side;
+                anchor = outward.X >= 0 ? TextAnchor.Left : TextAnchor.Right;
+                textAt = mid + (outward.Normalized() * 1.5) - new Point2(0, textHeight / 2);
+            }
+        }
+
+        g.Text(textAt, Label(value), textHeight, anchor, angle, owner);
     }
 
     /// <summary>Item numbers by component id: one number per distinct part and configuration, in BOM order.</summary>

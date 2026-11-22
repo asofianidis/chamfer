@@ -55,6 +55,7 @@ public sealed partial class MainViewModel
         new("Next Sheet", "Show the next sheet", new RelayCommand(NextSheet), "→"),
         new("Hidden Lines", "Show or hide hidden lines in the selected view", new RelayCommand(ToggleHiddenLines), "┅"),
         new("Sheet", "Sheet size, scale and title block", new RelayCommand(ShowSheetProperties), "▭"),
+        new("Layers", "Drawing layers: colours, visibility and the active layer", new RelayCommand(ShowLayers), "▤"),
         new("Delete", "Delete the selected views or dimensions", new RelayCommand(DeleteDrawingSelection), "✕"),
         new("Export PDF", "Save the sheet as PDF", new AsyncRelayCommand(() => ExportDrawing("pdf")), "⇩"),
         new("Export SVG", "Save the sheet as SVG", new AsyncRelayCommand(() => ExportDrawing("svg")), "⇩"),
@@ -561,7 +562,7 @@ public sealed partial class MainViewModel
             _pendingSheetClick = at =>
             {
                 SnapshotDrawing();
-                sheet.Notes.Add(new Note { X = at.X, Y = at.Y, Text = text.Replace("\\n", "\n", StringComparison.Ordinal) });
+                sheet.Notes.Add(new Note { X = at.X, Y = at.Y, Text = text.Replace("\\n", "\n", StringComparison.Ordinal), Layer = ActiveLayer });
                 Editor = null;
                 RefreshDrawing();
             };
@@ -578,7 +579,7 @@ public sealed partial class MainViewModel
         }
 
         CancelEditor();
-        var t = new GeometricTolerance { Id = d.NextId("gdt") };
+        var t = new GeometricTolerance { Id = d.NextId("gdt"), Layer = ActiveLayer };
         var kinds = Enum.GetValues<GeometricCharacteristic>();
         var panel = FeatureEditor.Info("Geometric Tolerance");
         panel.AddInfo(new ChoiceField("Characteristic", [.. kinds.Select(k => k.ToString())], Array.IndexOf(kinds, t.Characteristic), i => t.Characteristic = kinds[i]));
@@ -608,7 +609,7 @@ public sealed partial class MainViewModel
         CancelEditor();
         var used = sheet.Datums.Select(x => x.Label).ToHashSet();
         var next = Enumerable.Range('A', 26).Select(c => ((char)c).ToString()).FirstOrDefault(l => !used.Contains(l)) ?? "A";
-        var datum = new DatumFeature { Id = d.NextId("datum"), Label = next };
+        var datum = new DatumFeature { Id = d.NextId("datum"), Label = next, Layer = ActiveLayer };
         var panel = FeatureEditor.Info("Datum Feature");
         panel.AddInfo(new TextField("Label", datum.Label, v => datum.Label = v.Trim().ToUpperInvariant()));
         panel.AddInfo(new InfoField("Place", "Click the feature (edge or face line), then click where the letter box goes."));
@@ -631,7 +632,7 @@ public sealed partial class MainViewModel
         }
 
         CancelEditor();
-        var finish = new SurfaceFinish { Id = d.NextId("sf") };
+        var finish = new SurfaceFinish { Id = d.NextId("sf"), Layer = ActiveLayer };
         var panel = FeatureEditor.Info("Surface Finish");
         panel.AddInfo(new TextField("Roughness", finish.Roughness, v => finish.Roughness = v.Trim()));
         panel.AddInfo(new BoolField("Machining required", finish.MachiningRequired, v => finish.MachiningRequired = v));
@@ -715,6 +716,50 @@ public sealed partial class MainViewModel
             RefreshDrawing();
         }));
         panel.AddInfo(new InfoField("How", "Type what changed and press Enter. The title block's revision follows the latest row."));
+        Editor = panel;
+    }
+
+    /// <summary>The layer new notes and annotations go on (null: none).</summary>
+    public string? ActiveLayer { get; set; }
+
+    private void ShowLayers()
+    {
+        if (DrawingDoc is not { } d)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var panel = FeatureEditor.Info("Layers");
+        panel.AddInfo(new ChoiceField("Active layer", ["(none)", .. d.Layers.Select(l => l.Name)],
+            ActiveLayer is null ? 0 : d.Layers.FindIndex(l => l.Name == ActiveLayer) + 1,
+            i => ActiveLayer = i == 0 ? null : d.Layers[i - 1].Name));
+        foreach (var layer in d.Layers)
+        {
+            panel.AddInfo(new BoolField($"Show {layer.Name} (#{layer.Color:X6})", layer.Visible, v =>
+            {
+                SnapshotDrawing();
+                layer.Visible = v;
+                RefreshDrawing();
+            }));
+        }
+
+        panel.AddInfo(new TextField("New layer (Name #RRGGBB)", string.Empty, text =>
+        {
+            var parts = text.Split('#', 2, StringSplitOptions.TrimEntries);
+            if (parts[0].Length == 0 || d.Layers.Any(l => l.Name == parts[0]))
+            {
+                return;
+            }
+
+            var color = parts.Length > 1 && uint.TryParse(parts[1], System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out var c) ? c : 0u;
+            SnapshotDrawing();
+            d.Layers.Add(new DrawingLayer { Name = parts[0], Color = color });
+            ActiveLayer = parts[0];
+            ShowLayers();
+            RefreshDrawing();
+        }));
+        panel.AddInfo(new InfoField("Use", "New notes and annotations go on the active layer. Layers export to DXF with their colours."));
         Editor = panel;
     }
 
@@ -831,6 +876,12 @@ public sealed partial class MainViewModel
 
         CancelEditor();
         var panel = FeatureEditor.Info("Sheet");
+        panel.AddInfo(new ChoiceField("Drafting standard", ["ISO (first angle)", "ANSI (third angle)"], d.Standard == DraftingStandard.Ansi ? 1 : 0, i =>
+        {
+            SnapshotDrawing();
+            d.ApplyStandard(i == 1 ? DraftingStandard.Ansi : DraftingStandard.Iso);
+            RefreshDrawing();
+        }));
         var sizes = Enum.GetValues<SheetSize>();
         panel.AddInfo(new ChoiceField("Size", [.. sizes.Select(s => s.ToString())], Array.IndexOf(sizes, sheet.Size), i =>
         {

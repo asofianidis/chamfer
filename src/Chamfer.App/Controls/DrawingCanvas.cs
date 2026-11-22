@@ -245,7 +245,10 @@ public sealed class DrawingCanvas : Control
         foreach (var item in g.Items)
         {
             var selected = g.Owners.TryGetValue(item, out var owner) && Selected.Contains(owner);
-            var brush = selected ? highlight : ink;
+            var brush = selected ? highlight
+                : g.Layers.TryGetValue(item, out var layer) && g.LayerColors.TryGetValue(layer, out var rgb) && rgb != 0
+                    ? new SolidColorBrush(Color.FromRgb((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb))
+                    : ink;
             switch (item)
             {
                 case PolylinePrimitive pl when pl.Points.Count > 1:
