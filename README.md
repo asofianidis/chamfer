@@ -348,7 +348,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 - [~] Feature tree panel with rollback bar, suppress/unsuppress, reorder, rename, and folders *(all but folders)*
 - [x] Property panel framework for every feature, with live preview
-- [~] **Extruded Boss/Base** and **Extruded Cut**: blind, through all, up to vertex, surface, or offset, mid-plane, two-direction, draft, thin feature *(all but up to vertex)*
+- [x] **Extruded Boss/Base** and **Extruded Cut**: blind, through all, up to vertex, surface, or offset, mid-plane, two-direction, draft, thin feature *(up to vertex stops at a reference point's parallel plane)*
 - [x] **Revolved Boss** and **Revolved Cut** *(one direction and mid-plane)*
 - [~] **Fillet**: constant radius, variable radius, face fillet, full round *(constant and variable radius on edges and faces)*
 - [~] **Chamfer**: distance-distance, distance-angle, vertex *(equal distance, distance-distance, distance-angle)*
