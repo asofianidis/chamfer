@@ -18,6 +18,9 @@ public sealed class FilletFeature : Feature
     /// <summary>Variable radius: each edge runs from <see cref="Radius"/> at its start to this at its end.</summary>
     public double? EndRadius { get; set; }
 
+    /// <summary>Face fillet: round only the edges the selected faces share, not all their edges.</summary>
+    public bool BetweenFaces { get; set; }
+
     public override void Execute(RebuildContext ctx)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -26,7 +29,8 @@ public sealed class FilletFeature : Feature
             throw new FeatureException("The radius must be greater than zero.");
         }
 
-        foreach (var (body, edges) in DressUp.GroupEdges(ctx, Edges, Faces))
+        var groups = BetweenFaces ? DressUp.SharedEdges(ctx, Faces) : DressUp.GroupEdges(ctx, Edges, Faces);
+        foreach (var (body, edges) in groups)
         {
             using var op = Run(() => EndRadius is { } end
                     ? Modeling.FilletVariable(body.Shape, edges, [.. edges.Select(_ => Radius)], [.. edges.Select(_ => end)])
@@ -230,6 +234,30 @@ internal static class DressUp
 
         return [.. byBody.Select(kv => (kv.Key, kv.Value.ToArray()))];
     }
+
+    /// <summary>The edges where any two of the faces meet (for face fillets).</summary>
+    public static List<(Body Body, int[] Edges)> SharedEdges(RebuildContext ctx, List<TopoRef> faces)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(faces);
+        var byBody = faces.Select(ctx.ResolveFace).GroupBy(x => x.Body);
+        var result = new List<(Body, int[])>();
+        foreach (var group in byBody)
+        {
+            var body = group.Key;
+            var picked = group.Select(x => x.Index).ToHashSet();
+            var shared = picked.SelectMany(f => body.Shape.EdgesOfFace(f))
+                .Distinct()
+                .Where(e => body.Shape.FacesOfEdge(e).Count(picked.Contains) >= 2)
+                .ToArray();
+            if (shared.Length > 0)
+            {
+                result.Add((body, shared));
+            }
+        }
+
+        return result.Count > 0 ? result : throw new FeatureException("The selected faces don't meet; pick faces that share an edge.");
+    }
 }
 
 /// <summary>A spherical dome raised (or sunk) on a planar face, following the face's outline.</summary>
@@ -303,3 +331,66 @@ public sealed class DomeFeature : Feature
         ctx.Tools[Id] = new FeatureTool(tool, names, Reverse);
     }
 }
+
+/// <summary>
+/// Full-round fillet: replaces a centre face (the top of a rib, the end of a tab) with a half-round
+/// tangent to the two parallel side faces either side of it, its diameter the distance between them.
+/// </summary>
+public sealed class FullRoundFilletFeature : Feature
+{
+    public override string DefaultName => "Full Round";
+
+    public TopoRef? SideFace1 { get; set; }
+
+    public TopoRef? CenterFace { get; set; }
+
+    public TopoRef? SideFace2 { get; set; }
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (SideFace1 is null || CenterFace is null || SideFace2 is null)
+        {
+            throw new FeatureException("Select a side face, the centre face and the other side face.");
+        }
+
+        var (body, center) = ctx.ResolveFace(CenterFace);
+        var (_, side1) = ctx.ResolveFace(SideFace1);
+        var (_, side2) = ctx.ResolveFace(SideFace2);
+        if (body.Shape.FacePlane(center) is not { } pc || body.Shape.FacePlane(side1) is not { } p1 || body.Shape.FacePlane(side2) is not { } p2)
+        {
+            throw new FeatureException("Full round works on flat faces.");
+        }
+
+        if (Vec3.Dot(p1.Normal, p2.Normal) > -0.9999 || Math.Abs(Vec3.Dot(p1.Normal, pc.Normal)) > 1e-4)
+        {
+            throw new FeatureException("The side faces must be parallel and face apart, square to the centre face.");
+        }
+
+        var across = p1.Normal;
+        var thickness = Math.Abs(Vec3.Dot(p2.Origin - p1.Origin, across));
+        var r = thickness / 2;
+        var up = pc.Normal;
+        var along = Vec3.Cross(across, up).Normalized();
+
+        // The round's axis: r below the centre face, midway between the sides.
+        var c = body.Face(center).Centroid;
+        var mid = (p1.Origin + p2.Origin) * 0.5;
+        var axis = c - (up * r) + (across * Vec3.Dot(mid - c, across));
+        var span = body.Shape.EdgesOfFace(center).SelectMany(e => body.Shape.SampleEdge(e)).Select(p => Vec3.Dot(p - axis, along)).ToList();
+        var (from, to) = (span.Min() - 1, span.Max() + 1);
+
+        // The material beyond the axis, less a cylinder around it, is cut away.
+        var start = new Plane3(axis + (along * from), along, across);
+        using var block = Modeling.Face(start, [[
+            ProfileSegment.Line(-r - 1, 0, r + 1, 0), ProfileSegment.Line(r + 1, 0, r + 1, r + 1),
+            ProfileSegment.Line(r + 1, r + 1, -r - 1, r + 1), ProfileSegment.Line(-r - 1, r + 1, -r - 1, 0)]]);
+        using var disc = Modeling.Face(start, [[ProfileSegment.Circle(0, 0, r)]]);
+        using var slab = Modeling.Extrude(block, along * (to - from));
+        using var rod = Modeling.Extrude(disc, along * (to - from));
+        using var tool = Modeling.Boolean(slab.Result, rod.Result, BooleanKind.Cut);
+        var cutter = tool.Result;
+        ctx.RemoveMaterial(cutter, Naming.Finish(cutter, new string?[cutter.FaceCount], Id));
+    }
+}
+

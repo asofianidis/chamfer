@@ -61,6 +61,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(SplitLineFeature), "split-line")]
 [JsonDerivedType(typeof(ProjectedCurveFeature), "projected-curve")]
 [JsonDerivedType(typeof(CompositeCurveFeature), "composite-curve")]
+[JsonDerivedType(typeof(FullRoundFilletFeature), "full-round")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
 [JsonDerivedType(typeof(CombineFeature), "combine")]
 [JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]

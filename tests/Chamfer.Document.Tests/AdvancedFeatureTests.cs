@@ -411,6 +411,50 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void FullRoundOnARib()
+    {
+        // A rib 10 thick (x), 30 tall (y), 20 long (z); round its top off completely.
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(10, 30));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 20 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        TopoRef Face(Func<Vec3, bool> normal) => body.FaceRef(Enumerable.Range(1, body.FaceCount).Single(i => normal(body.Face(i).Normal)));
+        doc.Add(new FullRoundFilletFeature { SideFace1 = Face(n => n.X < -0.99), CenterFace = Face(n => n.Y > 0.99), SideFace2 = Face(n => n.X > 0.99) });
+        doc.Rebuild();
+        AssertOk(doc);
+
+        // 10 x 25 x 20 of block below the round, and a half-disc of radius 5 along the 20.
+        Assert.Equal((10 * 25 * 20) + (Math.PI * 25 / 2 * 20), Volume(doc), 1e-3);
+        var after = doc.Bodies[0];
+        Assert.DoesNotContain(Enumerable.Range(1, after.FaceCount), i => after.Face(i).Surface == Chamfer.Kernel.Occt.SurfaceKind.Plane && after.Face(i).Normal.Y > 0.99);
+        Assert.Equal(30, after.Shape.Bounds.Max.Y, 1e-6);
+    }
+
+    [Fact]
+    public void FaceFilletRoundsOnlyTheSharedEdge()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 20));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 20 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        TopoRef Face(Func<Vec3, bool> normal) => body.FaceRef(Enumerable.Range(1, body.FaceCount).Single(i => normal(body.Face(i).Normal)));
+        var top = Face(n => n.Z > 0.99);
+        var front = Face(n => n.Y < -0.99);
+
+        // Top and front faces meet along one 40 mm edge: just that one is rounded.
+        doc.Add(new FilletFeature { Faces = [top, front], BetweenFaces = true, Radius = 3 });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(16000 - ((1 - (Math.PI / 4)) * 9 * 40), Volume(doc), 1e-3);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();
