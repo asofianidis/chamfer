@@ -313,6 +313,8 @@
             <Button Classes="tool" Content="▼" IsVisible="{Binding IsPartMode}" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move the feature later in the history" />
             <Button Classes="tool" Content="Roll Here" IsVisible="{Binding IsPartMode}" Command="{Binding RollbackHereCommand}" ToolTip.Tip="Roll back to just after this feature" />
             <Button Classes="tool" Content="Roll Forward" IsVisible="{Binding IsPartMode}" Command="{Binding RollForwardCommand}" />
+            <Button Classes="tool" Content="Folder" IsVisible="{Binding IsPartMode}" Command="{Binding AddToFolderCommand}" ToolTip.Tip="Put the selected features in a new folder" />
+            <Button Classes="tool" Content="Unfold" IsVisible="{Binding IsPartMode}" Command="{Binding DissolveFolderCommand}" ToolTip.Tip="Remove the selected feature's folder (the features stay)" />
             <ComboBox x:Name="MaterialBox" AutomationProperties.Name="Material" Margin="0,6,0,0" MinWidth="180" IsVisible="{Binding IsPartMode}" ItemsSource="{x:Static doc:Material.Library}" PlaceholderText="Material…"
                       ToolTip.Tip="Part material">
               <ComboBox.ItemTemplate>

@@ -442,6 +442,13 @@ public sealed partial class MainViewModel : ViewModelBase
             return;
         }
 
+        if (value.Tag is FeatureFolder folder)
+        {
+            // Rebuilding the tree while the list is still selecting would upset it: do it next.
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => ToggleFolder(folder));
+            return;
+        }
+
         SelectionItem? item = value.Tag is Chamfer.Assembly.Component c ? ComponentItem(c)
             : value.Feature is { } f ? SelectionItem.ForFeature(f)
             : value.PlaneId is { } p ? SelectionItem.Plane(p, value.Name) : null;
@@ -543,6 +550,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
 
         var rollback = Document.RollbackIndex;
+        var shownFolders = new HashSet<FeatureFolder>();
         for (var i = 0; i < Document.Features.Count; i++)
         {
             var f = Document.Features[i];
@@ -556,10 +564,27 @@ public sealed partial class MainViewModel : ViewModelBase
                 continue;
             }
 
-            Tree.Add(MakeNode(f, 0));
+            // A folder shows where its first feature is; click it to collapse or expand.
+            var indent = 0;
+            if (Document.FolderOf(f.Id) is { } folder)
+            {
+                if (shownFolders.Add(folder))
+                {
+                    Tree.Add(new FeatureNode(folder.Name, folder.Collapsed ? "▸" : "▾", tag: folder));
+                }
+
+                if (folder.Collapsed)
+                {
+                    continue;
+                }
+
+                indent = 1;
+            }
+
+            Tree.Add(MakeNode(f, indent));
             foreach (var absorbed in owner.Where(kv => kv.Value == f).Select(kv => Document.Find(kv.Key)!))
             {
-                Tree.Add(MakeNode(absorbed, 1));
+                Tree.Add(MakeNode(absorbed, indent + 1));
             }
         }
 
@@ -1349,6 +1374,60 @@ public sealed partial class MainViewModel : ViewModelBase
         SelectedNode = null;
         SetSelection([]);
         RebuildAndRefresh();
+    }
+
+    /// <summary>Collapses or expands a feature tree folder.</summary>
+    public void ToggleFolder(FeatureFolder folder)
+    {
+        ArgumentNullException.ThrowIfNull(folder);
+        folder.Collapsed = !folder.Collapsed;
+        _dirty = true;
+        RefreshTree();
+    }
+
+    /// <summary>Puts the selected features in a new folder (named in the panel).</summary>
+    [RelayCommand]
+    private void AddToFolder()
+    {
+        var features = Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => Document.Find(s.FeatureId!)).OfType<Feature>()
+            .Concat(SelectedNode?.Feature is { } f ? [f] : []).Distinct().ToList();
+        if (AssemblyDoc is not null || features.Count == 0)
+        {
+            MessageText = "Select features in the tree to put in a folder.";
+            return;
+        }
+
+        CancelEditor();
+        var nameField = new TextField("Folder name", $"Folder{Document.Folders.Count + 1}", _ => { });
+        var panel = FeatureEditor.Command("Add to New Folder", () => { },
+            accept: () =>
+            {
+                Snapshot();
+                Document.AddFolder(nameField.Text, features); // typed text counts even without Enter
+                _dirty = true;
+                RefreshTree();
+            },
+            cancel: () => { });
+        panel.AddField(nameField);
+        panel.AddInfo(new InfoField("Features", string.Join(", ", features.Select(x => x.Name))));
+        Editor = panel;
+    }
+
+    /// <summary>Removes the folder of the selected feature; the features stay.</summary>
+    [RelayCommand]
+    private void DissolveFolder()
+    {
+        var feature = SelectedNode?.Feature ?? Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => Document.Find(s.FeatureId!)).LastOrDefault();
+        if (feature is null || Document.FolderOf(feature.Id) is not { } folder)
+        {
+            MessageText = "Select a feature inside the folder to dissolve.";
+            return;
+        }
+
+        Snapshot();
+        Document.DissolveFolder(folder);
+        _dirty = true;
+        RefreshTree();
     }
 
     [RelayCommand]
