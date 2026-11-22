@@ -222,6 +222,22 @@ public static unsafe class Modeling
         }
     }
 
+    /// <summary>Projects a curve onto a shape along a direction (the wire nearest the curve).</summary>
+    public static Shape ProjectCurve(Shape curve, Shape target, Vec3 direction)
+    {
+        ArgumentNullException.ThrowIfNull(curve);
+        ArgumentNullException.ThrowIfNull(target);
+        var d = stackalloc double[3] { direction.X, direction.Y, direction.Z };
+        return Shape.Wrap(Native.chf_project_curve(curve.Handle, target.Handle, d), "projected curve");
+    }
+
+    /// <summary>Joins curves end to end into one wire.</summary>
+    public static Shape JoinCurves(IReadOnlyList<Shape> curves)
+    {
+        ArgumentNullException.ThrowIfNull(curves);
+        return WithHandles(curves, (n, p) => Shape.Wrap(Native.chf_join_curves(n, p), "composite curve"));
+    }
+
     /// <summary>Divides a body's faces where a tool sheet crosses them, keeping one solid (Split Line).</summary>
     public static Operation SplitLine(Shape s, Shape tool)
     {

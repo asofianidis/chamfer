@@ -369,6 +369,48 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void ProjectedAndCompositeCurvesBecomeSweepPaths()
+    {
+        // A cylinder of radius 20 along Z; a line in a sketch on a plane beside it, projected onto its side.
+        var doc = new PartDocument();
+        var disc = new Sketch();
+        disc.AddCircle(Vec2.Zero, 20);
+        var df = doc.Add(new SketchFeature { Sketch = disc });
+        doc.Add(new ExtrudeFeature { SketchId = df.Id, Depth = 40 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var side = body.FaceRef(Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Surface == Chamfer.Kernel.Occt.SurfaceKind.Cylinder));
+        var beside = doc.Add(new ReferencePlaneFeature { Base = PlaneRef.Right, Offset = 30 }); // x = 30, normal +X
+        var line = new Sketch();
+        line.AddLine(new Vec2(-5, -10), new Vec2(-35, 10)); // (u, v) = (-z, y): a slanted line
+        var lf = doc.Add(new SketchFeature { Plane = new PlaneRef(beside.Id), Sketch = line });
+        var projected = doc.Add(new ProjectedCurveFeature { SketchId = lf.Id, Face = side, Reverse = true });
+        doc.Rebuild();
+        AssertOk(doc);
+        var curve = doc.State.Curves[projected.Id];
+        var pts = Enumerable.Range(1, curve.EdgeCount).SelectMany(e => curve.SampleEdge(e)).ToList();
+        Assert.All(pts, p => Assert.Equal(20, Math.Sqrt((p.X * p.X) + (p.Y * p.Y)), 1e-3)); // on the cylinder
+        Assert.All(pts, p => Assert.True(p.X > 0)); // the near side
+
+        // Two sketched lines joined end to end, used as one sweep path.
+        var a = new Sketch();
+        a.AddLine(new Vec2(0, 0), new Vec2(0, 30));
+        var b = new Sketch();
+        b.AddLine(new Vec2(0, 30), new Vec2(30, 30));
+        var af = doc.Add(new SketchFeature { Plane = PlaneRef.Front, Sketch = a });
+        var bf = doc.Add(new SketchFeature { Plane = PlaneRef.Front, Sketch = b });
+        var joined = doc.Add(new CompositeCurveFeature { CurveIds = [af.Id, bf.Id] });
+        var ring = new Sketch();
+        ring.AddCircle(Vec2.Zero, 2);
+        var rf = doc.Add(new SketchFeature { Plane = PlaneRef.Top, Sketch = ring });
+        doc.Add(new SweepFeature { ProfileSketchId = rf.Id, PathSketchId = joined.Id, Merge = false });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(2, doc.Bodies.Count);
+        Assert.InRange(doc.Bodies[1].Shape.MassProperties.Volume, Math.PI * 4 * 55, Math.PI * 4 * 62);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

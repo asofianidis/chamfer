@@ -81,6 +81,15 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Fill Pattern", "Fill a face with copies on a grid", new RelayCommand(() => StartFeature(new FillPatternFeature())), "⣿"),
             new("Mirror", "Mirror features about a plane", new RelayCommand(() => StartFeature(new MirrorFeature())), "⇋"),
             new("Dome", "Raise a spherical dome on a flat face", new RelayCommand(() => StartFeature(new DomeFeature { Face = Selection.FirstOrDefault(s => s.Kind == SelectionKind.Face)?.Ref })), "◠"),
+            new("Projected Curve", "Project a sketch onto a face as a 3D curve", new RelayCommand(() => StartFeature(new ProjectedCurveFeature
+            {
+                SketchId = SelectedSketches().Select(s => s.Id).FirstOrDefault() ?? string.Empty,
+                Face = Selection.FirstOrDefault(s => s.Kind == SelectionKind.Face)?.Ref,
+            })), "⤵"),
+            new("Composite Curve", "Join curves end to end into one", new RelayCommand(() => StartFeature(new CompositeCurveFeature
+            {
+                CurveIds = [.. Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => s.FeatureId!)],
+            })), "∿"),
             new("Split Line", "Divide faces along a sketch's curves", new RelayCommand(() => StartSketchFeature(sf => new SplitLineFeature { SketchId = sf.Id })), "⌇"),
             new("Freeform", "Reshape a flat face by pulling control points in or out", new RelayCommand(() => StartFeature(new FreeformFeature { Face = Selection.FirstOrDefault(s => s.Kind == SelectionKind.Face)?.Ref })), "≋"),
             new("Mate Reference", "Faces this part mates by automatically when inserted", new RelayCommand(StartMateReference), "⫘"),

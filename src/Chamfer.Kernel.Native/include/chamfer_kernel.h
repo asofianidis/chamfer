@@ -207,6 +207,10 @@ CHF_API chf_op* chf_offset_shape(chf_shape* s, double offset);
 CHF_API chf_shape* chf_fill(chf_shape* wire);
 /* Split line: divides the body's faces where the tool sheet crosses them, keeping one solid. */
 CHF_API chf_op* chf_split_line(chf_shape* s, chf_shape* tool);
+/* Projects a curve onto a shape along a direction (the nearest resulting wire). */
+CHF_API chf_shape* chf_project_curve(chf_shape* curve, chf_shape* target, const double* dir3);
+/* Joins curves end to end into one wire. */
+CHF_API chf_shape* chf_join_curves(int count, chf_shape* const* curves);
 /* Reshapes a face into a smooth patch on its own boundary passing through count points (xyz triples),
    and sews it back into a solid (Freeform). */
 CHF_API chf_op* chf_freeform(chf_shape* s, int face, int count, const double* points);

@@ -220,3 +220,78 @@ public sealed class Sketch3DFeature : Feature
         string.Join(" | ", points.Select(p => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{p.X},{p.Y},{p.Z}")));
 }
 
+/// <summary>A sketch's curves projected along the sketch normal onto a face: a 3D curve on it (Projected Curve).</summary>
+public sealed class ProjectedCurveFeature : Feature
+{
+    public override string DefaultName => "Curve";
+
+    public string SketchId { get; set; } = string.Empty;
+
+    public TopoRef? Face { get; set; }
+
+    /// <summary>Project against the sketch normal instead of along it.</summary>
+    public bool Reverse { get; set; }
+
+    public override IEnumerable<string> Dependencies => [SketchId];
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var sketch = ctx.Sketch(SketchId);
+        var (body, index) = ctx.ResolveFace(Face ?? throw new FeatureException("Select the face to project onto."));
+        using var wire = AdvancedShapes.Wire(sketch, "The sketch must be one connected chain of curves.");
+        using var face = body.Shape.Sub(TopoKind.Face, index);
+        try
+        {
+            ctx.Curves[Id] = Modeling.ProjectCurve(wire, face, sketch.Plane.Normal * (Reverse ? -1 : 1));
+        }
+        catch (KernelException ex)
+        {
+            throw new FeatureException($"The sketch doesn't project onto the face: {ex.Message}");
+        }
+    }
+}
+
+/// <summary>Several curves (sketches, helices, 3D sketches, other curves) joined end to end into one (Composite Curve).</summary>
+public sealed class CompositeCurveFeature : Feature
+{
+    public override string DefaultName => "CompCurve";
+
+    public List<string> CurveIds { get; set; } = [];
+
+    public override IEnumerable<string> Dependencies => CurveIds;
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (CurveIds.Count < 2)
+        {
+            throw new FeatureException("Select at least two curves to join.");
+        }
+
+        var parts = new List<Shape>();
+        try
+        {
+            foreach (var id in CurveIds)
+            {
+                parts.Add(ctx.Curves.TryGetValue(id, out var curve)
+                    ? Modeling.Transform(curve, Transform3.Identity).Result
+                    : AdvancedShapes.Wire(ctx.Sketch(id), "Each sketch must be one connected chain of curves."));
+            }
+
+            ctx.Curves[Id] = Modeling.JoinCurves(parts);
+        }
+        catch (KernelException ex)
+        {
+            throw new FeatureException($"The curves can't be joined: {ex.Message}");
+        }
+        finally
+        {
+            foreach (var p in parts)
+            {
+                p.Dispose();
+            }
+        }
+    }
+}
+

@@ -102,6 +102,8 @@ public sealed partial class FeatureNode : ObservableObject
         CoordinateSystemFeature => "⊹",
         RuledSurfaceFeature => "▦",
         SplitLineFeature => "⌇",
+        ProjectedCurveFeature => "⤵",
+        CompositeCurveFeature => "∿",
         ToolingSplitFeature => "⊟",
         DimpleFeature => "◉",
         DeleteFaceFeature => "⌫",
