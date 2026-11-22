@@ -69,6 +69,10 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(HelixFeature), "helix")]
 [JsonDerivedType(typeof(ThreadFeature), "thread")]
 [JsonDerivedType(typeof(StructuralMemberFeature), "structuralMember")]
+[JsonDerivedType(typeof(SketchDrivenPatternFeature), "sketchPattern")]
+[JsonDerivedType(typeof(TablePatternFeature), "tablePattern")]
+[JsonDerivedType(typeof(CurveDrivenPatternFeature), "curvePattern")]
+[JsonDerivedType(typeof(FillPatternFeature), "fillPattern")]
 public abstract class Feature
 {
     /// <summary>Stable identifier used by references and persistent names. Never shown to users.</summary>

@@ -446,6 +446,44 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Reverse direction", cp.Reverse, v => Set(() => cp.Reverse = v)));
                 break;
 
+            case SketchDrivenPatternFeature sdp:
+                ed.Add(SeedsField(doc, sdp, isNew, selection, Set));
+                ed.Add(new SelectionField("Points sketch", FeatureKinds, SketchItems(doc, [sdp.SketchId]),
+                    items => Set(() => sdp.SketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
+                ed.Add(new InfoField("Positions", "A copy goes at every sketch point, keeping the seed's offset from the sketch plane."));
+                break;
+
+            case TablePatternFeature tp:
+                ed.Add(SeedsField(doc, tp, isNew, selection, Set));
+                ed.Add(new SelectionField("Plane (X/Y directions)", Planes, [PlaneItem(doc, tp.Plane)], items => Set(() => tp.Plane = Last(items)?.AsPlane() ?? PlaneRef.Front), max: 1));
+                ed.Add(new TextField("Offsets (x,y | x,y ...)",
+                    string.Join(" | ", tp.Offsets.Select(o => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{o.X},{o.Y}"))),
+                    text => Set(() => tp.Offsets = TablePatternFeature.Parse(text))));
+                break;
+
+            case CurveDrivenPatternFeature cdp:
+                ed.Add(SeedsField(doc, cdp, isNew, selection, Set));
+                ed.Add(new SelectionField("Path sketch", FeatureKinds, SketchItems(doc, [cdp.SketchId]),
+                    items => Set(() => cdp.SketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
+                ed.Add(Num("Instances", string.Empty, cdp, nameof(cdp.Count), 1, wholeNumber: true));
+                ed.Add(Num("Spacing (0 = even)", "mm", cdp, nameof(cdp.Spacing), 0));
+                ed.Add(new BoolField("Align to curve", cdp.AlignToCurve, v => Set(() => cdp.AlignToCurve = v)));
+                break;
+
+            case FillPatternFeature fp:
+                ed.Add(SeedsField(doc, fp, isNew, selection, Set));
+                if (isNew && fp.Face is null && selection.FirstOrDefault(s => s.Kind == SelectionKind.Face)?.Ref is { } fillFace)
+                {
+                    fp.Face = fillFace;
+                }
+
+                ed.Add(new SelectionField("Face to fill", Faces, fp.Face is { } ff ? [new SelectionItem(SelectionKind.Face, ff, Label: $"Face <{ff.Name}>")] : [],
+                    items => Set(() => fp.Face = Last(items)?.Ref), max: 1));
+                ed.Add(Num("Spacing", "mm", fp, nameof(fp.Spacing), 1e-3));
+                ed.Add(Num("Edge margin", "mm", fp, nameof(fp.Margin), 0));
+                ed.Add(new BoolField("Staggered (hexagonal)", fp.Staggered, v => Set(() => fp.Staggered = v)));
+                break;
+
             case MirrorFeature mi:
                 ed.Add(SeedsField(doc, mi, isNew, selection, Set));
                 ed.Add(new SelectionField("Mirror plane", Planes, [PlaneItem(doc, mi.Plane)], items => Set(() => mi.Plane = Last(items)?.AsPlane() ?? PlaneRef.Right), max: 1));
