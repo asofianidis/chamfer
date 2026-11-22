@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Chamfer.Api/Chamfer.Api.csproj" />
     <Project Path="src/Chamfer.App/Chamfer.App.csproj" />
     <Project Path="src/Chamfer.Assembly/Chamfer.Assembly.csproj" />
     <Project Path="src/Chamfer.Document/Chamfer.Document.csproj" />
@@ -11,6 +12,7 @@
     <Project Path="src/Chamfer.Viewport/Chamfer.Viewport.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Chamfer.Api.Tests/Chamfer.Api.Tests.csproj" />
     <Project Path="tests/Chamfer.App.Tests/Chamfer.App.Tests.csproj" />
     <Project Path="tests/Chamfer.Assembly.Tests/Chamfer.Assembly.Tests.csproj" />
     <Project Path="tests/Chamfer.Document.Tests/Chamfer.Document.Tests.csproj" />

@@ -212,6 +212,7 @@
           <Button Classes="command" Content="Measure" Command="{Binding MeasureCommand}" />
           <Button Classes="command" Content="Equations" Command="{Binding ShowEquationsCommand}" ToolTip.Tip="Global variables and equations" />
           <Button Classes="command" Content="Configurations" Command="{Binding ShowConfigurationsCommand}" ToolTip.Tip="Configurations and design tables" />
+          <Button Classes="command" Content="Macro" Command="{Binding ShowMacrosCommand}" ToolTip.Tip="Run, record and save C# macros" />
         </WrapPanel>
 
         <!-- Sketch tools -->
@@ -434,6 +435,13 @@
                       </StackPanel>
                     </Border>
                   </Button>
+                </DataTemplate>
+                <DataTemplate DataType="vm:CodeField">
+                  <StackPanel Margin="0,4" Spacing="4">
+                    <TextBlock Text="{Binding Label}" FontSize="11" Opacity="0.65" />
+                    <TextBox Text="{Binding Text}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" Height="260"
+                             FontFamily="Cascadia Mono, Consolas, Menlo, monospace" FontSize="11.5" />
+                  </StackPanel>
                 </DataTemplate>
                 <DataTemplate DataType="vm:ButtonField">
                   <Button Content="{Binding Label}" Command="{Binding Command}" Margin="0,4" HorizontalAlignment="Stretch" />

@@ -143,9 +143,11 @@ public sealed partial class MainViewModel : ViewModelBase
         _syncingConfigurations = false;
     }
 
-    public IReadOnlyList<CommandItem> FeatureCommands { get; }
+    [ObservableProperty]
+    public partial IReadOnlyList<CommandItem> FeatureCommands { get; set; }
 
-    public IReadOnlyList<string> CommandTabs { get; } = ["Features", "Surfaces", "Sheet Metal", "Bodies", "Simulation"];
+    [ObservableProperty]
+    public partial IReadOnlyList<string> CommandTabs { get; set; } = ["Features", "Surfaces", "Sheet Metal", "Bodies", "Simulation"];
 
     /// <summary>Showing the sheet metal flat pattern instead of the folded part.</summary>
     [ObservableProperty]

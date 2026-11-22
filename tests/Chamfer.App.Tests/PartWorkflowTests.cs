@@ -302,4 +302,31 @@ public class PartWorkflowTests
         part.AcceptEditorCommand.Execute(null);
         Assert.Equal(Document.FeatureStatus.Ok, part.Document.Results[thread.Id].Status);
     }
+
+    [Fact]
+    public async Task MacroPanelRunsAndRecords()
+    {
+        var vm = new MainViewModel();
+        vm.ShowMacrosCommand.Execute(null);
+        var run = (CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.Editor!.Fields.OfType<ButtonField>().Single(b => b.Label == "Run").Command;
+        await run.ExecuteAsync(null);
+        Assert.Single(vm.Document.Bodies);
+        var output = vm.Editor!.Fields.OfType<InfoField>().Single(f => f.Label == "Output");
+        Assert.Contains("Volume:", output.Text, StringComparison.Ordinal);
+        Assert.Contains("Done", output.Text, StringComparison.Ordinal);
+
+        // Record adding a chamfer by hand, then check the recorded macro mentions it.
+        vm.Editor!.Fields.OfType<ButtonField>().Single(b => b.Label == "Record").Command.Execute(null);
+        Assert.True(vm.IsRecording);
+        var body = vm.Document.Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99);
+        vm.SetSelection([SelectionItem.Face(body, top)]);
+        vm.FeatureCommands.Single(c => c.Label == "Chamfer").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        vm.ShowMacrosCommand.Execute(null);
+        vm.Editor!.Fields.OfType<ButtonField>().Single(b => b.Label == "Stop Recording").Command.Execute(null);
+        Assert.False(vm.IsRecording);
+        var code = vm.Editor!.Fields.OfType<CodeField>().Single().Text;
+        Assert.Contains("\"feature\": \"chamfer\"", code.Replace("\"\"", "\"", StringComparison.Ordinal), StringComparison.Ordinal);
+    }
 }

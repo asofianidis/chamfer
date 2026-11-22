@@ -133,9 +133,13 @@ public sealed class PartDocument
         where T : Feature
     {
         ArgumentNullException.ThrowIfNull(feature);
-        if (string.IsNullOrEmpty(feature.Id))
+        if (string.IsNullOrEmpty(feature.Id) || Features.Exists(f => f.Id == feature.Id))
         {
             feature.Id = $"f{_nextId++}";
+        }
+        else if (feature.Id.StartsWith('f') && int.TryParse(feature.Id.AsSpan(1), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
+        {
+            _nextId = Math.Max(_nextId, n + 1);
         }
 
         if (string.IsNullOrEmpty(feature.Name))
@@ -490,6 +494,12 @@ public sealed class PartDocument
             default: throw new NotSupportedException($"Can't export {ext} files.");
         }
     }
+
+    /// <summary>One feature as JSON (the form macros record).</summary>
+    public static string SerializeFeature(Feature feature) => JsonSerializer.Serialize(feature, Options).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+    public static Feature DeserializeFeature(string json) =>
+        JsonSerializer.Deserialize<Feature>(json, Options) ?? throw new JsonException("Empty feature.");
 
     /// <summary>Deep copy through the file format, e.g. for undo snapshots or background rebuilds.</summary>
     public PartDocument Clone() => Load(Save());

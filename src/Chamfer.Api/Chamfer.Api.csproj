@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Public C# API for scripting Chamfer: macros (Roslyn scripts) and plugins.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Chamfer.Document\Chamfer.Document.csproj" />
+    <ProjectReference Include="..\Chamfer.Assembly\Chamfer.Assembly.csproj" />
+  </ItemGroup>
+</Project>

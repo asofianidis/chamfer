@@ -17,10 +17,13 @@ public partial class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            desktop.MainWindow = new MainWindow
-            {
-                DataContext = new MainViewModel(),
-            };
+            var vm = new MainViewModel();
+            vm.LoadPlugins(
+            [
+                Path.Combine(AppContext.BaseDirectory, "plugins"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Chamfer", "plugins"),
+            ]);
+            desktop.MainWindow = new MainWindow { DataContext = vm };
         }
 
         base.OnFrameworkInitializationCompleted();
