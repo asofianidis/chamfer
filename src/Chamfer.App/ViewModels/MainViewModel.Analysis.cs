@@ -37,6 +37,75 @@ public sealed partial class MainViewModel
     [ObservableProperty]
     public partial bool ZebraStripes { get; set; }
 
+    /// <summary>Colour the model by wall thickness against <see cref="MinimumWall"/>.</summary>
+    [ObservableProperty]
+    public partial bool ThicknessAnalysis { get; set; }
+
+    [ObservableProperty]
+    public partial double MinimumWall { get; set; } = 2;
+
+    /// <summary>Colour undercuts for a mould pulled along the Front, Top or Right plane's normal.</summary>
+    [ObservableProperty]
+    public partial bool UndercutAnalysis { get; set; }
+
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<TriangleMesh, double[]> _thickness = [];
+
+    partial void OnThicknessAnalysisChanged(bool value) => RaiseScene();
+
+    partial void OnMinimumWallChanged(double value) => RaiseScene();
+
+    partial void OnUndercutAnalysisChanged(bool value) => RaiseScene();
+
+    [RelayCommand]
+    private void ToggleThicknessAnalysis()
+    {
+        ThicknessAnalysis = !ThicknessAnalysis;
+        if (!ThicknessAnalysis)
+        {
+            if (Editor?.Title == "Thickness Analysis")
+            {
+                Editor = null;
+            }
+
+            return;
+        }
+
+        UndercutAnalysis = false;
+        DraftAnalysis = false;
+        CancelEditor();
+        var panel = FeatureEditor.Info("Thickness Analysis");
+        panel.AddInfo(new NumberField("Minimum wall", "mm", () => MinimumWall, v => MinimumWall = v, 0));
+        panel.AddInfo(new InfoField("Colours", "Red: thinner than the minimum. Yellow: up to half as thick again. Green: thick enough."));
+        var thinnest = Document.Bodies.Where(b => !b.IsSurface).SelectMany(b => ThicknessOf(b.Mesh)).Where(double.IsFinite).DefaultIfEmpty(double.NaN).Min();
+        panel.AddInfo(new InfoField("Thinnest wall", double.IsNaN(thinnest) ? "—" : $"{Units.Format(thinnest, Document.Units)} {Units.Suffix(Document.Units)}"));
+        Editor = panel;
+    }
+
+    [RelayCommand]
+    private void ToggleUndercutAnalysis()
+    {
+        UndercutAnalysis = !UndercutAnalysis;
+        if (!UndercutAnalysis)
+        {
+            if (Editor?.Title == "Undercut Analysis")
+            {
+                Editor = null;
+            }
+
+            return;
+        }
+
+        ThicknessAnalysis = false;
+        DraftAnalysis = false;
+        CancelEditor();
+        var panel = FeatureEditor.Info("Undercut Analysis");
+        panel.AddInfo(new ChoiceField("Pull direction", ["Front (Z)", "Top (Y)", "Right (X)"], DraftPullIndex, i => DraftPullIndex = i));
+        panel.AddInfo(new InfoField("Colours", "Red: undercut (blocked both ways out of a two-part mould). Green: releases."));
+        Editor = panel;
+    }
+
+    private double[] ThicknessOf(TriangleMesh mesh) => _thickness.GetValue(mesh, MeshAnalysis.Thickness);
+
     /// <summary>Show model-based dimensions and hole callouts in the 3D view.</summary>
     [ObservableProperty]
     public partial bool ShowPmi { get; set; }
@@ -154,6 +223,30 @@ public sealed partial class MainViewModel
                 }
 
                 item.VertexColors = colors;
+                item.FaceColors.Clear();
+            }
+        }
+
+        if (ThicknessAnalysis)
+        {
+            var thin = Rgba.FromHex(0xEF4444);
+            var close = Rgba.FromHex(0xEAB308);
+            var ok = Rgba.FromHex(0x22C55E);
+            foreach (var item in scene.Meshes)
+            {
+                var t = ThicknessOf(item.Mesh);
+                item.VertexColors = [.. t.Select(v => v < MinimumWall ? thin : v < MinimumWall * 1.5 ? close : ok)];
+                item.FaceColors.Clear();
+            }
+        }
+
+        if (UndercutAnalysis && Document.State.Planes.TryGetValue(SectionPlanes[Math.Clamp(DraftPullIndex, 0, 2)], out var pullBy))
+        {
+            var blocked = Rgba.FromHex(0xEF4444);
+            var free = Rgba.FromHex(0x22C55E);
+            foreach (var item in scene.Meshes)
+            {
+                item.VertexColors = [.. MeshAnalysis.Undercuts(item.Mesh, pullBy.Normal).Select(u => u ? blocked : free)];
                 item.FaceColors.Clear();
             }
         }

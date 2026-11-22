@@ -417,7 +417,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Knit (sew), trim, untrim, extend, and delete face *(knit, forming solids from closed sets)*
 - [x] Thicken, and thickened cut
 - [~] Replace face, cut with surface *(cut with surface or plane)*
-- [~] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection *(zebra stripes, draft analysis)*
+- [~] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection *(zebra stripes, draft analysis, undercut detection)*
 - [~] Freeform *(flat faces reshaped through a grid of up to 5 x 5 control points pulled in or out, staying on their edges)*
 
 ### Phase 7: Specialized Toolsets
@@ -449,7 +449,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Thermal studies *(steady-state conduction with fixed temperatures, heat power and convection)*
 - [~] Motion study: animation timeline, motors, springs, gravity *(rotary and linear motors, kinematic frames, scrubbing and playback)*
 - [x] Basic kinematics and interference over time
-- [~] Draft-angle and wall-thickness checks for manufacturability *(draft analysis)*
+- [x] Draft-angle and wall-thickness checks for manufacturability *(draft analysis; wall thickness against a minimum, with the thinnest wall)*
 
 ### Phase 10: Productivity, Extensibility & Ecosystem
 - [x] **Public C# API** (`Chamfer.Api`) and plugin loading via `AssemblyLoadContext`
