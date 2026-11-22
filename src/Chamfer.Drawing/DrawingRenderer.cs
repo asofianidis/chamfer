@@ -545,6 +545,8 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             if (view.Kind is not (ViewKind.Isometric or ViewKind.Detail))
             {
                 CenterMarks(g, vg);
+                Centerlines(g, vg);
+                CosmeticThreads(g, vg);
             }
 
             Labels(g, sheet, view, vg);
@@ -729,6 +731,107 @@ public sealed class DrawingRenderer(DrawingDocument doc)
                 var r = (e.Radius * vg.Scale) + 2;
                 g.Line(Pen.Center, c - new Point2(r, 0), c + new Point2(r, 0), vg.View.Id);
                 g.Line(Pen.Center, c - new Point2(0, r), c + new Point2(0, r), vg.View.Id);
+            }
+        }
+    }
+
+    /// <summary>Chain-dotted centrelines along cylinders seen side-on, a little past each end.</summary>
+    private void Centerlines(SheetGraphics g, ViewGeometry vg)
+    {
+        var done = new List<(Point2, Point2)>();
+        foreach (var body in doc.Bodies)
+        {
+            for (var f = 1; f <= body.FaceCount; f++)
+            {
+                var face = body.Face(f);
+                if (face.Surface != SurfaceKind.Cylinder || Math.Abs(Vec3.Dot(face.AxisDirection.Normalized(), vg.Toward)) > 1e-6)
+                {
+                    continue;
+                }
+
+                var axis = face.AxisDirection.Normalized();
+                var along = body.Shape.EdgesOfFace(f).SelectMany(e => body.Shape.SampleEdge(e)).Select(p => Vec3.Dot(p - face.AxisOrigin, axis)).ToList();
+                if (along.Count == 0)
+                {
+                    continue;
+                }
+
+                var p0 = face.AxisOrigin + (axis * along.Min());
+                var p1 = face.AxisOrigin + (axis * along.Max());
+                if (!vg.IsShown(p0) && !vg.IsShown(p1))
+                {
+                    continue;
+                }
+
+                var a = vg.ToSheet(p0);
+                var b = vg.ToSheet(p1);
+                var dir = (b - a).Normalized();
+                (a, b) = (a - (dir * 2), b + (dir * 2));
+                if (done.Any(x => Point2.Distance(x.Item1, a) < 0.01 && Point2.Distance(x.Item2, b) < 0.01))
+                {
+                    continue;
+                }
+
+                done.Add((a, b));
+                g.Line(Pen.Center, a, b, vg.View.Id);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Thin lines at the thread's major diameter for tapped Hole Wizard holes: a three-quarter circle
+    /// end-on (ISO convention) and two lines along the hole side-on.
+    /// </summary>
+    private void CosmeticThreads(SheetGraphics g, ViewGeometry vg)
+    {
+        if (doc.IsAssembly)
+        {
+            return;
+        }
+
+        var tapped = doc.Model.Features.OfType<Document.Features.HoleFeature>().Where(h => h.ThreadDiameter > 0).ToList();
+        foreach (var hole in tapped)
+        {
+            foreach (var body in doc.Bodies)
+            {
+                for (var f = 1; f <= body.FaceCount; f++)
+                {
+                    var face = body.Face(f);
+                    if (face.Surface != SurfaceKind.Cylinder || !body.FaceNames[f - 1].Contains(hole.Id, StringComparison.Ordinal) ||
+                        Math.Abs(face.Radius - (hole.Diameter / 2)) > 1e-6)
+                    {
+                        continue;
+                    }
+
+                    var axis = face.AxisDirection.Normalized();
+                    var major = hole.ThreadDiameter / 2;
+                    var along = body.Shape.EdgesOfFace(f).SelectMany(e => body.Shape.SampleEdge(e)).Select(p => Vec3.Dot(p - face.AxisOrigin, axis)).ToList();
+                    var p0 = face.AxisOrigin + (axis * along.Min());
+                    var p1 = face.AxisOrigin + (axis * along.Max());
+                    if (Math.Abs(Math.Abs(Vec3.Dot(axis, vg.Toward)) - 1) < 1e-6)
+                    {
+                        if (!vg.IsShown(p0))
+                        {
+                            continue;
+                        }
+
+                        var c = vg.ToSheet(p0);
+                        var r = major * vg.Scale;
+                        var arc = Enumerable.Range(0, 55).Select(k => c + new Point2(Math.Cos(k * 1.5 * Math.PI / 54) * r, Math.Sin(k * 1.5 * Math.PI / 54) * r)).ToList();
+                        g.Polyline(Pen.Thin, arc, owner: vg.View.Id);
+                    }
+                    else if (Math.Abs(Vec3.Dot(axis, vg.Toward)) < 1e-6)
+                    {
+                        var side = Vec3.Cross(axis, vg.Toward).Normalized() * major;
+                        foreach (var s in new[] { side, side * -1 })
+                        {
+                            if (vg.IsShown(p0 + s) || vg.IsShown(p1 + s))
+                            {
+                                g.Line(Pen.Thin, vg.ToSheet(p0 + s), vg.ToSheet(p1 + s), vg.View.Id);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
