@@ -454,7 +454,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 10: Productivity, Extensibility & Ecosystem
 - [x] **Public C# API** (`Chamfer.Api`) and plugin loading via `AssemblyLoadContext`
 - [x] Macro recording and playback (Roslyn scripting)
-- [~] Toolbox: standard fasteners, bearings, and hardware libraries (ANSI and ISO) *(ISO socket head cap screws, hex bolts, hex nuts and washers, M3 to M20)*
+- [x] Toolbox: standard fasteners, bearings, and hardware libraries (ANSI and ISO) *(ISO M3 to M20 and ASME #10 to 1/2 in socket head cap screws, hex bolts, nuts and washers; 60xx/62xx deep groove ball bearings)*
 - [~] Design Library, favorites, templates *(part templates; design library folders to open or insert from)*
 - [~] Custom properties, property tab builder *(custom properties with {Mass}/{Material}/variable tokens, used by BOMs and title blocks)*
 - [~] Photorealistic rendering (path tracer, PBR materials, HDRI environments) *(CPU path tracer: BVH, plastic/metal/matte finishes from the material, soft sun shadows, sky, floor, PNG output)*

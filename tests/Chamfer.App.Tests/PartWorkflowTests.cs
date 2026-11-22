@@ -1381,4 +1381,23 @@ public class PartWorkflowTests
         Assert.Equal(["All", "One"], reloaded.DisplayStates.Select(s => s.Name));
         Assert.Single(reloaded.DisplayStates[1].HiddenComponents);
     }
+
+    [Fact]
+    public void ToolboxPanelOffersBearingsAndInchSizes()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+        var fields = vm.Editor!.Fields.OfType<ChoiceField>().ToList();
+        var (type, size, length) = (fields[0], fields[1], fields[2]);
+
+        size.Index = size.Options.ToList().IndexOf("1/4-20");
+        Assert.Contains("1 in", length.Options);
+        Assert.Contains("ASME B18.3 1/4-20", vm.Editor.Fields.OfType<InfoField>().Single(f => f.Label == "Part").Text, StringComparison.Ordinal);
+
+        type.Index = 4; // bearing
+        Assert.Contains("6204", size.Options);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal("toolbox:Bearing 6204", Assert.Single(vm.AssemblyDoc!.Components).Path);
+    }
 }
