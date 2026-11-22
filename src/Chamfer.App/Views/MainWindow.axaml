@@ -247,15 +247,15 @@
           </ItemsControl>
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4" Margin="4,0">
             <TextBlock Text="Sides" VerticalAlignment="Center" FontSize="12" Opacity="0.75" />
-            <NumericUpDown Value="{Binding Sketch.PolygonSides, FallbackValue=6}" Minimum="3" Maximum="64" Increment="1"
+            <NumericUpDown AutomationProperties.Name="Polygon sides" Value="{Binding Sketch.PolygonSides, FallbackValue=6}" Minimum="3" Maximum="64" Increment="1"
                            FormatString="0" Width="96" ToolTip.Tip="Number of polygon sides" />
           </StackPanel>
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4" Margin="4,0">
             <TextBlock Text="Size" VerticalAlignment="Center" FontSize="12" Opacity="0.75" />
-            <NumericUpDown Value="{Binding Sketch.OperationValue, FallbackValue=5}" Minimum="0.001" Increment="1"
+            <NumericUpDown AutomationProperties.Name="Size" Value="{Binding Sketch.OperationValue, FallbackValue=5}" Minimum="0.001" Increment="1"
                            FormatString="0.###" Width="110" ToolTip.Tip="Fillet radius, chamfer and offset distance, pattern spacing (mm)" />
             <TextBlock Text="Count" VerticalAlignment="Center" FontSize="12" Opacity="0.75" />
-            <NumericUpDown Value="{Binding Sketch.PatternCount, FallbackValue=4}" Minimum="2" Maximum="500" Increment="1"
+            <NumericUpDown AutomationProperties.Name="Pattern count" Value="{Binding Sketch.PatternCount, FallbackValue=4}" Minimum="2" Maximum="500" Increment="1"
                            FormatString="0" Width="90" ToolTip.Tip="Sketch pattern instances" />
           </StackPanel>
           <Button Classes="tool" Content="Offset" Command="{Binding Sketch.OffsetCommand, FallbackValue={x:Null}}" ToolTip.Tip="Offset the selected curves by Size" />
@@ -311,7 +311,7 @@
             <Button Classes="tool" Content="▼" IsVisible="{Binding IsPartMode}" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move the feature later in the history" />
             <Button Classes="tool" Content="Roll Here" IsVisible="{Binding IsPartMode}" Command="{Binding RollbackHereCommand}" ToolTip.Tip="Roll back to just after this feature" />
             <Button Classes="tool" Content="Roll Forward" IsVisible="{Binding IsPartMode}" Command="{Binding RollForwardCommand}" />
-            <ComboBox x:Name="MaterialBox" Margin="0,6,0,0" MinWidth="180" IsVisible="{Binding IsPartMode}" ItemsSource="{x:Static doc:Material.Library}" PlaceholderText="Material…"
+            <ComboBox x:Name="MaterialBox" AutomationProperties.Name="Material" Margin="0,6,0,0" MinWidth="180" IsVisible="{Binding IsPartMode}" ItemsSource="{x:Static doc:Material.Library}" PlaceholderText="Material…"
                       ToolTip.Tip="Part material">
               <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="doc:Material">
@@ -321,7 +321,7 @@
             </ComboBox>
           </WrapPanel>
           <Panel>
-          <ListBox x:Name="FeatureTree" ItemsSource="{Binding Tree}" SelectedItem="{Binding SelectedNode}" IsVisible="{Binding !IsSketchMode}">
+          <ListBox x:Name="FeatureTree" AutomationProperties.Name="Feature tree" ItemsSource="{Binding Tree}" SelectedItem="{Binding SelectedNode}" IsVisible="{Binding !IsSketchMode}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:FeatureNode">
                 <StackPanel Orientation="Horizontal" Spacing="6" Margin="{Binding Indent}" Opacity="{Binding IsDimmed, Converter={x:Static c:Converters.DimOpacity}}"
@@ -386,7 +386,7 @@
         </DockPanel>
 
         <!-- Property panel -->
-        <Panel IsVisible="{Binding HasEditor}">
+        <Panel x:Name="PropertyPanel" IsVisible="{Binding HasEditor}" AutomationProperties.Name="Property panel">
         <DockPanel DataContext="{Binding Editor}" x:DataType="vm:FeatureEditor">
           <StackPanel DockPanel.Dock="Top" Margin="0,8,0,8" Spacing="8">
             <TextBlock Text="{Binding Title, FallbackValue=''}" FontSize="16" FontWeight="SemiBold" />
@@ -407,7 +407,7 @@
                 <DataTemplate DataType="vm:NumberField">
                   <Grid ColumnDefinitions="120,*,Auto" Margin="0,3" IsVisible="{Binding IsVisible}">
                     <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="12.5" />
-                    <TextBox Grid.Column="1" Text="{Binding Text}" FontSize="12.5" Classes.error="{Binding HasError}">
+                    <TextBox Grid.Column="1" Text="{Binding Text}" FontSize="12.5" Classes.error="{Binding HasError}" AutomationProperties.Name="{Binding Label}">
                       <TextBox.KeyBindings>
                         <KeyBinding Gesture="Enter" Command="{Binding CommitCommand}" />
                       </TextBox.KeyBindings>
@@ -418,7 +418,7 @@
                 <DataTemplate DataType="vm:TextField">
                   <Grid ColumnDefinitions="120,*" Margin="0,3">
                     <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="12.5" />
-                    <TextBox Grid.Column="1" Text="{Binding Text}" FontSize="12.5">
+                    <TextBox Grid.Column="1" Text="{Binding Text}" FontSize="12.5" AutomationProperties.Name="{Binding Label}">
                       <TextBox.KeyBindings>
                         <KeyBinding Gesture="Enter" Command="{Binding CommitCommand}" />
                       </TextBox.KeyBindings>
@@ -428,7 +428,7 @@
                 <DataTemplate DataType="vm:ChoiceField">
                   <Grid ColumnDefinitions="120,*" Margin="0,3" IsVisible="{Binding IsVisible}">
                     <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="12.5" />
-                    <ComboBox Grid.Column="1" ItemsSource="{Binding Options}" SelectedIndex="{Binding Index}" HorizontalAlignment="Stretch" FontSize="12.5" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding Options}" SelectedIndex="{Binding Index}" HorizontalAlignment="Stretch" FontSize="12.5" AutomationProperties.Name="{Binding Label}" />
                   </Grid>
                 </DataTemplate>
                 <DataTemplate DataType="vm:BoolField">
@@ -455,7 +455,7 @@
                 <DataTemplate DataType="vm:CodeField">
                   <StackPanel Margin="0,4" Spacing="4">
                     <TextBlock Text="{Binding Label}" FontSize="11" Opacity="0.65" />
-                    <TextBox Text="{Binding Text}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" Height="260"
+                    <TextBox Text="{Binding Text}" AcceptsReturn="True" AcceptsTab="True" TextWrapping="NoWrap" Height="260" AutomationProperties.Name="{Binding Label}"
                              FontFamily="Cascadia Mono, Consolas, Menlo, monospace" FontSize="11.5" />
                   </StackPanel>
                 </DataTemplate>
@@ -478,11 +478,11 @@
 
     <!-- 3D view, or the sketch canvas while editing a sketch -->
     <Panel>
-      <c:ModelViewport x:Name="Viewport" IsVisible="{Binding IsModelMode}" />
-      <c:DrawingCanvas x:Name="Sheet" IsVisible="{Binding IsDrawingMode}" Graphics="{Binding SheetGraphics}" />
-      <c:SketchCanvas x:Name="Canvas" Editor="{Binding Sketch.Editor, FallbackValue={x:Null}}" IsVisible="{Binding IsSketchMode}" />
+      <c:ModelViewport x:Name="Viewport" IsVisible="{Binding IsModelMode}" AutomationProperties.Name="3D view" Focusable="True" />
+      <c:DrawingCanvas x:Name="Sheet" IsVisible="{Binding IsDrawingMode}" Graphics="{Binding SheetGraphics}" AutomationProperties.Name="Drawing sheet" Focusable="True" />
+      <c:SketchCanvas x:Name="Canvas" Editor="{Binding Sketch.Editor, FallbackValue={x:Null}}" IsVisible="{Binding IsSketchMode}" AutomationProperties.Name="Sketch" Focusable="True" />
       <Canvas x:Name="Overlay" IsVisible="{Binding IsSketchMode}">
-        <TextBox x:Name="DimensionInput" IsVisible="False" Width="110" FontSize="13"
+        <TextBox x:Name="DimensionInput" AutomationProperties.Name="Dimension value" IsVisible="False" Width="110" FontSize="13"
                  PlaceholderText="Value" />
       </Canvas>
     </Panel>

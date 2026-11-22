@@ -8,6 +8,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 using Chamfer.App.Editing;
 using Chamfer.App.Part;
 using Chamfer.App.ViewModels;
@@ -242,6 +243,49 @@ public partial class MainWindow : Window
         Viewport.ZoomToFit();
     }
 
+    /// <summary>F6 (Shift+F6 backwards): move keyboard focus between the tree, the property panel and the view.</summary>
+    private void CycleFocus(bool backwards)
+    {
+        Control?[] regions =
+        [
+            FeatureTree.IsEffectivelyVisible ? FeatureTree : null,
+            PropertyPanel.IsEffectivelyVisible ? PropertyPanel.GetVisualDescendants().OfType<InputElement>().FirstOrDefault(i => i.Focusable && i.IsEffectivelyEnabled && i.IsEffectivelyVisible) as Control : null,
+            Viewport.IsEffectivelyVisible ? Viewport : Sheet.IsEffectivelyVisible ? Sheet : Canvas.IsEffectivelyVisible ? Canvas : null,
+        ];
+        var targets = regions.OfType<Control>().ToList();
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        var focused = FocusManager?.GetFocusedElement() as Visual;
+        var current = targets.FindIndex(t => focused is not null && (ReferenceEquals(t, focused) || t.IsVisualAncestorOf(focused)));
+        // Try each region in turn from the next one, until one takes focus.
+        for (var step = 1; step <= targets.Count; step++)
+        {
+            var index = current < 0 ? step - 1 : (current + ((backwards ? targets.Count - 1 : 1) * step)) % targets.Count;
+            if (Focus(targets[index]))
+            {
+                return;
+            }
+        }
+
+        bool Focus(Control target)
+        {
+            if (ReferenceEquals(target, FeatureTree))
+            {
+                // Lists take focus through an item: the selected one, or the first.
+                var item = FeatureTree.ContainerFromIndex(Math.Max(0, FeatureTree.SelectedIndex));
+                if (item is not null && item.Focus(NavigationMethod.Tab))
+                {
+                    return true;
+                }
+            }
+
+            return target.Focus(NavigationMethod.Tab);
+        }
+    }
+
     private static KeyModifiers CommandModifier => OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
 
     private void OnAnyLostFocus(object? sender, RoutedEventArgs e)
@@ -379,6 +423,9 @@ public partial class MainWindow : Window
 
         switch (e.Key)
         {
+            case Key.F6:
+                CycleFocus(shift);
+                break;
             case Key.Escape:
                 vm.Escape();
                 break;
