@@ -20,7 +20,25 @@ public sealed class SweepFeature : Feature
 
     public bool Merge { get; set; } = true;
 
-    public override IEnumerable<string> Dependencies => [ProfileSketchId, PathSketchId];
+    /// <summary>Turn the profile evenly by this many degrees from start to end.</summary>
+    public double TwistAngle { get; set; }
+
+    /// <summary>A guide curve (sketch or 3D curve) the profile is scaled to keep touching.</summary>
+    public string? GuideSketchId { get; set; }
+
+    public override IEnumerable<string> Dependencies =>
+        GuideSketchId is { Length: > 0 } guide ? [ProfileSketchId, PathSketchId, guide] : [ProfileSketchId, PathSketchId];
+
+    /// <summary>A sketch chain or a 3D curve feature, as a wire.</summary>
+    private static Shape CurveWire(RebuildContext ctx, string id, string what) =>
+        ctx.Curves.TryGetValue(id, out var curve)
+            ? Modeling.Transform(curve, Transform3.Identity).Result
+            : AdvancedShapes.Wire(ctx.Sketch(id), $"The {what} must be one connected chain of lines and arcs, or a circle.");
+
+    private Operation SweepOne(Shape profile, Shape path, Shape? guide) =>
+        guide is null && Math.Abs(TwistAngle) < 1e-12
+            ? Modeling.Sweep(profile, path)
+            : Modeling.SweepGuided(profile, path, guide, TwistAngle * Math.PI / 180);
 
     public override void Execute(RebuildContext ctx)
     {
@@ -28,9 +46,8 @@ public sealed class SweepFeature : Feature
         var profile = ctx.Sketch(ProfileSketchId);
 
         // The path is a sketch, or a 3D curve feature such as a helix.
-        using var wire = ctx.Curves.TryGetValue(PathSketchId, out var curve)
-            ? Modeling.Transform(curve, Transform3.Identity).Result
-            : AdvancedShapes.Wire(ctx.Sketch(PathSketchId), "The path must be one connected chain of lines and arcs, or a circle.");
+        using var wire = CurveWire(ctx, PathSketchId, "path");
+        using var guide = GuideSketchId is { Length: > 0 } g ? CurveWire(ctx, g, "guide curve") : null;
 
         if (IsSurface)
         {
@@ -39,7 +56,7 @@ public sealed class SweepFeature : Feature
             {
                 using (w)
                 {
-                    using var op = Run(() => Modeling.Sweep(w, wire), "The profile can't be swept along this path.", requireSolid: false);
+                    using var op = Run(() => SweepOne(w, wire, guide), "The profile can't be swept along this path.", requireSolid: false);
                     sheets.Add(op.Result);
                 }
             }
@@ -52,7 +69,8 @@ public sealed class SweepFeature : Feature
         foreach (var region in ProfileShapes.Regions(profile))
         {
             using var face = ProfileShapes.Face(profile.Plane, region, out var entityOfEdge);
-            using var op = Run(() => Modeling.Sweep(face, wire), "The profile can't be swept along this path. Check that the path doesn't make the profile self-intersect.");
+            using var op = Run(() => SweepOne(face, wire, guide), "The profile can't be swept along this path. Check that the path doesn't make the profile self-intersect" +
+                (guide is null ? "." : ", and that the guide curve touches the profile."));
             var solid = op.Result;
             pieces.Add((solid, ProfileShapes.NameSweep(op, solid, face, entityOfEdge, Id, "sweep", region.Key)));
         }

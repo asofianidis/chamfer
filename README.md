@@ -364,7 +364,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] STEP, IGES, and STL export; STEP and IGES import as dumb solids
 
 ### Phase 3: Advanced Part Modeling
-- [~] **Swept** Boss and Cut (with guide curves, twist) *(profile along a path with sharp or smooth corners; guide curves and twist not yet)*
+- [x] **Swept** Boss and Cut (with guide curves, twist) *(profile along a path with sharp or smooth corners, an even twist, or scaled to follow a guide curve)*
 - [~] **Lofted** Boss and Cut (guide curves, centerline, start/end constraints) *(smooth or ruled through any number of profiles; guides and end constraints not yet)*
 - [~] **Boundary** Boss and Cut *(boss, cut and surface through profiles in order, leaving and meeting the end profiles normal with a tangent length; direction-2 curves not yet)*
 - [~] 3D sketches *(polylines and splines through typed points, absolute or relative; usable as sweep paths)*

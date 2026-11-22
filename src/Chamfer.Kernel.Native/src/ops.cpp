@@ -10,6 +10,16 @@
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepLib.hxx>
+#include <BRepAdaptor_CompCurve.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepFill_TypeOfContact.hxx>
+#include <GeomAPI_Interpolate.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
+#include <Bnd_Box.hxx>
+#include <cmath>
+#include <Geom_BSplineCurve.hxx>
+#include <TColgp_HArray1OfPnt.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepFeat_MakeLinearForm.hxx>
@@ -301,17 +311,74 @@ chf_op* chf_mirror(chf_shape* s, const double* plane6, int copy) {
   });
 }
 
-chf_op* chf_sweep(chf_shape* profile, chf_shape* path, int mode) {
+// A curve winding around the spine: as the profile's orientation follows it, the profile
+// turns by `twist` radians from start to end. Frames are carried along the spine by parallel
+// transport, so the turning is even and doesn't depend on the spine's curvature.
+static TopoDS_Wire twistSpine(const TopoDS_Wire& spine, double twist) {
+  BRepAdaptor_CompCurve curve(spine);
+  const double f = curve.FirstParameter(), l = curve.LastParameter();
+  const int n = 96;
+  gp_Pnt p0;
+  gp_Vec t0;
+  curve.D1(f, p0, t0);
+  gp_Dir t(t0);
+  gp_Dir u = std::abs(t.Z()) < 0.9 ? gp_Dir(t.Crossed(gp_Dir(0, 0, 1))) : gp_Dir(t.Crossed(gp_Dir(1, 0, 0)));
+  double radius = std::max(1.0, GCPnts_AbscissaPoint::Length(curve) / 10);
+  Handle(TColgp_HArray1OfPnt) pts = new TColgp_HArray1OfPnt(1, n + 1);
+  for (int i = 0; i <= n; ++i) {
+    gp_Pnt p;
+    gp_Vec d;
+    curve.D1(f + (l - f) * i / n, p, d);
+    if (d.Magnitude() > 1e-12) {
+      gp_Dir ti(d);
+      gp_Vec uv = gp_Vec(u) - gp_Vec(ti) * gp_Vec(u).Dot(gp_Vec(ti));
+      if (uv.Magnitude() > 1e-9) u = gp_Dir(uv);
+      t = ti;
+    }
+    gp_Dir v = t.Crossed(u);
+    double a = twist * i / n;
+    gp_Vec offset = (gp_Vec(u) * std::cos(a) + gp_Vec(v) * std::sin(a)) * radius;
+    pts->SetValue(i + 1, p.Translated(offset));
+  }
+  GeomAPI_Interpolate interp(pts, Standard_False, 1e-7);
+  interp.Perform();
+  if (!interp.IsDone()) throw std::runtime_error("couldn't build the twist");
+  return BRepBuilderAPI_MakeWire(BRepBuilderAPI_MakeEdge(interp.Curve()).Edge()).Wire();
+}
+
+chf_op* chf_sweep(chf_shape* profile, chf_shape* path, int mode) { return chf_sweep_ex(profile, path, nullptr, mode, 0); }
+
+chf_op* chf_sweep_ex(chf_shape* profile, chf_shape* path, chf_shape* guide, int mode, double twist) {
   return chf_guard<chf_op*>(nullptr, [&]() -> chf_op* {
     requireShape(profile);
     requireShape(path);
     if (path->shape.ShapeType() != TopAbs_WIRE) throw std::runtime_error("sweep path must be a wire");
     TopoDS_Wire spine = TopoDS::Wire(path->shape);
+    TopoDS_Wire aux;
+    BRepFill_TypeOfContact contact = BRepFill_NoContact;
+    if (guide) {
+      requireShape(guide);
+      if (guide->shape.ShapeType() == TopAbs_WIRE) {
+        aux = TopoDS::Wire(guide->shape);
+      } else if (guide->shape.ShapeType() == TopAbs_EDGE) {
+        aux = BRepBuilderAPI_MakeWire(TopoDS::Edge(guide->shape)).Wire();
+      } else {
+        throw std::runtime_error("the guide must be a curve");
+      }
+      contact = BRepFill_ContactOnBorder; // the guide becomes an edge of the sweep; the profile's size follows it
+    } else if (std::abs(twist) > 1e-12) {
+      aux = twistSpine(spine, twist);
+    }
 
     // Pipe shells handle paths with sharp corners (right-corner transitions).
     auto pipe = [&](const TopoDS_Wire& w, bool solid) {
       auto algo = std::make_unique<BRepOffsetAPI_MakePipeShell>(spine);
-      algo->SetMode(mode == 0);
+      if (!aux.IsNull()) {
+        // Points on the guide or twist spine are matched to the path by length along it.
+        algo->SetMode(aux, Standard_True, contact);
+      } else {
+        algo->SetMode(mode == 0);
+      }
       algo->SetTransitionMode(BRepBuilderAPI_RightCorner);
       algo->Add(w, false, false);
       algo->Build();
