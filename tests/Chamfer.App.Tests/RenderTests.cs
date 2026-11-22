@@ -548,6 +548,38 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task SidePanelMovesAndHides()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            vm.LayoutFile = Path.Combine(Path.GetTempPath(), $"chamfer-layout-{Guid.NewGuid():N}.txt");
+            var pane = window.FindControl<Border>("SidePane")!;
+            var view = window.FindControl<Controls.ModelViewport>("Viewport")!;
+            double X(Visual v) => v.TranslatePoint(new Point(0, 0), window)!.Value.X;
+            Assert.True(X(pane) < X(view));
+
+            vm.TogglePanelSideCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.True(X(pane) > X(view));
+
+            window.KeyPress(Avalonia.Input.Key.F9, Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.F9, null);
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(vm.PanelHidden);
+            Assert.False(pane.IsVisible);
+
+            // Remembered for next time.
+            var next = new MainViewModel { LayoutFile = vm.LayoutFile };
+            next.LoadLayout();
+            Assert.True(next.PanelOnRight);
+            Assert.True(next.PanelHidden);
+            File.Delete(vm.LayoutFile);
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open(string theme)
     {
         Application.Current!.RequestedThemeVariant = theme == "dark" ? ThemeVariant.Dark : ThemeVariant.Light;

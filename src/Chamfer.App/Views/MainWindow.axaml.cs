@@ -92,6 +92,7 @@ public partial class MainWindow : Window
         vm.PropertyChanged += OnViewModelPropertyChanged;
         vm.PickUnderlayEdge = PickUnderlayEdge;
         Sheet.Selected = vm.DrawingSelection;
+        ApplyPanelLayout();
         ApplyTheme();
         Viewport.Camera.SetView(StandardView.Trimetric);
         OnSceneChanged(this, EventArgs.Empty);
@@ -126,6 +127,32 @@ public partial class MainWindow : Window
         {
             WireSketch();
         }
+        else if (e.PropertyName is nameof(MainViewModel.PanelOnRight) or nameof(MainViewModel.PanelHidden))
+        {
+            ApplyPanelLayout();
+        }
+    }
+
+    /// <summary>Puts the side panel on the left or right (keeping its width), or hides it.</summary>
+    private void ApplyPanelLayout()
+    {
+        if (_vm is not { } vm)
+        {
+            return;
+        }
+
+        var width = SidePane.Bounds.Width > 1 ? SidePane.Bounds.Width : 300;
+        var pane = new ColumnDefinition(vm.PanelHidden ? new GridLength(0) : new GridLength(width));
+        var view = new ColumnDefinition(GridLength.Star);
+        Workspace.ColumnDefinitions.Clear();
+        Workspace.ColumnDefinitions.AddRange(vm.PanelOnRight
+            ? [view, new ColumnDefinition(GridLength.Auto), pane]
+            : [pane, new ColumnDefinition(GridLength.Auto), view]);
+        Grid.SetColumn(SidePane, vm.PanelOnRight ? 2 : 0);
+        Grid.SetColumn(ViewArea, vm.PanelOnRight ? 0 : 2);
+        SidePane.IsVisible = !vm.PanelHidden;
+        SideSplitter.IsVisible = !vm.PanelHidden;
+        SidePane.BorderThickness = vm.PanelOnRight ? new Thickness(1, 0, 0, 0) : new Thickness(0, 0, 1, 0);
     }
 
     /// <summary>Hooks the sketch canvas up to a newly entered sketch and matches its view to the 3D camera.</summary>
@@ -425,6 +452,9 @@ public partial class MainWindow : Window
         {
             case Key.F6:
                 CycleFocus(shift);
+                break;
+            case Key.F9:
+                vm.TogglePanelCommand.Execute(null);
                 break;
             case Key.Escape:
                 vm.Escape();
