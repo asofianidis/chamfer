@@ -27,6 +27,8 @@
 #include <gp_Ax3.hxx>
 #include <gp_Circ.hxx>
 #include <gp_Elips.hxx>
+#include <Geom_BezierCurve.hxx>
+#include <TColgp_Array1OfPnt.hxx>
 #include <gp_Pln.hxx>
 
 #include <cmath>
@@ -74,6 +76,14 @@ TopoDS_Edge makeSegment(const Frame& f, int type, const double* d) {
       gp_Dir major = gp_Dir(gp_Vec(f.x) * std::cos(d[4]) + gp_Vec(f.y) * std::sin(d[4]));
       gp_Elips el(gp_Ax2(f.at(d[0], d[1]), f.normal, major), d[2], d[3]);
       return BRepBuilderAPI_MakeEdge(el).Edge();
+    }
+    case CHF_SEG_BEZIER: {
+      TColgp_Array1OfPnt poles(1, 4);
+      for (int k = 0; k < 4; ++k) poles.SetValue(k + 1, f.at(d[2 * k], d[2 * k + 1]));
+      Handle(Geom_BezierCurve) curve = new Geom_BezierCurve(poles);
+      BRepBuilderAPI_MakeEdge me(curve);
+      if (!me.IsDone()) throw std::runtime_error("degenerate spline segment");
+      return me.Edge();
     }
     default:
       throw std::runtime_error("unknown segment type");

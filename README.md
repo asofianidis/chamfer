@@ -329,7 +329,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 *Goal: fully constrained 2D sketches on a plane, at the level of the SolidWorks sketcher.*
 
 - [x] Sketch on standard planes, reference planes and planar faces *(edited normal to the plane with the part drawn behind)*
-- [~] Entities: line, centerline, rectangle (corner, center, 3-point), circle, arc (center, tangent, 3-point), polygon, slot, ellipse, spline, point *(all done except tangent arc and spline)*
+- [~] Entities: line, centerline, rectangle (corner, center, 3-point), circle, arc (center, tangent, 3-point), polygon, slot, ellipse, spline, point *(all done except tangent arc)*
 - [x] Constraint solver: coincident, horizontal, vertical, parallel, perpendicular, tangent, concentric, equal, midpoint, symmetric, fix, collinear, coradial
 - [x] Smart Dimension: linear, angular, radial, diameter, driven/driving
 - [x] Degrees-of-freedom display: under-, fully, and over-defined coloring

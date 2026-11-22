@@ -89,6 +89,13 @@ public abstract class SketchTool
                 }
 
                 break;
+            case SketchSpline sp:
+                foreach (var q in sp.Sample(Math.Max(2, n / Math.Max(1, sp.Points.Count - 1))))
+                {
+                    yield return q;
+                }
+
+                break;
             case SketchArc a:
                 for (var i = 0; i <= n; i++)
                 {

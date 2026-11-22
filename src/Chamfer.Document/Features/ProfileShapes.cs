@@ -16,6 +16,11 @@ internal static class ProfileShapes
             : result.Regions;
     }
 
+    /// <summary>The kernel segments for a loop segment: one, or a spline's Bézier pieces.</summary>
+    public static IEnumerable<ProfileSegment> ToKernelAll(LoopSegment s) => s.Kind == EntityKind.Spline
+        ? SketchSpline.BezierPieces(s.Through ?? [s.Start, s.End]).Select(b => ProfileSegment.Bezier(b.P0.X, b.P0.Y, b.P1.X, b.P1.Y, b.P2.X, b.P2.Y, b.P3.X, b.P3.Y))
+        : [ToKernel(s)];
+
     public static ProfileSegment ToKernel(LoopSegment s) => s.Kind switch
     {
         EntityKind.Line => ProfileSegment.Line(s.Start.X, s.Start.Y, s.End.X, s.End.Y),
@@ -30,12 +35,14 @@ internal static class ProfileShapes
     {
         var loops = new List<IReadOnlyList<LoopSegment>> { region.Outer.Segments };
         loops.AddRange(region.Holes.Select(h => h.Segments));
-        var face = Modeling.Face(plane, [.. loops.Select(l => (IReadOnlyList<ProfileSegment>)[.. l.Select(ToKernel)])], out var map);
+        var face = Modeling.Face(plane, [.. loops.Select(l => (IReadOnlyList<ProfileSegment>)[.. l.SelectMany(ToKernelAll)])], out var map);
         entityOfEdge = [];
-        var segs = loops.SelectMany(l => l).ToList();
-        for (var i = 0; i < segs.Count; i++)
+
+        // One kernel segment per loop segment, except splines (one per Bézier piece).
+        var owners = loops.SelectMany(l => l).SelectMany(s => ToKernelAll(s).Select(_ => s.EntityId)).ToList();
+        for (var i = 0; i < owners.Count; i++)
         {
-            entityOfEdge.TryAdd(map[i], segs[i].EntityId);
+            entityOfEdge.TryAdd(map[i], owners[i]);
         }
 
         return face;

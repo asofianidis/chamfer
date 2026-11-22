@@ -378,6 +378,7 @@ public static unsafe class Modeling
             data[o + 4] = s.E;
             data[o + 5] = s.F;
             data[o + 6] = s.G;
+            data[o + 7] = s.H;
         }
     }
 

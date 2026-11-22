@@ -75,6 +75,7 @@ public static class SketchSerializer
             EntityKind.Circle => 3,
             EntityKind.Arc => 6,
             EntityKind.Ellipse => 5,
+            EntityKind.Spline => Math.Max(4, p.Length - (p.Length % 2)),
             _ => 0,
         };
         if (p.Length < needed || p.Take(needed).Any(v => !double.IsFinite(v)))
@@ -90,6 +91,7 @@ public static class SketchSerializer
             EntityKind.Circle => new SketchCircle(At(0), p[2]),
             EntityKind.Arc => new SketchArc(At(0), At(2), At(4)),
             EntityKind.Ellipse => new SketchEllipse(At(0), At(2), p[4]),
+            EntityKind.Spline => new SketchSpline(Enumerable.Range(0, needed / 2).Select(i => At(2 * i))),
             _ => throw new JsonException($"Unknown entity kind {dto.Kind}."),
         };
         entity.Id = dto.Id;

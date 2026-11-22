@@ -114,6 +114,7 @@ public sealed class SketchCanvas : Control
     {
         SketchCircle c => [c.Center.Position - new Vec2(c.Radius, c.Radius), c.Center.Position + new Vec2(c.Radius, c.Radius)],
         SketchEllipse el => el.Sample(16),
+        SketchSpline sp => sp.Sample(4),
         SketchArc a => [a.Start.Position, a.End.Position, a.Midpoint],
         SketchLine l => [l.Start.Position, l.End.Position],
         SketchPoint p => [p.Position],
@@ -403,6 +404,22 @@ public sealed class SketchCanvas : Control
             case SketchArc a:
                 DrawArc(context, pen, a.Center.Position, a.Radius, a.StartAngle, a.Sweep);
                 break;
+            case SketchSpline sp:
+                var curve = new StreamGeometry();
+                using (var g = curve.Open())
+                {
+                    var pts = sp.Sample(12);
+                    g.BeginFigure(ToScreen(pts[0]), false);
+                    foreach (var q in pts.Skip(1))
+                    {
+                        g.LineTo(ToScreen(q));
+                    }
+
+                    g.EndFigure(false);
+                }
+
+                context.DrawGeometry(null, pen, curve);
+                break;
             case SketchEllipse el:
                 var geometry = new StreamGeometry();
                 using (var g = geometry.Open())
@@ -571,6 +588,7 @@ public sealed class SketchCanvas : Control
         SketchLine l => l.Midpoint,
         SketchCircle c => c.Center.Position + new Vec2(0, c.Radius),
         SketchEllipse el => el.PointAt(Math.PI / 2),
+        SketchSpline sp => sp.Sample(4)[sp.Sample(4).Count / 2],
         SketchArc a => a.Midpoint,
         SketchPoint p => p.Position,
         _ => Vec2.Zero,

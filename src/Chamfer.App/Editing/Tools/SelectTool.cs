@@ -225,6 +225,13 @@ public sealed class SelectTool : SketchTool
                 Translate(ellipse.Center);
                 Translate(ellipse.MajorEnd);
                 break;
+            case SketchSpline spline:
+                foreach (var p in spline.Points)
+                {
+                    Translate(p);
+                }
+
+                break;
             case SketchArc arc:
                 Translate(arc.Center);
                 Translate(arc.Start);
