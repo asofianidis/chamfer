@@ -352,4 +352,26 @@ public class PartWorkflowTests
         vm.VisibleFeatureCommands.Single(c => c.Label == "Cut List").Command.Execute(null);
         Assert.Equal(2, vm.Editor!.Fields.OfType<InfoField>().Count());
     }
+
+    [Fact]
+    public void ComponentPatternFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var seed = Assert.Single(vm.AssemblyDoc!.Components);
+        vm.SetSelection([new SelectionItem(SelectionKind.Feature, FeatureId: seed.Id, Label: seed.Name, ComponentId: seed.Id)]);
+        vm.AssemblyCommands.Single(c => c.Label == "Linear Pattern").Command.Execute(null);
+        var instances = vm.Editor!.Fields.OfType<NumberField>().Single(f => f.Label == "Instances");
+        instances.Text = "4";
+        instances.Commit();
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(4, vm.AssemblyDoc.Components.Count);
+        Assert.Equal(150, vm.AssemblyDoc.Components[^1].Transform.Tx - seed.Transform.Tx, 1e-6);
+        Assert.Equal(3, vm.AssemblyDoc.Mates.Count(m => m.Type == Chamfer.Assembly.MateType.Lock));
+
+        vm.UndoCommand.Execute(null);
+        Assert.Single(vm.AssemblyDoc.Components);
+    }
 }

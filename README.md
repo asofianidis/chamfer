@@ -235,7 +235,8 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Action | How |
 |---|---|
 | Start | **New Assembly**, then **Insert Component** for saved parts. The first component is fixed. |
-| Mate | Select a face or edge on each of two components, then **Mate**. The panel suggests a type (coincident, concentric, distance, angle, parallel, perpendicular, tangent, lock) and alignment, and previews live. The status bar shows the remaining degrees of freedom. |
+| Mate | Select a face or edge on each of two components, then **Mate**. The panel suggests a type (coincident, concentric, distance, angle, parallel, perpendicular, tangent, lock) and alignment, and previews live. Advanced types: **Symmetric** (third entity is the symmetry plane), **Width** (tab faces first, slot faces third and fourth), **Limit Distance/Angle** (minimum and maximum), **Gear** (ratio), **Rack Pinion** (mm per radian) and **Screw** (pitch). The status bar shows the remaining degrees of freedom. |
+| Patterns | Select a component, then **Linear Pattern** (direction, spacing, instances) or **Circular Pattern** (axis, instances). Copies are locked to the seed. |
 | Move | **Move** translates or rotates the selected component; **Fix / Float** toggles whether it can move. |
 | Evaluate | **Interference** lists overlapping components and volumes; **Bill of Materials** lists parts, quantities and masses; **Explode** spreads the components apart. |
 | Edit parts | **Open Part** edits the selected component's part; **Back to Assembly** returns. |
@@ -370,13 +371,13 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Assembly document (`.chasm`), insert components, subassemblies *(subassemblies not yet)*
 - [x] Assembly solver for 3D mate constraints *(Levenberg–Marquardt over component placements, with DOF from the Jacobian rank and conflict reporting)*
 - [x] **Standard mates**: coincident, parallel, perpendicular, tangent, concentric, lock, distance, angle
-- [ ] **Advanced mates**: limit distance and angle, width, symmetric, path, linear/linear coupler
-- [ ] **Mechanical mates**: gear, rack and pinion, cam, hinge, screw, universal joint, slot
+- [~] **Advanced mates**: limit distance and angle, width, symmetric, path, linear/linear coupler *(limit distance/angle, width, symmetric)*
+- [~] **Mechanical mates**: gear, rack and pinion, cam, hinge, screw, universal joint, slot *(gear, rack and pinion, screw)*
 - [ ] Mate references, SmartMates (drag-to-mate)
 - [~] Move and rotate component with collision detection *(numeric move/rotate; drag and collision detection not yet)*
 - [~] Interference detection, clearance verification *(interference volumes)*
 - [~] Exploded views and explode lines *(automatic radial explode)*
-- [ ] Component patterns, mirror components
+- [~] Component patterns, mirror components *(linear and circular component patterns)*
 - [ ] In-context (top-down) design with external references
 - [ ] Assembly features: cuts and holes
 - [x] Bill of Materials data model
@@ -472,7 +473,7 @@ A high-level tracker against SolidWorks capability areas.
 | Part features | Extrude, revolve, fillet, chamfer, shell, hole wizard, patterns | 2 | 🟩 Working, with a few options missing |
 | Advanced part | Sweep, loft, boundary, multibody, curves | 3 | 🟨 Sweep, loft, rib, multibody |
 | Parametrics | Equations, global variables, configurations, design tables | 3 | 🟩 Done |
-| Assemblies | Standard, advanced, and mechanical mates; exploded views | 4 | 🟨 Standard mates, BOM, interference, explode |
+| Assemblies | Standard, advanced, and mechanical mates; exploded views | 4 | 🟨 Standard, advanced and gear/rack/screw mates, component patterns, BOM, interference, explode |
 | Large assemblies | Lightweight, Large Design Review | 4, 11 | ⬜ |
 | Drawings | Views, dimensions, GD&T, BOM, tables | 5 | 🟨 Part and assembly drawings, sections, details, dimensions, BOM, balloons, export |
 | Surfacing | Surface features, knit, trim, analysis | 6 | 🟨 Core surfaces, knit, thicken |

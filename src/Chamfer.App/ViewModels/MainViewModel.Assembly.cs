@@ -50,6 +50,8 @@ public sealed partial class MainViewModel
         new("Insert Component", "Insert a saved part", new AsyncRelayCommand(InsertComponent), "⊕"),
         new("Toolbox", "Insert standard screws, bolts, nuts and washers", new RelayCommand(StartToolbox), "⚙"),
         new("Mate", "Mate two faces or edges", new RelayCommand(StartMate), "⫘"),
+        new("Linear Pattern", "Copy the selected component along an axis", new RelayCommand(() => StartComponentPattern(circular: false)), "⋯"),
+        new("Circular Pattern", "Copy the selected component around an axis", new RelayCommand(() => StartComponentPattern(circular: true)), "⟳"),
         new("Move", "Move or rotate the selected component", new RelayCommand(StartMove), "✥"),
         new("Fix / Float", "Fix the selected component in place, or let it move", new RelayCommand(ToggleFixed), "⚓"),
         new("Interference", "Find overlapping components", new RelayCommand(ShowInterference), "⧉"),
@@ -198,7 +200,7 @@ public sealed partial class MainViewModel
         {
             asm.RestoreFrom(before);
             asm.Mates.RemoveAll(m => m.Id == "pending");
-            if (panel?.Fields.OfType<SelectionField>().ToList() is not [var fa, var fb] || fa.Items.Count == 0 || fb.Items.Count == 0)
+            if (panel?.Fields.OfType<SelectionField>().ToList() is not [var fa, var fb, var fc, var fd] || fa.Items.Count == 0 || fb.Items.Count == 0)
             {
                 RebuildAndRefresh();
                 return;
@@ -206,14 +208,26 @@ public sealed partial class MainViewModel
 
             var a = ToMateRef(fa.Items[0]);
             var b = ToMateRef(fb.Items[0]);
-            if (a is null || b is null || a.ComponentId == b.ComponentId)
+            if (a is null || b is null || (a.ComponentId == b.ComponentId && mate.Type != MateType.Width))
             {
                 panel.Message = "Pick faces or edges on two different components.";
                 RebuildAndRefresh();
                 return;
             }
 
-            var added = asm.AddMate(mate.Type, a, b, mate.Value, mate.Aligned);
+            var c = fc.Items.Count > 0 ? ToMateRef(fc.Items[0]) : null;
+            var d = fd.Items.Count > 0 ? ToMateRef(fd.Items[0]) : null;
+            if ((mate.Type == MateType.Symmetric && c is null) || (mate.Type == MateType.Width && (c is null || d is null)))
+            {
+                panel.Message = mate.Type == MateType.Symmetric ? "Pick the symmetry plane as the third entity." : "Pick the two slot faces as the third and fourth entities.";
+                RebuildAndRefresh();
+                return;
+            }
+
+            var added = asm.AddMate(mate.Type, a, b, mate.Value, mate.Type is MateType.Gear or MateType.RackPinion or MateType.Screw ? !mate.Aligned : mate.Aligned);
+            added.C = c;
+            added.D = d;
+            added.Value2 = Math.Max(mate.Value, mate.Value2);
             added.Id = "pending";
             RebuildAndRefresh();
             panel.Message = _lastSolve is { Converged: false } ? "These mates conflict or can't be satisfied." : null;
@@ -238,9 +252,14 @@ public sealed partial class MainViewModel
             mate.Type = types[i];
             Preview();
         }));
-        panel.AddField(new NumberField("Distance / angle", string.Empty, () => mate.Value, v =>
+        panel.AddField(new NumberField("Distance / angle / ratio", string.Empty, () => mate.Value, v =>
         {
             mate.Value = v;
+            Preview();
+        }));
+        panel.AddField(new NumberField("Maximum (limit mates)", string.Empty, () => mate.Value2, v =>
+        {
+            mate.Value2 = v;
             Preview();
         }));
         panel.AddField(new BoolField("Flip alignment", false, v =>
@@ -251,6 +270,8 @@ public sealed partial class MainViewModel
         var kinds = new[] { SelectionKind.Face, SelectionKind.Edge };
         var first = panel.AddField(new SelectionField("First entity", kinds, picks.Take(1), _ => Preview(), max: 1));
         var second = panel.AddField(new SelectionField("Second entity", kinds, picks.Skip(1).Take(1), _ => Preview(), max: 1));
+        panel.AddField(new SelectionField("Symmetry plane / slot face", kinds, picks.Skip(2).Take(1), _ => Preview(), max: 1));
+        panel.AddField(new SelectionField("Second slot face", kinds, picks.Skip(3).Take(1), _ => Preview(), max: 1));
 
         // Pre-pick the alignment and the closest sensible type for the current selection.
         if (picks.Count >= 2 && ToMateRef(picks[0]) is { } ra && ToMateRef(picks[1]) is { } rb)
@@ -319,6 +340,74 @@ public sealed partial class MainViewModel
         }
 
         Editor = panel;
+    }
+
+    private void StartComponentPattern(bool circular)
+    {
+        if (AssemblyDoc is not { } asm || SelectedComponent() is not { } seed)
+        {
+            MessageText = "Select a component to pattern.";
+            return;
+        }
+
+        CancelEditor();
+        var before = asm.Save();
+        var axes = new[] { Vec3.UnitX, Vec3.UnitY, Vec3.UnitZ };
+        var axis = circular ? 2 : 0;
+        var spacing = 50.0;
+        var count = circular ? 6 : 3;
+
+        void Preview()
+        {
+            asm.RestoreFrom(before);
+            var s = asm.Find(seed.Id)!;
+            if (circular)
+            {
+                asm.CircularPattern(s, Vec3.Zero, axes[axis], Math.Max(2, count));
+            }
+            else
+            {
+                asm.LinearPattern(s, axes[axis], spacing, Math.Max(2, count));
+            }
+
+            RebuildAndRefresh();
+        }
+
+        var panel = FeatureEditor.Command(circular ? "Circular Component Pattern" : "Linear Component Pattern", Preview,
+            accept: () =>
+            {
+                _undo.Push("asm:" + before);
+                _redo.Clear();
+                _dirty = true;
+                UndoCommand.NotifyCanExecuteChanged();
+            },
+            cancel: () =>
+            {
+                asm.RestoreFrom(before);
+                RebuildAndRefresh();
+            });
+        panel.AddField(new ChoiceField(circular ? "Axis (through origin)" : "Direction", ["X", "Y", "Z"], axis, i =>
+        {
+            axis = i;
+            Preview();
+        }));
+        if (!circular)
+        {
+            panel.AddField(new NumberField("Spacing", "mm", () => spacing, v =>
+            {
+                spacing = v;
+                Preview();
+            }));
+        }
+
+        panel.AddField(new NumberField("Instances", string.Empty, () => count, v =>
+        {
+            count = (int)Math.Round(v);
+            Preview();
+        }, 2, wholeNumber: true));
+        panel.AddField(new InfoField("Copies", "Copies are locked to the seed and move with it."));
+        Editor = panel;
+        Preview();
     }
 
     private void ToggleFixed()
