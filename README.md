@@ -378,7 +378,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Library features *(save sketches and the features on them; insert onto any face or plane)*
 - [~] Appearances, decals, scenes *(body colours; render scenes: daylight, studio, sunset, overcast; decals not yet)*
 - [x] Section view, display states *(section view with capped cut faces; hide/show components and named display states in assemblies)*
-- [~] Interactive feature editing via drag handles (Instant3D-style) *(drag the arrow to set an extrusion's depth)*
+- [x] Interactive feature editing via drag handles (Instant3D-style) *(drag arrows to set extrusion and hole depths, fillet radii, chamfer distances and shell thickness)*
 
 ### Phase 4: Assemblies
 - [x] Assembly document (`.chasm`), insert components, subassemblies *(rigid subassemblies: mate to their faces, one BOM line, edit in place, nested Pack and Go)*

@@ -1,3 +1,4 @@
+using Chamfer.Document;
 using Chamfer.Document.Features;
 using Chamfer.Geometry;
 using Chamfer.Viewport;
@@ -53,44 +54,92 @@ public sealed partial class MainViewModel
     private void AddHandle(Scene scene)
     {
         _handle = null;
-        if (Editor?.Feature is not ExtrudeFeature ex || !Document.State.Sketches.TryGetValue(ex.SketchId, out var sketch))
+        if (Editor?.Feature is not { } feature || HandleFor(feature) is not { } h)
         {
             return;
         }
 
-        var depthField = Editor.Fields.OfType<NumberField>().FirstOrDefault(f => f.Label == "Depth");
-        if (depthField is null)
+        var field = Editor.Fields.OfType<NumberField>().FirstOrDefault(f => f.Label == h.Field);
+        if (field is null)
         {
             return;
         }
 
-        // From the middle of the sketch, along the extrusion.
-        var pts = sketch.Sketch.Entities.SelectMany(en => en.Points).Select(p => sketch.Plane.ToWorld(p.X, p.Y)).ToList();
-        if (pts.Count == 0)
+        var dir = h.Direction.Normalized();
+        _handle = (h.Base, dir, 1.0, h.Read, v =>
         {
-            return;
-        }
-
-        var center = pts.Aggregate(Vec3.Zero, (a, b) => a + b) / pts.Count;
-        var dir = sketch.Plane.Normal * (ex.Reverse ? -1 : 1);
-        var scale = 1.0;
-        if (ex.EndCondition != EndCondition.Blind)
-        {
-            return; // only blind depths are dragged
-        }
-
-        _handle = (center, dir, scale, () => ex.Depth, v =>
-        {
-            depthField.Text = v.ToString(System.Globalization.CultureInfo.InvariantCulture) + "mm"; // explicit: the field may show inches
-            depthField.Commit();
+            field.Text = v.ToString(System.Globalization.CultureInfo.InvariantCulture) + "mm"; // explicit: the field may show inches
+            field.Commit();
         });
 
-        var tip = center + (dir * (ex.Depth * scale));
+        var tip = h.Base + (dir * h.Read());
         var size = Math.Max(5, scene.Bounds.Diagonal * 0.12);
         var head = tip + (dir * size);
         var side = dir.AnyPerpendicular().Normalized() * (size * 0.2);
         var color = Rgba.FromHex(0xF59E0B);
         scene.Lines.Add(new LineItem { Points = [tip, head], Color = color, Width = 4, PickId = HandlePickId, OnTop = true });
         scene.Lines.Add(new LineItem { Points = [head - (dir * (size * 0.35)) + side, head, head - (dir * (size * 0.35)) - side], Color = color, Width = 3, PickId = HandlePickId, OnTop = true });
+    }
+
+    /// <summary>
+    /// Where a feature's size handle sits: the point the size is measured from, the way it grows,
+    /// the size now, and the panel field it sets. Null when the feature has no draggable size.
+    /// </summary>
+    private (Vec3 Base, Vec3 Direction, Func<double> Read, string Field)? HandleFor(Feature feature)
+    {
+        var before = Document.StateBefore(feature);
+        (Body Body, int Edge)? Edge(TopoRef? r) =>
+            r is null ? null : before.Bodies.FirstOrDefault(b => b.HasEdge(r.Name)) is { } b ? (b, b.ResolveEdge(r, out _)) : null;
+        (Body Body, int Face)? Face(TopoRef? r) =>
+            r is null ? null : before.Bodies.FirstOrDefault(b => b.HasFace(r.Name)) is { } b ? (b, b.ResolveFace(r, out _)) : null;
+
+        // Out from the middle of an edge, between its two faces (the way a fillet or chamfer grows).
+        (Vec3, Vec3)? FromEdge(TopoRef? r)
+        {
+            if (Edge(r) is not { } e)
+            {
+                return null;
+            }
+
+            var normals = e.Body.Shape.FacesOfEdge(e.Edge).Select(f => e.Body.Face(f).Normal).ToList();
+            var outward = normals.Aggregate(Vec3.Zero, (a, n) => a + n);
+            return outward.LengthSquared < 1e-12 ? null : (e.Body.Edge(e.Edge).Midpoint, outward);
+        }
+
+        switch (feature)
+        {
+            case ExtrudeFeature ex when ex.EndCondition == EndCondition.Blind && before.Sketches.TryGetValue(ex.SketchId, out var sketch):
+            {
+                // From the middle of the sketch, along the extrusion.
+                var pts = sketch.Sketch.Entities.SelectMany(en => en.Points).Select(p => sketch.Plane.ToWorld(p.X, p.Y)).ToList();
+                if (pts.Count == 0)
+                {
+                    return null;
+                }
+
+                var center = pts.Aggregate(Vec3.Zero, (a, b) => a + b) / pts.Count;
+                return (center, sketch.Plane.Normal * (ex.Reverse ? -1 : 1), () => ex.Depth, "Depth");
+            }
+
+            case FilletFeature fil when fil.EndRadius is null && FromEdge(fil.Edges.FirstOrDefault()) is var (filletAt, filletDir):
+                return (filletAt, filletDir, () => fil.Radius, "Radius");
+
+            case ChamferFeature ch when FromEdge(ch.Edges.FirstOrDefault()) is var (chamferAt, chamferDir):
+                return (chamferAt, chamferDir, () => ch.Distance, "Distance");
+
+            case ShellFeature sh when Face(sh.FacesToRemove.FirstOrDefault()) is { } open:
+            {
+                // From the open face, into the part: the wall grows inward.
+                var info = open.Body.Face(open.Face);
+                return (info.Centroid, info.Normal * (sh.Outward ? 1 : -1), () => sh.Thickness, "Thickness");
+            }
+
+            case HoleFeature hole when hole.EndCondition == EndCondition.Blind && before.Sketches.TryGetValue(hole.SketchId, out var at)
+                && at.Sketch.Entities.OfType<Chamfer.Sketching.Entities.SketchPoint>().FirstOrDefault(p => !p.IsConstruction) is { } first:
+                return (at.Plane.ToWorld(first.Position.X, first.Position.Y), -at.Plane.Normal, () => hole.Depth, "Depth");
+
+            default:
+                return null;
+        }
     }
 }
