@@ -641,6 +641,14 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             DrawingTables.DrawRevisionTable(g, revisions);
         }
 
+        foreach (var table in sheet.Tables.Where(t => doc.IsLayerVisible(t.Layer)))
+        {
+            g.CurrentLayer = table.Layer;
+            DrawingTables.DrawGeneralTable(g, table);
+        }
+
+        g.CurrentLayer = null;
+
         foreach (var n in sheet.Notes.Where(n => doc.IsLayerVisible(n.Layer)))
         {
             g.CurrentLayer = n.Layer;

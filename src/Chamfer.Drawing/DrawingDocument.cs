@@ -246,6 +246,8 @@ public sealed class Sheet
 
     public List<HoleTable> HoleTables { get; set; } = [];
 
+    public List<GeneralTable> Tables { get; set; } = [];
+
     public RevisionTable? Revisions { get; set; }
 
     public (double Width, double Height) Dimensions2D

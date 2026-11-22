@@ -57,6 +57,7 @@ public sealed partial class MainViewModel
         new("Datum Target", "Datum target point or area with its label", new RelayCommand(StartDatumTarget), "⊗"),
         new("BOM Table", "Bill of materials table (assembly drawings)", new RelayCommand(AddBomTable), "☰"),
         new("Hole Table", "Table of the holes in the selected view", new RelayCommand(StartHoleTable), "⊕"),
+        new("General Table", "A table of your own text", new RelayCommand(StartGeneralTable), "▦"),
         new("Add Revision", "Add a row to the revision table", new RelayCommand(StartRevision), "Ⓡ"),
         new("Auto Balloon", "Number the parts in the selected view (assembly drawings)", new RelayCommand(AutoBalloon), "①"),
         new("Add Sheet", "Add another sheet", new RelayCommand(AddSheet), "⊞"),
@@ -632,6 +633,33 @@ public sealed partial class MainViewModel
         Editor = panel;
     }
 
+    private void StartGeneralTable()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var table = new GeneralTable { Id = d.NextId("table"), Layer = ActiveLayer };
+        var contents = new CodeField("Contents", "ITEM | NOTE\n1 | \n2 | ");
+        var panel = FeatureEditor.Info("General Table");
+        panel.AddInfo(contents);
+        panel.AddInfo(new InfoField("How", "One row per line; separate cells with |. The first row is the header. Then click where the table's top-left corner goes."));
+        HintText = "Click where the table's top-left corner goes.";
+        _pendingSheetClick = at =>
+        {
+            SnapshotDrawing();
+            table.Rows = GeneralTable.Parse(contents.Text);
+            (table.X, table.Y) = (at.X, at.Y);
+            sheet.Tables.Add(table);
+            Editor = null;
+            HintText = string.Empty;
+            RefreshDrawing();
+        };
+        Editor = panel;
+    }
+
     private void StartWeldSymbol()
     {
         if (DrawingDoc is not { } d || CurrentSheet is not { } sheet)
@@ -916,6 +944,7 @@ public sealed partial class MainViewModel
         sheet.Datums.RemoveAll(d => DrawingSelection.Contains(d.Id));
         sheet.Finishes.RemoveAll(f => DrawingSelection.Contains(f.Id));
         sheet.Welds.RemoveAll(w => DrawingSelection.Contains(w.Id));
+        sheet.Tables.RemoveAll(t => DrawingSelection.Contains(t.Id));
         sheet.DatumTargets.RemoveAll(t => DrawingSelection.Contains(t.Id));
         sheet.HoleTables.RemoveAll(t => DrawingSelection.Contains(t.Id));
         if (DrawingSelection.Contains("revisions"))

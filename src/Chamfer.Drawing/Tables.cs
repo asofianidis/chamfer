@@ -31,6 +31,31 @@ public sealed class Revision
 }
 
 /// <summary>The sheet's revision history table.</summary>
+/// <summary>A general table: any text in rows and columns, the first row as its header.</summary>
+public sealed class GeneralTable
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string? Layer { get; set; }
+
+    /// <summary>Top-left corner of the table on the sheet (mm).</summary>
+    public double X { get; set; }
+
+    public double Y { get; set; }
+
+    /// <summary>The cells, row by row; the first row is drawn as the header.</summary>
+    public List<List<string>> Rows { get; set; } = [];
+
+    /// <summary>Reads rows from text: one row per line, cells separated by "|".</summary>
+    public static List<List<string>> Parse(string text) =>
+        [.. (text ?? string.Empty).Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n')
+            .Where(line => line.Trim().Length > 0)
+            .Select(line => line.Split('|').Select(c => c.Trim()).ToList())];
+
+    /// <summary>The rows as text (the inverse of <see cref="Parse"/>).</summary>
+    public string Format() => string.Join('\n', Rows.Select(r => string.Join(" | ", r)));
+}
+
 public sealed class RevisionTable
 {
     /// <summary>Top-left corner on the sheet (mm).</summary>
@@ -148,6 +173,23 @@ public static class DrawingTables
         g.Text(new Point2(table.X, table.Y + 2), "REVISIONS", 3, owner: "revisions");
         Grid(g, "revisions", table.X, table.Y, [12, 70, 24, 24], ["REV", "DESCRIPTION", "DATE", "APPROVED"],
             [.. table.Rows.Select(r => (IReadOnlyList<string>)[r.Rev, r.Description, r.Date, r.Approved])]);
+    }
+
+    /// <summary>A general table, its columns sized to their longest text.</summary>
+    public static void DrawGeneralTable(SheetGraphics g, GeneralTable table)
+    {
+        ArgumentNullException.ThrowIfNull(g);
+        ArgumentNullException.ThrowIfNull(table);
+        if (table.Rows.Count == 0)
+        {
+            return;
+        }
+
+        var columns = table.Rows.Max(r => r.Count);
+        var widths = Enumerable.Range(0, columns)
+            .Select(c => Math.Max(12, (table.Rows.Max(r => c < r.Count ? r[c].Length : 0) * 2.0) + 4))
+            .ToArray();
+        Grid(g, table.Id, table.X, table.Y, widths, [.. table.Rows[0]], [.. table.Rows.Skip(1).Select(r => (IReadOnlyList<string>)r)]);
     }
 
     /// <summary>A ruled table with a header row; text columns after the first are left-aligned.</summary>
