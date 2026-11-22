@@ -801,6 +801,13 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new InfoField("Positions", "A copy goes at every sketch point, keeping the seed's offset from the sketch plane."));
                 break;
 
+            case VariablePatternFeature vp:
+                ed.Add(new SelectionField("Extrusion to repeat", FeatureKinds, doc.Find(vp.SeedId) is ExtrudeFeature seedFeature ? [SelectionItem.ForFeature(seedFeature)] : [],
+                    items => Set(() => vp.SeedId = items.Select(i => doc.Find(i.FeatureId!)).OfType<ExtrudeFeature>().LastOrDefault()?.Id ?? string.Empty), max: 1));
+                ed.Add(new TextField("Instances (x,y,depth,scale | ...)", vp.Format(), text => Set(() => vp.Instances = VariablePatternFeature.Parse(text))));
+                ed.Add(new InfoField("Instances", "Offsets in the seed sketch's plane; scale sizes the profile about its centre (1 keeps it)."));
+                break;
+
             case TablePatternFeature tp:
                 ed.Add(SeedsField(doc, tp, isNew, selection, Set));
                 ed.Add(new SelectionField("Plane (X/Y directions)", Planes, [PlaneItem(doc, tp.Plane)], items => Set(() => tp.Plane = Last(items)?.AsPlane() ?? PlaneRef.Front), max: 1));

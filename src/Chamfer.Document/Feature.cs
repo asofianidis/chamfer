@@ -70,6 +70,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(DeformFeature), "deform")]
 [JsonDerivedType(typeof(SurfaceEditFeature), "surface-edit")]
 [JsonDerivedType(typeof(ReplaceFaceFeature), "replace-face")]
+[JsonDerivedType(typeof(VariablePatternFeature), "variable-pattern")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
 [JsonDerivedType(typeof(CombineFeature), "combine")]
 [JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]

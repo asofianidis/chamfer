@@ -306,3 +306,97 @@ public sealed class FillPatternFeature : PatternFeatureBase
         }
     }
 }
+
+/// <summary>One instance of a variable pattern: where it goes and how its seed changes.</summary>
+/// <param name="X">Offset along the sketch plane's X (mm).</param>
+/// <param name="Y">Offset along its Y (mm).</param>
+/// <param name="Depth">The extrusion's depth for this instance (mm).</param>
+/// <param name="Scale">The profile's size against the seed's (1 = the same).</param>
+public sealed record VariableInstance(double X, double Y, double Depth, double Scale = 1);
+
+/// <summary>
+/// Variable pattern: copies an extruded boss or cut to a table of places, each with its own depth and
+/// profile size, so rows of features can differ (deeper holes further out, posts getting bigger...).
+/// </summary>
+public sealed class VariablePatternFeature : Feature
+{
+    public override string DefaultName => "VarPattern";
+
+    /// <summary>The extruded boss or cut to repeat.</summary>
+    public string SeedId { get; set; } = string.Empty;
+
+    public List<VariableInstance> Instances { get; set; } = [];
+
+    public override IEnumerable<string> Dependencies => [SeedId];
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (ctx.Document.Find(SeedId) is not ExtrudeFeature seed)
+        {
+            throw new FeatureException("Pick an extruded boss or cut to repeat.");
+        }
+
+        if (Instances.Count == 0)
+        {
+            throw new FeatureException("Add at least one instance: x, y, depth and (optionally) scale.");
+        }
+
+        var sketch = ctx.Sketch(seed.SketchId);
+        var plane = sketch.Plane;
+        var dir = plane.Normal * ((seed.IsCut ? -1 : 1) * (seed.Reverse ? -1 : 1));
+        var regions = ProfileShapes.Regions(sketch);
+        var k = 0;
+        foreach (var instance in Instances)
+        {
+            k++;
+            if (instance.Depth <= 0 || instance.Scale <= 0)
+            {
+                throw new FeatureException($"Instance {k}: the depth and scale must be greater than zero.");
+            }
+
+            foreach (var region in regions)
+            {
+                // The profile, scaled about its own centre, then moved to its place.
+                using var face = ProfileShapes.Face(plane, region, out _);
+                var center = face.Bounds.Center;
+                using var scaled = Math.Abs(instance.Scale - 1) < 1e-12 ? null : Modeling.Transform(face, Transform3.Scale(center, instance.Scale));
+                var offset = (plane.XDirection * instance.X) + (plane.YDirection * instance.Y);
+                using var moved = Modeling.Transform(scaled?.Result ?? face, Transform3.Translation(offset));
+                using var prism = Modeling.Extrude(moved.Result, dir * instance.Depth);
+                var tool = prism.Result;
+                var names = Naming.Finish(tool, new string?[tool.FaceCount], $"{Id}:{k}");
+                if (seed.IsCut)
+                {
+                    ctx.RemoveMaterial(tool, names);
+                }
+                else
+                {
+                    ctx.AddMaterial(tool, names, merge: true);
+                }
+            }
+        }
+    }
+
+    /// <summary>Reads instances, one per line (or separated by |): x, y, depth and optionally scale.</summary>
+    public static List<VariableInstance> Parse(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var list = new List<VariableInstance>();
+        foreach (var line in text.Split(['\n', '|'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.Split([',', ';', ' ', '\t', '\r'], StringSplitOptions.RemoveEmptyEntries);
+            var numbers = parts.Select(p => double.TryParse(p, NumberStyles.Float, CultureInfo.InvariantCulture, out var v) ? v : (double?)null).ToList();
+            if (numbers.Count >= 3 && numbers.Take(3).All(n => n is not null))
+            {
+                list.Add(new VariableInstance(numbers[0]!.Value, numbers[1]!.Value, numbers[2]!.Value, numbers.Count > 3 && numbers[3] is { } sc ? sc : 1));
+            }
+        }
+
+        return list;
+    }
+
+    /// <summary>The instances as text, for editing.</summary>
+    public string Format() => string.Join(" | ", Instances.Select(i => string.Create(CultureInfo.InvariantCulture, $"{i.X},{i.Y},{i.Depth},{i.Scale}")));
+}
+
