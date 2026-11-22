@@ -14,9 +14,18 @@ public static class DisplayUnits
         set => Current.Value = value;
     }
 
+    private static readonly AsyncLocal<int?> CurrentDecimals = new();
+
+    /// <summary>Fixed decimal places for lengths shown, or null for as many as needed.</summary>
+    public static int? Decimals
+    {
+        get => CurrentDecimals.Value;
+        set => CurrentDecimals.Value = value;
+    }
+
     public static string Suffix => Units.Suffix(Length);
 
-    public static string Format(double mm) => Units.Format(mm, Length);
+    public static string Format(double mm) => Units.Format(mm, Length, decimals: Decimals);
 
     /// <summary>Parses a length: a bare number is in the document unit; "1in", "25 mm" and the like carry their own.</summary>
     public static bool TryParse(string text, out double mm)

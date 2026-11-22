@@ -303,6 +303,9 @@ public sealed class DrawingDocument
 
     public DraftingStandard Standard { get; set; } = DraftingStandard.Iso;
 
+    /// <summary>Fixed decimal places for dimension values, or null for as many as needed.</summary>
+    public int? Decimals { get; set; }
+
     public List<DrawingLayer> Layers { get; } = [];
 
     /// <summary>Sets the standard and the projection angle that goes with it.</summary>
@@ -608,6 +611,7 @@ public sealed class DrawingDocument
         public string? Configuration { get; set; }
         public bool FirstAngle { get; set; }
         public DraftingStandard Standard { get; set; }
+        public int? Decimals { get; set; }
         public List<DrawingLayer>? Layers { get; set; }
         public Dictionary<string, string> Properties { get; set; } = [];
         public List<Sheet> Sheets { get; set; } = [];
@@ -621,6 +625,7 @@ public sealed class DrawingDocument
         Configuration = Configuration,
         FirstAngle = FirstAngle,
         Standard = Standard,
+        Decimals = Decimals,
         Layers = Layers.Count > 0 ? Layers : null,
         Properties = Properties,
         Sheets = Sheets,
@@ -640,6 +645,7 @@ public sealed class DrawingDocument
             Configuration = dto.Configuration,
             FirstAngle = dto.FirstAngle,
             Standard = dto.Standard,
+            Decimals = dto.Decimals,
             Directory = directory,
             _nextId = dto.NextId,
         };

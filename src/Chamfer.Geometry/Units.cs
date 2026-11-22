@@ -44,10 +44,16 @@ public static class Units
     public static double FromDisplay(double value, LengthUnit unit) => value * MillimetersPer(unit);
 
     /// <summary>Formats a length in the unit, with sensible decimals (more for inches).</summary>
-    public static string Format(double mm, LengthUnit unit, bool withSuffix = false)
+    /// <summary>
+    /// A length in a unit: with <paramref name="decimals"/>, always that many decimal places (25.00);
+    /// without, as many as it needs up to the unit's precision (25, 25.4).
+    /// </summary>
+    public static string Format(double mm, LengthUnit unit, bool withSuffix = false, int? decimals = null)
     {
         var v = ToDisplay(mm, unit);
-        var text = v.ToString(unit == LengthUnit.Inch ? "0.####" : unit == LengthUnit.Meter ? "0.#####" : "0.###", CultureInfo.InvariantCulture);
+        var format = decimals is { } d ? "F" + Math.Clamp(d, 0, 8).ToString(CultureInfo.InvariantCulture)
+            : unit == LengthUnit.Inch ? "0.####" : unit == LengthUnit.Meter ? "0.#####" : "0.###";
+        var text = v.ToString(format, CultureInfo.InvariantCulture);
         return withSuffix ? text + " " + Suffix(unit) : text;
     }
 

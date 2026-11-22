@@ -78,6 +78,9 @@ public sealed class PartDocument
 
     public List<Feature> Features { get; } = [];
 
+    /// <summary>Fixed decimal places for lengths shown (dimensions, panels), or null for as many as needed.</summary>
+    public int? Decimals { get; set; }
+
     public Material Material { get; set; } = Material.Steel;
 
     /// <summary>Custom properties (Description, PartNumber, ...) shown in BOMs and title blocks.</summary>
@@ -523,6 +526,7 @@ public sealed class PartDocument
         public List<CustomProperty>? Properties { get; set; }
         public List<MateReference>? MateReferences { get; set; }
         public Geometry.LengthUnit? Units { get; set; }
+        public int? Decimals { get; set; }
         public List<FeatureFolder>? Folders { get; set; }
         public List<Feature> Features { get; set; } = [];
     }
@@ -539,6 +543,7 @@ public sealed class PartDocument
         Properties = Properties.Count > 0 ? Properties : null,
         MateReferences = MateReferences.Count > 0 ? MateReferences : null,
         Units = Units == Geometry.LengthUnit.Millimeter ? null : Units,
+        Decimals = Decimals,
         Folders = Folders.Count > 0 ? Folders : null,
         Features = Features,
     }, Options);
@@ -561,6 +566,7 @@ public sealed class PartDocument
         doc.Properties.AddRange(dto.Properties ?? []);
         doc.MateReferences.AddRange(dto.MateReferences ?? []);
         doc.Units = dto.Units ?? Geometry.LengthUnit.Millimeter;
+        doc.Decimals = dto.Decimals;
         doc.Folders.AddRange(dto.Folders ?? []);
         doc.PruneFolders();
         if (dto.Configurations is { Count: > 0 } configs)

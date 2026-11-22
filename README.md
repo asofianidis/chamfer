@@ -339,7 +339,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Convert entities, intersection curves *(model edges, face outlines, and where the sketch plane cuts the model, as fixed geometry)*
 - [x] Construction geometry
 - [x] Sketch blocks *(make, select as one, copy with their relations, explode; saved with the sketch)*
-- [~] Units, document properties, and dimension display settings *(MMGS/CGS/MKS/IPS per part; values typed with any unit suffix)*
+- [x] Units, document properties, and dimension display settings *(MMGS/CGS/MKS/IPS per part; values typed with any unit suffix; fixed decimal places for parts and drawings)*
 
 **How the sketcher works.** Each entity is a set of parameters (coordinates and radii). Each relation or dimension is one or more equations with exact derivatives, and every derivative is checked against finite differences in the tests. A Levenberg–Marquardt solver takes minimum-norm steps, so geometry the constraints don't pin down stays where you left it. Dragging uses a weighted version of the same step, so the dragged point gives way last. The status (under-, fully, or over-defined) comes from the rank of the constraint Jacobian, computed with Gram–Schmidt orthogonalization in the order relations were added. That pinpoints which relation made the sketch redundant and which parameters are still free.
 
