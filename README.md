@@ -376,7 +376,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Wrap, dome, flex, deform, indent *(wrap onto cylinders, dome, flex (twisting, tapering, stretching), point deform, indent with clearance)*
 - [x] Cosmetic threads, thread feature *(cosmetic threads on shafts and holes, shown in drawings and the 3D view; modelled ISO metric threads, external and internal)*
 - [x] Library features *(save sketches and the features on them; insert onto any face or plane)*
-- [~] Appearances, decals, scenes *(body colours)*
+- [~] Appearances, decals, scenes *(body colours; render scenes: daylight, studio, sunset, overcast; decals not yet)*
 - [x] Section view, display states *(section view with capped cut faces; hide/show components and named display states in assemblies)*
 - [~] Interactive feature editing via drag handles (Instant3D-style) *(drag the arrow to set an extrusion's depth)*
 
