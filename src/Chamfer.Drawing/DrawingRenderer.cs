@@ -599,6 +599,18 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             AnnotationGraphics.Draw(g, f);
         }
 
+        foreach (var weld in sheet.Welds.Where(x => doc.IsLayerVisible(x.Layer)))
+        {
+            g.CurrentLayer = weld.Layer;
+            AnnotationGraphics.Draw(g, weld);
+        }
+
+        foreach (var t in sheet.DatumTargets.Where(t => doc.IsLayerVisible(t.Layer)))
+        {
+            g.CurrentLayer = t.Layer;
+            AnnotationGraphics.Draw(g, t);
+        }
+
         g.CurrentLayer = null;
 
         foreach (var table in sheet.HoleTables)

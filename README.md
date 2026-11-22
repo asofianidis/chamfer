@@ -403,7 +403,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Standard 3 views, projected, auxiliary, section, detail, broken-out section, break, crop, and alternate-position views *(standard, isometric, projected, auxiliary, section with hatching, detail, break, crop)*
 - [~] Model items import (dimensions from the model), reference dimensions *(auto overall and hole dimensions anchored to model edges)*
 - [x] Ordinate, baseline, and chain dimensions; tolerances and fits *(horizontal, vertical, aligned, diameter, radius; baseline, chain and ordinate sets to hole centres; tolerance text; ISO 286 fits with limits)*
-- [~] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target *(notes, auto balloons, surface finish, datum feature)*
+- [x] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target
 - [x] **GD&T** feature control frames (ASME Y14.5 / ISO 1101) *(all 14 characteristics, Ø zones, MMC/LMC, datum references, datum feature symbols)*
 - [x] Centerlines, center marks, cosmetic threads in drawings *(automatic centre marks and centrelines; tapped holes show their thread end-on and side-on)*
 - [~] BOM tables, hole tables, revision tables, general tables *(BOM, hole and revision tables)*

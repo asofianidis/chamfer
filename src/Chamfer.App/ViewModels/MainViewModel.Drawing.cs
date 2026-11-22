@@ -53,6 +53,8 @@ public sealed partial class MainViewModel
         new("Geometric Tolerance", "Feature control frame with a leader (GD&T)", new RelayCommand(StartGeometricTolerance), "⌖"),
         new("Datum Feature", "Datum feature symbol", new RelayCommand(StartDatum), "Ⓐ"),
         new("Surface Finish", "Surface texture symbol with roughness", new RelayCommand(StartSurfaceFinish), "√"),
+        new("Weld Symbol", "Weld symbol with size and length on a leader", new RelayCommand(StartWeldSymbol), "⊿"),
+        new("Datum Target", "Datum target point or area with its label", new RelayCommand(StartDatumTarget), "⊗"),
         new("BOM Table", "Bill of materials table (assembly drawings)", new RelayCommand(AddBomTable), "☰"),
         new("Hole Table", "Table of the holes in the selected view", new RelayCommand(StartHoleTable), "⊕"),
         new("Add Revision", "Add a row to the revision table", new RelayCommand(StartRevision), "Ⓡ"),
@@ -630,6 +632,55 @@ public sealed partial class MainViewModel
         Editor = panel;
     }
 
+    private void StartWeldSymbol()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var weld = new WeldSymbol { Id = d.NextId("weld"), Layer = ActiveLayer };
+        var panel = FeatureEditor.Info("Weld Symbol");
+        panel.AddInfo(new ChoiceField("Weld", ["Fillet", "Square groove", "V groove", "Bevel groove", "Plug", "Spot"], 0, i => weld.Kind = (WeldKind)i));
+        panel.AddInfo(new TextField("Size", weld.Size, v => weld.Size = v.Trim()));
+        panel.AddInfo(new TextField("Length", weld.Length, v => weld.Length = v.Trim()));
+        panel.AddInfo(new BoolField("Other side", false, v => weld.OtherSide = v));
+        panel.AddInfo(new BoolField("Both sides", false, v => weld.BothSides = v));
+        panel.AddInfo(new BoolField("All around", false, v => weld.AllAround = v));
+        panel.AddInfo(new BoolField("Field weld", false, v => weld.FieldWeld = v));
+        panel.AddInfo(new InfoField("Place", "Click the joint, then where the reference line starts."));
+        PlaceTwoClicks((anchor, at) =>
+        {
+            (weld.AnchorX, weld.AnchorY, weld.X, weld.Y) = (anchor.X, anchor.Y, at.X, at.Y);
+            sheet.Welds.Add(weld);
+        });
+        Editor = panel;
+    }
+
+    private void StartDatumTarget()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var used = sheet.DatumTargets.Select(t => t.Label).ToHashSet();
+        var next = Enumerable.Range(1, 99).Select(n => $"A{n}").First(l => !used.Contains(l));
+        var target = new DatumTarget { Id = d.NextId("dt"), Label = next, Layer = ActiveLayer };
+        var panel = FeatureEditor.Info("Datum Target");
+        panel.AddInfo(new TextField("Label", target.Label, v => target.Label = v.Trim().ToUpperInvariant()));
+        panel.AddInfo(new TextField("Area (blank for a point)", target.Area, v => target.Area = v.Trim()));
+        panel.AddInfo(new InfoField("Place", "Click the target point, then where the bubble goes."));
+        PlaceTwoClicks((anchor, at) =>
+        {
+            (target.AnchorX, target.AnchorY, target.X, target.Y) = (anchor.X, anchor.Y, at.X, at.Y);
+            sheet.DatumTargets.Add(target);
+        });
+        Editor = panel;
+    }
+
     private void StartSurfaceFinish()
     {
         if (DrawingDoc is not { } d || CurrentSheet is not { } sheet)
@@ -864,6 +915,8 @@ public sealed partial class MainViewModel
         sheet.Tolerances.RemoveAll(t => DrawingSelection.Contains(t.Id));
         sheet.Datums.RemoveAll(d => DrawingSelection.Contains(d.Id));
         sheet.Finishes.RemoveAll(f => DrawingSelection.Contains(f.Id));
+        sheet.Welds.RemoveAll(w => DrawingSelection.Contains(w.Id));
+        sheet.DatumTargets.RemoveAll(t => DrawingSelection.Contains(t.Id));
         sheet.HoleTables.RemoveAll(t => DrawingSelection.Contains(t.Id));
         if (DrawingSelection.Contains("revisions"))
         {

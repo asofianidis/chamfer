@@ -84,6 +84,79 @@ public sealed class DatumFeature
 }
 
 /// <summary>A surface texture symbol (ISO 1302) with roughness.</summary>
+/// <summary>The weld shape a weld symbol shows (ISO 2553 / AWS A2.4 basic symbols).</summary>
+public enum WeldKind
+{
+    Fillet,
+    SquareGroove,
+    VGroove,
+    BevelGroove,
+    Plug,
+    Spot,
+}
+
+/// <summary>A weld symbol: arrow to the joint, reference line, weld shape with size and length.</summary>
+public sealed class WeldSymbol
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string? Layer { get; set; }
+
+    public WeldKind Kind { get; set; }
+
+    /// <summary>Weld size (leg or throat), written left of the symbol, e.g. "5".</summary>
+    public string Size { get; set; } = "5";
+
+    /// <summary>Weld length (and pitch), written right of the symbol, e.g. "50" or "50-100".</summary>
+    public string Length { get; set; } = string.Empty;
+
+    /// <summary>Weld on the other side of the joint (symbol above the reference line) instead of the arrow side.</summary>
+    public bool OtherSide { get; set; }
+
+    /// <summary>Both sides of the joint.</summary>
+    public bool BothSides { get; set; }
+
+    /// <summary>Weld all around (circle at the knee).</summary>
+    public bool AllAround { get; set; }
+
+    /// <summary>Field weld (flag at the knee).</summary>
+    public bool FieldWeld { get; set; }
+
+    /// <summary>Arrow tip at the joint (sheet mm).</summary>
+    public double AnchorX { get; set; }
+
+    public double AnchorY { get; set; }
+
+    /// <summary>The knee where the reference line starts (sheet mm).</summary>
+    public double X { get; set; }
+
+    public double Y { get; set; }
+}
+
+/// <summary>A datum target: a point (or area) on a part that a datum is established from.</summary>
+public sealed class DatumTarget
+{
+    public string Id { get; set; } = string.Empty;
+
+    public string? Layer { get; set; }
+
+    /// <summary>Target label, e.g. "A1", written in the lower half of the bubble.</summary>
+    public string Label { get; set; } = "A1";
+
+    /// <summary>Target area size, e.g. "⌀6", in the upper half; empty for a point target.</summary>
+    public string Area { get; set; } = string.Empty;
+
+    /// <summary>The target point (sheet mm), marked with an X.</summary>
+    public double AnchorX { get; set; }
+
+    public double AnchorY { get; set; }
+
+    /// <summary>Centre of the bubble (sheet mm).</summary>
+    public double X { get; set; }
+
+    public double Y { get; set; }
+}
+
 public sealed class SurfaceFinish
 {
     public string Id { get; set; } = string.Empty;
@@ -228,6 +301,106 @@ public static class AnnotationGraphics
         var barEnd = right + new Point2(Math.Max(8, TextWidth(s.Roughness) * 0.8), 0);
         g.Line(Pen.Thin, right, barEnd, s.Id);
         g.Text(new Point2(right.X + 0.5, right.Y - 3.2), s.Roughness, 2.5, owner: s.Id);
+    }
+
+    public static void Draw(SheetGraphics g, WeldSymbol w)
+    {
+        ArgumentNullException.ThrowIfNull(g);
+        ArgumentNullException.ThrowIfNull(w);
+        var tip = new Point2(w.AnchorX, w.AnchorY);
+        var knee = new Point2(w.X, w.Y);
+        var leftward = knee.X < tip.X; // the reference line runs away from the arrow
+        var run = leftward ? -1.0 : 1.0;
+        const double refLength = 24, h = 3.5;
+        g.Line(Pen.Thin, tip, knee, w.Id);
+        if (Point2.Distance(tip, knee) > 1e-9)
+        {
+            g.Arrow(tip, (tip - knee).Normalized(), 3, w.Id);
+        }
+
+        var end = knee + new Point2(run * refLength, 0);
+        g.Line(Pen.Thin, knee, end, w.Id);
+
+        // The symbol sits mid-line: below for the arrow side, above for the other side.
+        var mid = knee + new Point2(run * refLength * 0.45, 0);
+        var sides = w.BothSides ? new[] { -1.0, 1.0 } : [w.OtherSide ? 1.0 : -1.0];
+        foreach (var side in sides)
+        {
+            Shape(g, w.Kind, mid, side, h, w.Id);
+            var textY = side > 0 ? mid.Y + 0.6 : mid.Y - h - 0.6;
+            g.Text(new Point2(mid.X - h - 0.8, textY), w.Size, 2.5, TextAnchor.Right, owner: w.Id);
+            if (w.Length.Length > 0)
+            {
+                g.Text(new Point2(mid.X + h + 0.8, textY), w.Length, 2.5, TextAnchor.Left, owner: w.Id);
+            }
+        }
+
+        if (w.AllAround)
+        {
+            g.Circle(Pen.Thin, knee, 1.5, w.Id);
+        }
+
+        if (w.FieldWeld)
+        {
+            var pole = knee + new Point2(0, 6);
+            g.Line(Pen.Thin, knee, pole, w.Id);
+            g.Polyline(Pen.Thin, [pole, pole + new Point2(run * 3.5, -1.2), pole + new Point2(0, -2.4)], closed: true, owner: w.Id);
+        }
+    }
+
+    /// <summary>A basic weld symbol on the reference line at <paramref name="c"/>, on one side of it.</summary>
+    private static void Shape(SheetGraphics g, WeldKind kind, Point2 c, double side, double h, string owner)
+    {
+        Point2 P(double x, double y) => c + new Point2(x * h, y * h * side);
+        switch (kind)
+        {
+            case WeldKind.Fillet:
+                g.Polyline(Pen.Thin, [P(-0.5, 0), P(-0.5, 1), P(0.5, 0)], owner: owner);
+                break;
+            case WeldKind.SquareGroove:
+                g.Line(Pen.Thin, P(-0.25, 0), P(-0.25, 1), owner);
+                g.Line(Pen.Thin, P(0.25, 0), P(0.25, 1), owner);
+                break;
+            case WeldKind.VGroove:
+                g.Polyline(Pen.Thin, [P(-0.5, 1), P(0, 0), P(0.5, 1)], owner: owner);
+                break;
+            case WeldKind.BevelGroove:
+                g.Polyline(Pen.Thin, [P(-0.4, 1), P(-0.4, 0)], owner: owner);
+                g.Line(Pen.Thin, P(-0.4, 0), P(0.4, 1), owner);
+                break;
+            case WeldKind.Plug:
+                g.Polyline(Pen.Thin, [P(-0.6, 0), P(-0.6, 0.7), P(0.6, 0.7), P(0.6, 0)], owner: owner);
+                break;
+            default:
+                g.Circle(Pen.Thin, c, h * 0.45, owner);
+                break;
+        }
+    }
+
+    public static void Draw(SheetGraphics g, DatumTarget t)
+    {
+        ArgumentNullException.ThrowIfNull(g);
+        ArgumentNullException.ThrowIfNull(t);
+        const double r = 5;
+        var c = new Point2(t.X, t.Y);
+        var target = new Point2(t.AnchorX, t.AnchorY);
+        g.Circle(Pen.Thin, c, r, t.Id);
+        g.Line(Pen.Thin, c - new Point2(r, 0), c + new Point2(r, 0), t.Id);
+        g.Text(c + new Point2(0, -r * 0.75), t.Label, 2.5, TextAnchor.Center, owner: t.Id);
+        if (t.Area.Length > 0)
+        {
+            g.Text(c + new Point2(0, r * 0.2), t.Area, 2.2, TextAnchor.Center, owner: t.Id);
+        }
+
+        // Leader from the bubble's edge to an X at the target point.
+        if (Point2.Distance(c, target) > r)
+        {
+            g.Line(Pen.Thin, c + ((target - c).Normalized() * r), target, t.Id);
+        }
+
+        const double x = 1.5;
+        g.Line(Pen.Thin, target + new Point2(-x, -x), target + new Point2(x, x), t.Id);
+        g.Line(Pen.Thin, target + new Point2(-x, x), target + new Point2(x, -x), t.Id);
     }
 
     /// <summary>The characteristic symbol in a square of side <paramref name="size"/> centred on <paramref name="c"/>.</summary>

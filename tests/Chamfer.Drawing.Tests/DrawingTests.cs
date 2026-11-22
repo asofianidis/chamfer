@@ -282,6 +282,30 @@ public class DrawingTests
     }
 
     [Fact]
+    public void WeldSymbolsAndDatumTargets()
+    {
+        var (part, _) = Part();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        sheet.Welds.Add(new WeldSymbol { Id = "w1", Kind = WeldKind.Fillet, Size = "6", Length = "50", AnchorX = 100, AnchorY = 100, X = 120, Y = 115, AllAround = true, FieldWeld = true });
+        sheet.Welds.Add(new WeldSymbol { Id = "w2", Kind = WeldKind.VGroove, Size = "8", BothSides = true, AnchorX = 200, AnchorY = 100, X = 180, Y = 115 });
+        sheet.DatumTargets.Add(new DatumTarget { Id = "t1", Label = "A1", Area = "⌀6", AnchorX = 150, AnchorY = 60, X = 165, Y = 75 });
+        var g = new DrawingRenderer(drawing).Render(sheet);
+        List<Primitive> Of(string id) => [.. g.Items.Where(i => g.Owners.TryGetValue(i, out var o) && o == id)];
+
+        Assert.Contains(Of("w1").OfType<TextPrimitive>(), t => t.Text == "6");
+        Assert.Contains(Of("w1").OfType<TextPrimitive>(), t => t.Text == "50");
+        Assert.Equal(2, Of("w2").OfType<TextPrimitive>().Count(t => t.Text == "8")); // both sides
+        Assert.Contains(Of("t1").OfType<TextPrimitive>(), t => t.Text == "A1");
+        Assert.Contains(Of("t1").OfType<TextPrimitive>(), t => t.Text == "⌀6");
+
+        var reloaded = DrawingDocument.Load(drawing.Save());
+        Assert.Equal(2, reloaded.Sheets[0].Welds.Count);
+        Assert.True(reloaded.Sheets[0].Welds[0].FieldWeld);
+        Assert.Equal("A1", reloaded.Sheets[0].DatumTargets.Single().Label);
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();
