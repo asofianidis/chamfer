@@ -323,6 +323,18 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Bend the other way", ef.Reverse, v => Set(() => ef.Reverse = v)));
                 break;
 
+            case HemFeature hm:
+                ed.Add(new SelectionField("Edges", [SelectionKind.Edge], isNew ? Pre([SelectionKind.Edge]) : Refs(hm.Edges, SelectionKind.Edge),
+                    items => Set(() => hm.Edges = [.. items.Select(i => i.Ref!)])));
+                ed.Add(Num("Leg length", "mm", hm, nameof(hm.Length), 1e-6));
+                ed.Add(Num("Gap (0 = closed)", "mm", hm, nameof(hm.Gap), 0));
+                ed.Add(new BoolField("Fold the other way", hm.Reverse, v => Set(() => hm.Reverse = v)));
+                break;
+
+            case TabFeature:
+                ed.Add(new InfoField("Tab", "The sketch's closed regions become sheet of the same thickness, added to the flat pattern."));
+                break;
+
             case Sketch3DFeature s3:
                 ed.Add(new TextField("Points (x,y,z | @dx,dy,dz ...)", Sketch3DFeature.Format(s3.Points), text =>
                 {
