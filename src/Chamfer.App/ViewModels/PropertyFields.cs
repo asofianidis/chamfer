@@ -145,7 +145,9 @@ public sealed partial class ChoiceField : PropertyField
         _ready = true;
     }
 
-    public IReadOnlyList<string> Options { get; }
+    /// <summary>The choices; can change (for example the sizes of another standard).</summary>
+    [ObservableProperty]
+    public partial IReadOnlyList<string> Options { get; set; }
 
     [ObservableProperty]
     public partial int Index { get; set; }

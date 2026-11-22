@@ -180,6 +180,45 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void PipeTapHolesTaperAndInchSizesConvert()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 40));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 30 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99);
+        var (u, v) = body.Shape.FacePlane(top)!.Value.ToLocal(new Vec3(20, 20, 30));
+        var pts = new Sketch();
+        pts.AddPoint(new Vec2(u, v));
+        var ps = doc.Add(new SketchFeature { Plane = new PlaneRef(Face: body.FaceRef(top)), Sketch = pts });
+        var size = HoleStandards.Find("1/4 NPT")!;
+        Assert.Equal(0.4375 * 25.4, size.TapDrill, 1e-9);
+        Assert.Equal(0.540 * 25.4, size.ThreadDiameter, 1e-9);
+        doc.Add(new HoleFeature
+        {
+            SketchId = ps.Id, Standard = HoleStandards.PipeTap, Size = size.Name, Type = HoleType.PipeTap,
+            Diameter = size.TapDrill, Depth = 20, DrillPointAngle = 0,
+        });
+        doc.Rebuild();
+        AssertOk(doc);
+
+        // A 1:16 taper on diameter: a frustum from the tap drill down to 20/16 mm narrower.
+        var r1 = size.TapDrill / 2;
+        var r2 = r1 - (20.0 / 32);
+        var frustum = Math.PI * 20 / 3 * ((r1 * r1) + (r1 * r2) + (r2 * r2));
+        Assert.Equal((40 * 40 * 30) - frustum, Volume(doc), 1e-2);
+
+        // Inch screw sizes and the 82 degree countersink.
+        Assert.Equal(0.266 * 25.4, HoleStandards.Find("1/4-20")!.Clearance, 1e-9);
+        Assert.Equal(0.25 * 25.4, HoleStandards.Find("1/4-20")!.ThreadDiameter, 1e-9);
+        Assert.Equal(6, HoleStandards.Find("M6")!.ThreadDiameter);
+        Assert.Equal(82, HoleStandards.CountersinkAngle(HoleStandards.AnsiInch));
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

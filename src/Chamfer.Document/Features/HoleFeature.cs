@@ -10,6 +10,9 @@ public enum HoleType
     Counterbore,
     Countersink,
     Tapped,
+
+    /// <summary>A tapered pipe-thread hole (1:16 on diameter).</summary>
+    PipeTap,
 }
 
 /// <summary>A standard fastener size with its hole dimensions in millimetres.</summary>
@@ -19,11 +22,67 @@ public sealed record HoleSize(
     double Clearance,
     double CounterboreDiameter,
     double CounterboreDepth,
-    double CountersinkDiameter);
+    double CountersinkDiameter,
+    double Major = 0)
+{
+    /// <summary>The thread's nominal (major) diameter in mm.</summary>
+    public double ThreadDiameter => Major > 0 ? Major
+        : double.TryParse(Name.TrimStart('M'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : 0;
+}
 
-/// <summary>ISO metric hole sizes for socket head and countersunk screws (ISO 273 normal fit).</summary>
+/// <summary>
+/// Hole sizes: ISO metric (ISO 273 normal fit), ANSI inch for UNC socket head and flat head
+/// screws, and NPT pipe taps. Inch values are converted to millimetres.
+/// </summary>
 public static class HoleStandards
 {
+    public const string Iso = "ISO";
+    public const string AnsiInch = "ANSI Inch";
+    public const string PipeTap = "Pipe Tap (NPT)";
+
+    public static IReadOnlyList<string> Names { get; } = [Iso, AnsiInch, PipeTap];
+
+    private static HoleSize Inch(string name, double tap, double clearance, double cbore, double cboreDepth, double csink, double major) =>
+        new(name, tap * 25.4, clearance * 25.4, cbore * 25.4, cboreDepth * 25.4, csink * 25.4, major * 25.4);
+
+    /// <summary>UNC sizes: tap drill, normal-fit clearance, socket head counterbore and 82° countersink.</summary>
+    public static IReadOnlyList<HoleSize> Ansi { get; } =
+    [
+        Inch("#4-40", 0.0890, 0.1285, 0.2180, 0.1120, 0.255, 0.112),
+        Inch("#6-32", 0.1065, 0.1495, 0.2812, 0.1380, 0.307, 0.138),
+        Inch("#8-32", 0.1360, 0.1770, 0.3125, 0.1640, 0.359, 0.164),
+        Inch("#10-24", 0.1495, 0.2010, 0.3750, 0.1900, 0.411, 0.190),
+        Inch("1/4-20", 0.2010, 0.2660, 0.4375, 0.2500, 0.531, 0.250),
+        Inch("5/16-18", 0.2570, 0.3320, 0.5312, 0.3125, 0.656, 0.3125),
+        Inch("3/8-16", 0.3125, 0.3970, 0.6250, 0.3750, 0.781, 0.375),
+        Inch("1/2-13", 0.4219, 0.5312, 0.8125, 0.5000, 1.031, 0.500),
+        Inch("5/8-11", 0.5312, 0.6562, 1.0000, 0.6250, 1.281, 0.625),
+        Inch("3/4-10", 0.6562, 0.7812, 1.1875, 0.7500, 1.531, 0.750),
+    ];
+
+    /// <summary>NPT pipe taps: tap drill and the pipe's outside diameter (as the thread diameter).</summary>
+    public static IReadOnlyList<HoleSize> PipeTaps { get; } =
+    [
+        Inch("1/16 NPT", 0.2500, 0.2500, 0, 0, 0, 0.3125),
+        Inch("1/8 NPT", 0.3438, 0.3438, 0, 0, 0, 0.405),
+        Inch("1/4 NPT", 0.4375, 0.4375, 0, 0, 0, 0.540),
+        Inch("3/8 NPT", 0.5781, 0.5781, 0, 0, 0, 0.675),
+        Inch("1/2 NPT", 0.7188, 0.7188, 0, 0, 0, 0.840),
+        Inch("3/4 NPT", 0.9219, 0.9219, 0, 0, 0, 1.050),
+        Inch("1 NPT", 1.1562, 1.1562, 0, 0, 0, 1.315),
+    ];
+
+    /// <summary>The sizes of a standard (ISO when unknown).</summary>
+    public static IReadOnlyList<HoleSize> Sizes(string? standard) => standard switch
+    {
+        AnsiInch => Ansi,
+        PipeTap => PipeTaps,
+        _ => IsoMetric,
+    };
+
+    /// <summary>The countersink angle a standard uses (82° for inch screws, 90° metric).</summary>
+    public static double CountersinkAngle(string? standard) => standard == AnsiInch ? 82 : 90;
+
     public static IReadOnlyList<HoleSize> IsoMetric { get; } =
     [
         new("M2", 1.6, 2.4, 4.4, 2.0, 4.4),
@@ -40,7 +99,8 @@ public static class HoleStandards
         new("M24", 21.0, 26.0, 40.0, 25.5, 48.4),
     ];
 
-    public static HoleSize? Find(string name) => IsoMetric.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+    public static HoleSize? Find(string name) =>
+        IsoMetric.Concat(Ansi).Concat(PipeTaps).FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>
@@ -58,6 +118,9 @@ public sealed class HoleFeature : Feature
 
     /// <summary>Standard size this hole was configured from (informational).</summary>
     public string? Size { get; set; }
+
+    /// <summary>The standard <see cref="Size"/> comes from (see <see cref="HoleStandards.Names"/>).</summary>
+    public string Standard { get; set; } = HoleStandards.Iso;
 
     public double Diameter { get; set; } = 5;
 
@@ -162,12 +225,28 @@ public sealed class HoleFeature : Feature
                 pts.Add((rs, 0));
                 pts.Add((r, sinkDepth));
                 break;
+            case HoleType.PipeTap:
+                // Tapered 1:16 on diameter: the radius shrinks by depth / 32.
+                var bottom = r - (depth / 32);
+                if (bottom <= 0)
+                {
+                    throw new FeatureException("The pipe tap is too deep for its size.");
+                }
+
+                pts.Add((r, lead));
+                pts.Add((r, 0));
+                pts.Add((bottom, depth));
+                r = bottom;
+                break;
             default:
                 pts.Add((r, lead));
                 break;
         }
 
-        pts.Add((r, depth));
+        if (Type != HoleType.PipeTap)
+        {
+            pts.Add((r, depth));
+        }
         if (EndCondition == EndCondition.Blind && DrillPointAngle > 0 && DrillPointAngle < 180)
         {
             pts.Add((0, depth + (r / Math.Tan(DrillPointAngle * Math.PI / 360))));

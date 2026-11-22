@@ -1179,4 +1179,25 @@ public class PartWorkflowTests
         relative.Index = 1;
         Assert.NotEqual(globalCom, vm.Editor!.Fields.OfType<InfoField>().Single(f => f.Label == "Centre of mass").Text);
     }
+
+    [Fact]
+    public void HoleWizardSwitchesStandards()
+    {
+        var vm = new MainViewModel();
+        var hole = new HoleFeature();
+        vm.Document.Add(hole);
+        var panel = FeatureEditor.Create(vm.Document, hole, isNew: false, [], () => { });
+        var standard = panel.Fields.OfType<ChoiceField>().Single(f => f.Label == "Standard");
+        var size = panel.Fields.OfType<ChoiceField>().Single(f => f.Label == "Size");
+        Assert.Contains("M6", size.Options);
+
+        standard.Index = HoleStandards.Names.ToList().IndexOf(HoleStandards.AnsiInch);
+        Assert.Contains("1/4-20", size.Options);
+        Assert.Equal(82, hole.CountersinkAngle);
+
+        standard.Index = HoleStandards.Names.ToList().IndexOf(HoleStandards.PipeTap);
+        Assert.Equal(HoleType.PipeTap, hole.Type);
+        Assert.Equal("1/16 NPT", hole.Size);
+        Assert.Equal(0.25 * 25.4, hole.Diameter, 1e-9);
+    }
 }

@@ -597,18 +597,38 @@ public sealed partial class FeatureEditor : ObservableObject
                 break;
 
             case HoleFeature hole:
-                var sizes = HoleStandards.IsoMetric.Select(s => s.Name).Prepend("Custom").ToList();
-                var sizeIndex = Math.Max(0, sizes.IndexOf(hole.Size ?? "Custom"));
-                ed.Add(new ChoiceField("Type", ["Simple", "Counterbore", "Countersink", "Tapped"], (int)hole.Type, i => Set(() =>
+            {
+                List<string> HoleSizesOf(string standard) => [.. HoleStandards.Sizes(standard).Select(s => s.Name).Prepend("Custom")];
+                var sizes = HoleSizesOf(hole.Standard);
+                var holeSizeField = new ChoiceField("Size", sizes, Math.Max(0, sizes.IndexOf(hole.Size ?? "Custom")), i => Set(() =>
+                {
+                    hole.Size = i == 0 ? null : sizes[i];
+                    ApplySize(hole);
+                }));
+                ed.Add(new ChoiceField("Type", ["Simple", "Counterbore", "Countersink", "Tapped", "Pipe tap"], (int)hole.Type, i => Set(() =>
                 {
                     hole.Type = (HoleType)i;
                     ApplySize(hole);
                 })));
-                ed.Add(new ChoiceField("Size (ISO)", sizes, sizeIndex, i => Set(() =>
+                ed.Add(new ChoiceField("Standard", [.. HoleStandards.Names], Math.Max(0, HoleStandards.Names.ToList().IndexOf(hole.Standard)), i => Set(() =>
                 {
-                    hole.Size = i == 0 ? null : sizes[i];
+                    hole.Standard = HoleStandards.Names[i];
+                    if (hole.Standard == HoleStandards.PipeTap)
+                    {
+                        hole.Type = HoleType.PipeTap;
+                    }
+                    else if (hole.Type == HoleType.PipeTap)
+                    {
+                        hole.Type = HoleType.Tapped;
+                    }
+
+                    sizes = HoleSizesOf(hole.Standard);
+                    holeSizeField.Options = sizes;
+                    hole.Size = sizes.Count > 1 ? sizes[1] : null;
+                    holeSizeField.Index = hole.Size is null ? 0 : 1;
                     ApplySize(hole);
                 })));
+                ed.Add(holeSizeField);
                 ed.Add(new ChoiceField("End condition", ["Blind", "Through All"], hole.EndCondition == EndCondition.ThroughAll ? 1 : 0,
                     i => Set(() => hole.EndCondition = i == 1 ? EndCondition.ThroughAll : EndCondition.Blind)));
                 ed.Add(Num("Diameter", "mm", hole, nameof(hole.Diameter), 1e-6));
@@ -619,6 +639,7 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(Num("C'sink angle", "°", hole, nameof(hole.CountersinkAngle), 1));
                 ed.Add(new InfoField("Positions", "Hole centres are the points in the hole's position sketch."));
                 break;
+            }
 
             case LinearPatternFeature lp:
                 ed.Add(SeedsField(doc, lp, isNew, selection, Set));
@@ -830,12 +851,17 @@ public sealed partial class FeatureEditor : ObservableObject
             return;
         }
 
-        hole.Diameter = hole.Type == HoleType.Tapped ? s.TapDrill : s.Clearance;
-        hole.ThreadDiameter = hole.Type == HoleType.Tapped ? double.Parse(s.Name[1..], System.Globalization.CultureInfo.InvariantCulture) : 0;
-        hole.CounterboreDiameter = s.CounterboreDiameter;
-        hole.CounterboreDepth = s.CounterboreDepth;
-        hole.CountersinkDiameter = s.CountersinkDiameter;
-        hole.CountersinkAngle = 90;
+        var threaded = hole.Type is HoleType.Tapped or HoleType.PipeTap;
+        hole.Diameter = threaded ? s.TapDrill : s.Clearance;
+        hole.ThreadDiameter = threaded ? s.ThreadDiameter : 0;
+        if (s.CounterboreDiameter > 0)
+        {
+            hole.CounterboreDiameter = s.CounterboreDiameter;
+            hole.CounterboreDepth = s.CounterboreDepth;
+            hole.CountersinkDiameter = s.CountersinkDiameter;
+        }
+
+        hole.CountersinkAngle = HoleStandards.CountersinkAngle(hole.Standard);
     }
 
     private static SelectionField SeedsField(PartDocument doc, PatternFeatureBase p, bool isNew, IReadOnlyList<SelectionItem> selection, Action<Action> set)
