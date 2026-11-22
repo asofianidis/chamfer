@@ -464,7 +464,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] Localization (i18n)
 - [ ] Accessibility: keyboard navigation, screen-reader support for panels
 - [~] Mouse gestures, customizable shortcuts, customizable ribbon *(customisable shortcuts, command search)*
-- [ ] Auto-update (Velopack)
+- [~] Auto-update (Velopack) *(on-request check of GitHub releases; installers not yet)*
 
 ### Phase 11: Hardening
 - [x] Crash reporting with auto-save and document recovery *(auto-save every 2 minutes, crash log, recovery panel on the next start)*
