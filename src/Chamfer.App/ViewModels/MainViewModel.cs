@@ -1113,6 +1113,53 @@ public sealed partial class MainViewModel : ViewModelBase
         editor.EndChange(solve: true);
     }
 
+    /// <summary>Adds the 2D geometry of a DXF file to the sketch being edited.</summary>
+    [RelayCommand]
+    private async Task ImportDxf()
+    {
+        if (Sketch is null || StorageProvider is null)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import DXF",
+            FileTypeFilter = [new FilePickerFileType("DXF") { Patterns = ["*.dxf"] }],
+        });
+        if (files.Count == 0 || files[0].TryGetLocalPath() is not { } path)
+        {
+            return;
+        }
+
+        ImportDxfFile(path);
+    }
+
+    /// <summary>Imports a DXF file into the sketch being edited (used by the command and tests).</summary>
+    public void ImportDxfFile(string path)
+    {
+        if (Sketch is null)
+        {
+            return;
+        }
+
+        var editor = Sketch.Editor;
+        editor.BeginChange();
+        try
+        {
+            var r = Chamfer.Sketching.Serialization.DxfImport.Import(editor.Sketch, path);
+            MessageText = r.Total == 0
+                ? "No lines, arcs, circles or polylines found in the DXF file."
+                : $"Imported {r.Lines} lines, {r.Arcs} arcs, {r.Circles} circles" + (r.Skipped > 0 ? $" ({r.Skipped} other entities skipped)." : ".");
+        }
+        catch (IOException ex)
+        {
+            MessageText = $"Could not read the DXF file: {ex.Message}";
+        }
+
+        editor.EndChange(solve: true);
+    }
+
     /// <summary>Plane of the sketch being edited.</summary>
     public Plane3? EditingPlane => EditingSketch is null ? null : ResolvePlane(EditingSketch.Plane);
 
