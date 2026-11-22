@@ -485,6 +485,39 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void IndentPressesAToolIntoATarget()
+    {
+        // A 60 x 60 x 10 plate, and a separate 20 x 20 x 20 block sunk 5 into its top.
+        var doc = new PartDocument();
+        var plate = new Sketch();
+        plate.AddCornerRectangle(new Vec2(0, 0), new Vec2(60, 60));
+        var pf = doc.Add(new SketchFeature { Sketch = plate });
+        doc.Add(new ExtrudeFeature { SketchId = pf.Id, Depth = 10 });
+        var level = doc.Add(new ReferencePlaneFeature { Base = PlaneRef.Front, Offset = 5 });
+        var block = new Sketch();
+        block.AddCornerRectangle(new Vec2(20, 20), new Vec2(40, 40));
+        var bf = doc.Add(new SketchFeature { Plane = new PlaneRef(level.Id), Sketch = block });
+        doc.Add(new ExtrudeFeature { SketchId = bf.Id, Depth = 20, Merge = false });
+        doc.Rebuild();
+        Assert.Equal(2, doc.Bodies.Count);
+        var (target, tool) = (doc.Bodies[0].Name, doc.Bodies[1].Name);
+
+        // No clearance: a 20 x 20 x 5 pocket; the tool stays.
+        var indent = doc.Add(new IndentFeature { TargetBody = target, ToolBody = tool });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(2, doc.Bodies.Count);
+        Assert.Equal((60 * 60 * 10) - (20 * 20 * 5), doc.Bodies[0].Shape.MassProperties.Volume, 1e-6);
+
+        // A 1 mm clearance: the pocket grows by 1 all round (rounded at its corners), and 1 deeper.
+        indent.Clearance = 1;
+        doc.Rebuild();
+        AssertOk(doc);
+        var pocket = (60 * 60 * 10) - doc.Bodies[0].Shape.MassProperties.Volume;
+        Assert.InRange(pocket, 20 * 20 * 6, 22 * 22 * 6);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

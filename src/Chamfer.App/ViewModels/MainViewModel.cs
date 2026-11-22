@@ -79,6 +79,11 @@ public sealed partial class MainViewModel : ViewModelBase
                 Vertices = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => new VertexRef(s.Ref!, AtEnd: false))],
             })), "◸"),
             new("Full Round", "Round off a face between two parallel side faces", new RelayCommand(StartFullRound), "◠"),
+            new("Indent", "Press a tool body into a target body, with a clearance", new RelayCommand(() =>
+            {
+                var bodies = SelectedBodyNames().ToList();
+                StartFeature(new IndentFeature { TargetBody = bodies.ElementAtOrDefault(0) ?? string.Empty, ToolBody = bodies.ElementAtOrDefault(1) ?? string.Empty, Clearance = 0.5 });
+            }), "⊍"),
             new("Shell", "Hollow the part", new RelayCommand(() => StartFeature(new ShellFeature { Thickness = 1 })), "□"),
             new("Draft", "Taper faces", new RelayCommand(() => StartFeature(new DraftFeature { Angle = 3 })), "⟋"),
             new("Hole Wizard", "Standard holes on a face", new RelayCommand(StartHole), "◎"),

@@ -57,6 +57,73 @@ public sealed class CombineFeature : Feature
     }
 }
 
+/// <summary>
+/// Indent: presses a tool body into a target body, leaving a pocket shaped like the tool with a
+/// clearance all round (the tool grown by the clearance); the tool body stays.
+/// </summary>
+public sealed class IndentFeature : Feature
+{
+    public override string DefaultName => "Indent";
+
+    public string TargetBody { get; set; } = string.Empty;
+
+    public string ToolBody { get; set; } = string.Empty;
+
+    /// <summary>Gap between the tool and the pocket's walls.</summary>
+    public double Clearance { get; set; }
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var target = ctx.FindBody(TargetBody);
+        var tool = ctx.FindBody(ToolBody);
+        if (ReferenceEquals(target, tool))
+        {
+            throw new FeatureException("Pick different target and tool bodies.");
+        }
+
+        if (Clearance < 0)
+        {
+            throw new FeatureException("The clearance can't be negative.");
+        }
+
+        Operation? grown = null;
+        try
+        {
+            if (Clearance > 1e-9)
+            {
+                try
+                {
+                    grown = Modeling.OffsetShape(tool.Shape, Clearance);
+                }
+                catch (KernelException ex)
+                {
+                    throw new FeatureException("The tool can't be grown by that clearance.", ex);
+                }
+            }
+
+            var cutter = grown?.Result ?? tool.Shape;
+            using var op = Modeling.Boolean(target.Shape, cutter, BooleanKind.Cut);
+            if (op.Result.SolidCount == 0)
+            {
+                throw new FeatureException("The indent leaves nothing of the target.");
+            }
+
+            if (Math.Abs(op.Result.MassProperties.Volume - target.Shape.MassProperties.Volume) < 1e-9)
+            {
+                ctx.Warn("The tool doesn't reach into the target.");
+            }
+
+            var names = Naming.Transfer(op, op.Result, [new Naming.Input(target.Shape, target.FaceNames, target.EdgeNames)], Id, "indent");
+            ctx.Bodies[ctx.Bodies.IndexOf(target)] = new Body(op.Result, names, target.Name, target.Color);
+        }
+        finally
+        {
+            grown?.Dispose();
+        }
+    }
+}
+
 /// <summary>Cuts bodies in two with a plane; each piece becomes its own body.</summary>
 public sealed class SplitBodyFeature : Feature
 {

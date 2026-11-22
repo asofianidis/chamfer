@@ -332,6 +332,12 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(BodyField(doc, feature, "Bodies to combine", co.ToolBodies, names => Set(() => co.ToolBodies = names)));
                 break;
 
+            case IndentFeature ind:
+                ed.Add(BodyField(doc, feature, "Target body", ind.TargetBody.Length > 0 ? [ind.TargetBody] : [], names => Set(() => ind.TargetBody = names.FirstOrDefault() ?? string.Empty), 1));
+                ed.Add(BodyField(doc, feature, "Tool body", ind.ToolBody.Length > 0 ? [ind.ToolBody] : [], names => Set(() => ind.ToolBody = names.FirstOrDefault() ?? string.Empty), 1));
+                ed.Add(Num("Clearance", "mm", ind, nameof(ind.Clearance), 0));
+                break;
+
             case SplitBodyFeature sp:
                 ed.Add(new SelectionField("Splitting plane", Planes, [PlaneItem(doc, sp.Plane)], items => Set(() => sp.Plane = Last(items)?.AsPlane() ?? PlaneRef.Right), max: 1));
                 ed.Add(BodyField(doc, feature, "Bodies (empty = all)", sp.Bodies, names => Set(() => sp.Bodies = names)));
