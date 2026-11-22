@@ -113,6 +113,10 @@ public sealed partial class MainViewModel : ViewModelBase
 
             new("Structural Member", "Profiles along sketch lines, mitred at corners", new RelayCommand(() => StartSketchFeature(sf => new StructuralMemberFeature { SketchId = sf.Id })), "⌗", "Weldments"),
             new("Cut List", "Members grouped by profile and length", new RelayCommand(ShowCutList), "☰", "Weldments"),
+            new("Pipe Route", "Pipe, tube or cable along 3D points with bends", new RelayCommand(() => StartFeature(new RouteFeature
+            {
+                Points = [new(0, 0, 0), new(0, 0, 100), new(100, 0, 100)],
+            })), "⌇", "Weldments"),
 
             new("Parting Lines", "Find where faces turn from the pull direction (pull along Z)", new RelayCommand(ShowPartingLines), "≡", "Mold Tools"),
             new("Tooling Split", "Core and cavity blocks from a flat parting plane", new RelayCommand(() => StartFeature(new ToolingSplitFeature())), "⊟", "Mold Tools"),

@@ -137,6 +137,8 @@ CHF_API chf_shape* chf_make_wire(const double* plane, int segCount, const int* s
                                  const double* segData);
 /* 3D polyline/spline wire through points (3 doubles each). */
 CHF_API chf_shape* chf_make_wire_3d(int pointCount, const double* points, int spline, int closed);
+/* A 3D wire of lines (kind 0: start, unused, end) and arcs through three points (kind 1: start, mid, end); 9 doubles each. */
+CHF_API chf_shape* chf_make_wire_3d_mixed(int segCount, const int* kinds, const double* data9);
 /* Helix wire: pitch, height, radius, axis origin(3) dir(3) xdir(3). */
 CHF_API chf_shape* chf_make_helix(double pitch, double height, double radius, const double* axis9, int leftHanded);
 CHF_API chf_shape* chf_make_compound(int count, chf_shape* const* shapes);

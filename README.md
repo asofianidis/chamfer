@@ -235,7 +235,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Simulation | The **Simulation** tab: select faces and click **Fixture**, **Force** (normal or along an axis) or **Pressure**, then **Run Study**. **Frequency** finds the first four natural frequencies with the same fixtures and plots each mode shape. **Buckling** gives the load factors at which the static loads would buckle the part. For heat, put **Temperature**, **Heat Power** or **Convection** on faces and **Run Thermal** for the steady-state temperature plot and the heat flow. The static plot shows the part deformed and coloured by von Mises stress, with max stress, max displacement and factor of safety against the material's yield strength. |
 | Macros | **Macro** opens a C# editor. Scripts get `Api` (sketch builders, `Extrude`, `FilletEdges`, `Variable`, `Link`, queries and export) and `Print`. **Record** captures what you do as a replayable macro; **Open/Save Macro** use `.csx` files. |
 | Plugins | .NET assemblies in `plugins/` next to the app (or `%APPDATA%/Chamfer/plugins`) implementing `IChamferPlugin` can add commands; they appear under a **Plugins** tab. |
-| Weldments | Sketch centre lines, then **Structural Member** (profile and size from the library, rotation). Each line becomes a body and corners are mitred; optional **end caps** close free ends and **gussets** brace the corners. **Cut List** groups members by profile and length. |
+| Weldments | Sketch centre lines, then **Structural Member** (profile and size from the library, rotation). Each line becomes a body and corners are mitred; optional **end caps** close free ends and **gussets** brace the corners. **Cut List** groups members by profile and length. **Pipe Route** sweeps a pipe, tube (wall) or rod along 3D points with bends of a set radius; its name carries the centreline length. |
 | Mold tools | The **Mold Tools** tab: **Parting Lines** selects the edges where faces turn from the pull direction, **Draft Check** colours faces by draft, and **Tooling Split** builds Core and Cavity blocks around the part from a flat parting plane (margin, shrinkage). |
 | Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Scale** (about the centroid or origin), **Import Diagnostics** and **Heal** (sew gaps, repair faces, close shells into solids), **Recognize Holes** (an imported body's round through holes become editable Hole features), **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
 
@@ -458,7 +458,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Custom properties, property tab builder *(custom properties with {Mass}/{Material}/variable tokens, used by BOMs and title blocks)*
 - [~] Photorealistic rendering (path tracer, PBR materials, HDRI environments) *(CPU path tracer: BVH, plastic/metal/matte finishes from the material, soft sun shadows, sky, floor, PNG output)*
 - [~] Model-Based Definition (3D PMI) *(3D size dimensions and grouped hole callouts on the model)*
-- [ ] Routing: piping, tubing, electrical harnesses
+- [~] Routing: piping, tubing, electrical harnesses *(pipe, tube and cable routes along 3D points with bend radii)*
 - [~] Basic PDM: check-in/out, revisions, where-used (Git-backed or server-backed) *(folder vault: locks, check-in with revision letters and comments, history and restore, where-used)*
 - [~] eDrawings-style lightweight viewer *(export a self-contained HTML/WebGL viewer page)*
 - [ ] Localization (i18n)
