@@ -351,7 +351,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] **Extruded Boss/Base** and **Extruded Cut**: blind, through all, up to vertex, surface, or offset, mid-plane, two-direction, draft, thin feature *(up to vertex stops at a reference point's parallel plane)*
 - [x] **Revolved Boss** and **Revolved Cut** *(one direction and mid-plane)*
 - [x] **Fillet**: constant radius, variable radius, face fillet, full round
-- [~] **Chamfer**: distance-distance, distance-angle, vertex *(equal distance, distance-distance, distance-angle)*
+- [x] **Chamfer**: distance-distance, distance-angle, vertex
 - [x] **Shell**, **Draft**, **Rib**
 - [x] **Hole Wizard**: counterbore, countersink, tapped, and pipe tap, with ANSI and ISO standards tables *(ISO metric and ANSI inch (UNC) sizes with 90°/82° countersinks; NPT pipe taps as 1:16 tapered holes)*
 - [x] **Linear Pattern**, **Circular Pattern**, **Mirror** *(of boss, cut, hole and pattern features)*

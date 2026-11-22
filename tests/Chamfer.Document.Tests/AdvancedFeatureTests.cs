@@ -455,6 +455,36 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void VertexChamferCutsACorner()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 20));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+
+        // The top corner at (40, 20, 10): an edge ending (or starting) there.
+        var corner = new Vec3(40, 20, 10);
+        var edge = Enumerable.Range(1, body.EdgeCount).First(i => Vec3.Distance(body.Edge(i).Start, corner) < 1e-6 || Vec3.Distance(body.Edge(i).End, corner) < 1e-6);
+        var atEnd = Vec3.Distance(body.Edge(edge).End, corner) < 1e-6;
+        var chamfer = doc.Add(new VertexChamferFeature { Vertices = [new VertexRef(body.EdgeRef(edge), atEnd)], Distance = 3 });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(8000 - (27.0 / 6), Volume(doc), 1e-6); // a 3 x 3 x 3 corner tetrahedron
+        Assert.Equal(7, doc.Bodies[0].FaceCount);
+
+        // Unequal distances: 2, 4 and 6 along the three edges.
+        chamfer.Distance = 2;
+        chamfer.Distance2 = 4;
+        chamfer.Distance3 = 6;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(8000 - (48.0 / 6), Volume(doc), 1e-6);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

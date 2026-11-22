@@ -264,6 +264,16 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(Num("Gap tolerance", "mm", kn, nameof(kn.Tolerance), 1e-6));
                 break;
 
+            case VertexChamferFeature vc:
+                ed.Add(new SelectionField("Edges ending at the corners", [SelectionKind.Edge], vc.Vertices.Select(v => new SelectionItem(SelectionKind.Edge, v.Edge, Label: $"Edge <{v.Edge.Name}>")),
+                    items => Set(() => vc.Vertices = [.. items.Select(i => new VertexRef(i.Ref!, vc.Vertices.FirstOrDefault()?.AtEnd ?? false))])));
+                ed.Add(new BoolField("Use the other end of the edges", vc.Vertices.FirstOrDefault()?.AtEnd ?? false,
+                    v => Set(() => vc.Vertices = [.. vc.Vertices.Select(x => x with { AtEnd = v })])));
+                ed.Add(Num("Distance", "mm", vc, nameof(vc.Distance), 1e-6));
+                ed.Add(new NumberField("Distance 2", "mm", () => vc.Distance2 ?? vc.Distance, v => Set(() => vc.Distance2 = v), 1e-6));
+                ed.Add(new NumberField("Distance 3", "mm", () => vc.Distance3 ?? vc.Distance, v => Set(() => vc.Distance3 = v), 1e-6));
+                break;
+
             case FullRoundFilletFeature fr:
             {
                 SelectionField FaceField(string label, TopoRef? value, Action<TopoRef?> apply) =>

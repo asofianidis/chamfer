@@ -394,3 +394,109 @@ public sealed class FullRoundFilletFeature : Feature
     }
 }
 
+/// <summary>A model corner, named by an edge that ends there and which end.</summary>
+public sealed record VertexRef(TopoRef Edge, bool AtEnd);
+
+/// <summary>
+/// Vertex chamfer: cuts a corner where three edges meet with a flat face through points the given
+/// distances along each edge (equal, or one each).
+/// </summary>
+public sealed class VertexChamferFeature : Feature
+{
+    public override string DefaultName => "Vertex Chamfer";
+
+    public List<VertexRef> Vertices { get; set; } = [];
+
+    public double Distance { get; set; } = 2;
+
+    /// <summary>Distances along the second and third edges; null uses <see cref="Distance"/>.</summary>
+    public double? Distance2 { get; set; }
+
+    public double? Distance3 { get; set; }
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (Vertices.Count == 0)
+        {
+            throw new FeatureException("Select the corners to chamfer.");
+        }
+
+        double[] distances = [Distance, Distance2 ?? Distance, Distance3 ?? Distance];
+        if (distances.Any(d => d <= 0))
+        {
+            throw new FeatureException("The distances must be greater than zero.");
+        }
+
+        foreach (var v in Vertices)
+        {
+            var (body, index) = ctx.ResolveEdge(v.Edge);
+            var corner = v.AtEnd ? body.Edge(index).End : body.Edge(index).Start;
+
+            // The edges that meet at the corner, and the way each leaves it.
+            var leaving = new List<Vec3>();
+            for (var e = 1; e <= body.EdgeCount; e++)
+            {
+                var info = body.Edge(e);
+                var atStart = Vec3.Distance(info.Start, corner) < 1e-6;
+                var atEnd = Vec3.Distance(info.End, corner) < 1e-6;
+                if (atStart == atEnd)
+                {
+                    continue; // not at the corner (or a closed edge through it)
+                }
+
+                var pts = body.Shape.SampleEdge(e, 0.01);
+                var next = atStart ? pts[Math.Min(1, pts.Count - 1)] : pts[Math.Max(0, pts.Count - 2)];
+                leaving.Add((next - corner).Normalized());
+            }
+
+            if (leaving.Count != 3)
+            {
+                throw new FeatureException("A vertex chamfer needs a corner where exactly three edges meet.");
+            }
+
+            // Distances 1, 2 and 3 go to the corner's edges in the order the body lists them.
+            var points = leaving.Select((d, i) => corner + (d * distances[i])).ToList();
+            var tool = Tetrahedron(corner, points[0], points[1], points[2]);
+            ctx.RemoveMaterial(tool, Naming.Finish(tool, new string?[tool.FaceCount], Id));
+        }
+    }
+
+    /// <summary>A tetrahedron from four corners, sewn from its four triangles.</summary>
+    private static Shape Tetrahedron(Vec3 a, Vec3 b, Vec3 c, Vec3 d)
+    {
+        var faces = new List<Shape>();
+        try
+        {
+            foreach (var (p, q, r) in new[] { (b, c, d), (a, b, c), (a, c, d), (a, d, b) })
+            {
+                var n = Vec3.Cross(q - p, r - p);
+                if (n.LengthSquared < 1e-18)
+                {
+                    throw new FeatureException("The chamfer's corner points are in a line.");
+                }
+
+                var plane = new Plane3(p, n.Normalized(), (q - p).Normalized());
+                var (qu, qv) = plane.ToLocal(q);
+                var (ru, rv) = plane.ToLocal(r);
+                faces.Add(Modeling.Face(plane, [[ProfileSegment.Line(0, 0, qu, qv), ProfileSegment.Line(qu, qv, ru, rv), ProfileSegment.Line(ru, rv, 0, 0)]]));
+            }
+
+            using var sewn = Modeling.Sew(faces);
+            if (sewn.Result.SolidCount == 0)
+            {
+                throw new FeatureException("The chamfer's cutting shape didn't close up.");
+            }
+
+            return sewn.Result.Sub(TopoKind.Solid, 1);
+        }
+        finally
+        {
+            foreach (var f in faces)
+            {
+                f.Dispose();
+            }
+        }
+    }
+}
+
