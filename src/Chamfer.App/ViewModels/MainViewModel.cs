@@ -70,6 +70,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Rib", "Thicken an open sketch into the part", new RelayCommand(() => StartSketchFeature(sf => new RibFeature { SketchId = sf.Id, Thickness = 2 })), "⊿"),
             new("Fillet", "Round edges", new RelayCommand(() => StartFeature(new FilletFeature { Radius = 2 })), "◜"),
             new("Chamfer", "Bevel edges", new RelayCommand(() => StartFeature(new ChamferFeature { Distance = 1 })), "◸"),
+            new("Full Round", "Round off a face between two parallel side faces", new RelayCommand(StartFullRound), "◠"),
             new("Shell", "Hollow the part", new RelayCommand(() => StartFeature(new ShellFeature { Thickness = 1 })), "□"),
             new("Draft", "Taper faces", new RelayCommand(() => StartFeature(new DraftFeature { Angle = 3 })), "⟋"),
             new("Hole Wizard", "Standard holes on a face", new RelayCommand(StartHole), "◎"),
@@ -1001,6 +1002,17 @@ public sealed partial class MainViewModel : ViewModelBase
             ProfileSketchId = sketches.Count > 0 ? sketches[0].Id : string.Empty,
             PathSketchId = sketches.Count > 1 ? sketches[1].Id : string.Empty,
         };
+    }
+
+    private void StartFullRound()
+    {
+        var faces = Selection.Where(s => s.Kind == SelectionKind.Face).Select(s => s.Ref).ToList();
+        StartFeature(new FullRoundFilletFeature
+        {
+            SideFace1 = faces.ElementAtOrDefault(0),
+            CenterFace = faces.ElementAtOrDefault(1),
+            SideFace2 = faces.ElementAtOrDefault(2),
+        });
     }
 
     private BoundaryFeature NewBoundary(bool cut = false, bool surface = false) =>

@@ -264,6 +264,16 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(Num("Gap tolerance", "mm", kn, nameof(kn.Tolerance), 1e-6));
                 break;
 
+            case FullRoundFilletFeature fr:
+            {
+                SelectionField FaceField(string label, TopoRef? value, Action<TopoRef?> apply) =>
+                    new(label, Faces, value is { } f ? [new SelectionItem(SelectionKind.Face, f, Label: $"Face <{f.Name}>")] : [], items => Set(() => apply(Last(items)?.Ref)), max: 1);
+                ed.Add(FaceField("Side face", fr.SideFace1, f => fr.SideFace1 = f));
+                ed.Add(FaceField("Centre face", fr.CenterFace, f => fr.CenterFace = f));
+                ed.Add(FaceField("Other side face", fr.SideFace2, f => fr.SideFace2 = f));
+                break;
+            }
+
             case ProjectedCurveFeature pc:
                 ed.Add(new SelectionField("Sketch", FeatureKinds, SketchItems(doc, [pc.SketchId]), items => Set(() => pc.SketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
                 ed.Add(new SelectionField("Face", Faces, pc.Face is { } pcFace ? [new SelectionItem(SelectionKind.Face, pcFace, Label: $"Face <{pcFace.Name}>")] : [],
@@ -567,6 +577,7 @@ public sealed partial class FeatureEditor : ObservableObject
                     endRadius.Reload();
                 }));
                 ed.Add(endRadius);
+                ed.Add(new BoolField("Only where the faces meet (face fillet)", fil.BetweenFaces, v => Set(() => fil.BetweenFaces = v)));
                 ed.Add(new SelectionField("Edges and faces", Edges,
                     isNew ? Pre(Edges) : Refs(fil.Edges, SelectionKind.Edge).Concat(Refs(fil.Faces, SelectionKind.Face)),
                     items => Set(() =>
