@@ -2,6 +2,8 @@
 
 **Chamfer** is a cross-platform, parametric, feature-based 3D CAD application written in C# with [Avalonia UI](https://avaloniaui.net/). It runs natively on **Windows** and **macOS**. The long-term goal is feature parity with SolidWorks for mechanical design: sketching, part modeling, assemblies, drawings, and the specialized toolsets built on them.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 > **Status:** Pre-alpha. Planning and scaffolding. Nothing is usable yet. See the [Roadmap](#roadmap).
 
 > **Name:** A *chamfer* is a beveled edge, one of the first features every CAD user learns. The name is short, it's a real CAD term, and it doesn't borrow anyone's trademark.
@@ -439,7 +441,7 @@ A high-level tracker against SolidWorks capability areas.
 - No SolidWorks code, icons, artwork, documentation, or file-format reverse engineering is used. All UI assets are original.
 - **OCCT** is licensed under LGPL-2.1 with the OCCT exception. We link to it dynamically and ship its license notices.
 - Track all third-party licenses in `THIRD-PARTY-NOTICES.md`.
-- Project license: **not yet chosen.** Until a `LICENSE` file is added, this code is source-available only: all rights are reserved, and no permission is granted to copy, modify, or redistribute it.
+- Project license: **[MIT](LICENSE)**. Third-party components (such as OCCT) keep their own licenses, which are listed in `THIRD-PARTY-NOTICES.md` as they're added.
 
 ---
 
@@ -449,7 +451,7 @@ Please don't report security issues in public issues. Use GitHub's private vulne
 
 ## Contributing Conventions
 
-> External contributions aren't accepted until a license and contributor terms are in place.
+> By submitting a contribution, you agree that it's licensed under the project's [MIT License](LICENSE).
 
 - **Branching:** `main` is always green. Work happens on `feature/<short-name>` branches merged through PRs.
 - **Commits:** [Conventional Commits](https://www.conventionalcommits.org/) (`feat(sketch): add tangent constraint`).
