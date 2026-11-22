@@ -134,6 +134,24 @@ public static unsafe class Modeling
         }
     }
 
+    /// <summary>Variable-radius fillet: each edge's radius runs linearly from <paramref name="start"/> (at its first vertex) to <paramref name="end"/>.</summary>
+    public static Operation FilletVariable(Shape s, IReadOnlyList<int> edges, IReadOnlyList<double> start, IReadOnlyList<double> end)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(edges);
+        ArgumentNullException.ThrowIfNull(start);
+        ArgumentNullException.ThrowIfNull(end);
+        var e = edges.ToArray();
+        var a = start.ToArray();
+        var b = end.ToArray();
+        fixed (int* pe = e)
+        fixed (double* pa = a)
+        fixed (double* pb = b)
+        {
+            return new Operation(Native.chf_fillet_variable(s.Handle, e.Length, pe, pa, pb), "fillet");
+        }
+    }
+
     /// <summary>Distance-distance chamfer; <paramref name="faces"/> (0 = any) picks the face <paramref name="d1"/> is measured on.</summary>
     public static Operation Chamfer(Shape s, IReadOnlyList<int> edges, IReadOnlyList<int>? faces, IReadOnlyList<double> d1, IReadOnlyList<double> d2)
     {

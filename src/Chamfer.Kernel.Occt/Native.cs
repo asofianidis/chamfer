@@ -61,6 +61,7 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial OpHandle chf_revolve(ShapeHandle profile, double* axis6, double angle);
     [LibraryImport(Lib)] public static partial OpHandle chf_boolean(ShapeHandle a, ShapeHandle b, int kind);
     [LibraryImport(Lib)] public static partial OpHandle chf_fillet(ShapeHandle s, int count, int* edges, double* radii);
+    [LibraryImport(Lib)] public static partial OpHandle chf_fillet_variable(ShapeHandle s, int count, int* edges, double* start, double* end);
     [LibraryImport(Lib)] public static partial OpHandle chf_chamfer(ShapeHandle s, int count, int* edges, int* faces, double* d1, double* d2);
     [LibraryImport(Lib)] public static partial OpHandle chf_shell(ShapeHandle s, int count, int* faces, double thickness);
     [LibraryImport(Lib)] public static partial OpHandle chf_draft(ShapeHandle s, int count, int* faces, double* neutral6, double angle);

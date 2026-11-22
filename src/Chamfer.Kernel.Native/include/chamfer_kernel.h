@@ -171,6 +171,8 @@ CHF_API chf_op* chf_revolve(chf_shape* profile, const double* axis6, double angl
 CHF_API chf_op* chf_boolean(chf_shape* a, chf_shape* b, int kind);
 /* Constant-radius fillet on edges (1-based indices into s). */
 CHF_API chf_op* chf_fillet(chf_shape* s, int count, const int* edges, const double* radii);
+/* Variable-radius fillet: each edge's radius goes linearly from start (at its first vertex) to end. */
+CHF_API chf_op* chf_fillet_variable(chf_shape* s, int count, const int* edges, const double* start, const double* end);
 /* Distance-distance chamfer. face (optional, 0 = any) picks which side d1 is measured on. */
 CHF_API chf_op* chf_chamfer(chf_shape* s, int count, const int* edges, const int* faces,
                             const double* d1, const double* d2);

@@ -15,17 +15,22 @@ public sealed class FilletFeature : Feature
 
     public double Radius { get; set; } = 1;
 
+    /// <summary>Variable radius: each edge runs from <see cref="Radius"/> at its start to this at its end.</summary>
+    public double? EndRadius { get; set; }
+
     public override void Execute(RebuildContext ctx)
     {
         ArgumentNullException.ThrowIfNull(ctx);
-        if (Radius <= 0)
+        if (Radius <= 0 || EndRadius is <= 0)
         {
             throw new FeatureException("The radius must be greater than zero.");
         }
 
         foreach (var (body, edges) in DressUp.GroupEdges(ctx, Edges, Faces))
         {
-            using var op = Run(() => Modeling.Fillet(body.Shape, edges, [.. edges.Select(_ => Radius)]),
+            using var op = Run(() => EndRadius is { } end
+                    ? Modeling.FilletVariable(body.Shape, edges, [.. edges.Select(_ => Radius)], [.. edges.Select(_ => end)])
+                    : Modeling.Fillet(body.Shape, edges, [.. edges.Select(_ => Radius)]),
                 "The fillet can't be built. Try a smaller radius.");
             ctx.Replace(body, op, "fillet");
         }

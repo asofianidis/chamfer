@@ -210,6 +210,16 @@ chf_op* chf_fillet(chf_shape* s, int count, const int* edges, const double* radi
   });
 }
 
+chf_op* chf_fillet_variable(chf_shape* s, int count, const int* edges, const double* start, const double* end) {
+  return chf_guard<chf_op*>(nullptr, [&] {
+    requireShape(s);
+    auto algo = std::make_unique<BRepFilletAPI_MakeFillet>(s->shape);
+    for (int i = 0; i < count; ++i) algo->Add(start[i], end[i], TopoDS::Edge(sub(s, CHF_EDGE, edges[i])));
+    algo->Build();
+    return chf_make_op(std::move(algo), "fillet");
+  });
+}
+
 chf_op* chf_chamfer(chf_shape* s, int count, const int* edges, const int* faces, const double* d1, const double* d2) {
   return chf_guard<chf_op*>(nullptr, [&] {
     requireShape(s);

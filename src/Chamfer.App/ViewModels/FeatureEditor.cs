@@ -522,7 +522,16 @@ public sealed partial class FeatureEditor : ObservableObject
                 break;
 
             case FilletFeature fil:
+            {
                 ed.Add(Num("Radius", "mm", fil, nameof(fil.Radius), 1e-6));
+                var endRadius = new NumberField("End radius", "mm", () => fil.EndRadius ?? fil.Radius, v => Set(() => fil.EndRadius = v), 1e-6) { IsVisible = fil.EndRadius is not null };
+                ed.Add(new BoolField("Variable radius", fil.EndRadius is not null, v =>
+                {
+                    endRadius.IsVisible = v;
+                    Set(() => fil.EndRadius = v ? fil.EndRadius ?? fil.Radius * 2 : null);
+                    endRadius.Reload();
+                }));
+                ed.Add(endRadius);
                 ed.Add(new SelectionField("Edges and faces", Edges,
                     isNew ? Pre(Edges) : Refs(fil.Edges, SelectionKind.Edge).Concat(Refs(fil.Faces, SelectionKind.Face)),
                     items => Set(() =>
@@ -537,6 +546,7 @@ public sealed partial class FeatureEditor : ObservableObject
                 }
 
                 break;
+            }
 
             case ChamferFeature ch:
                 ed.Add(new ChoiceField("Type", ["Equal distance", "Distance-distance", "Distance-angle"], (int)ch.Type, i => Set(() => ch.Type = (ChamferType)i)));
