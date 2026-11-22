@@ -223,13 +223,13 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Advanced features | **Helix** on a sketch circle (pitch, height, handedness) is a sweep path for springs. **Thread** models an ISO metric thread on a selected cylindrical face (pitch defaults to coarse). **Swept Boss/Cut**: select the profile sketch, then the path sketch or helix. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
 | Equations | **Equations** defines global variables (`Width = 40`, `Wall = Width / 20`). Type `=Width/2` in any number box or sketch dimension to link it. |
 | Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
-| Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids) and **Thicken**. |
+| Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids), **Thicken** and **Cut With Surface** (removes the material on one side of a surface body or plane). |
 | Sheet metal | The **Sheet Metal** tab: **Base Flange** from a sketch (closed makes a plate, open lines make a bent sheet with the bend radius), **Edge Flange** on straight edges (length, angle, either direction), **Flatten** to see the blank with bend lines, and **Export Flat DXF**. |
 | Simulation | The **Simulation** tab: select faces and click **Fixture**, **Force** (normal or along an axis) or **Pressure**, then **Run Study**. **Frequency** finds the first four natural frequencies with the same fixtures and plots each mode shape. The static plot shows the part deformed and coloured by von Mises stress, with max stress, max displacement and factor of safety against the material's yield strength. |
 | Macros | **Macro** opens a C# editor. Scripts get `Api` (sketch builders, `Extrude`, `FilletEdges`, `Variable`, `Link`, queries and export) and `Print`. **Record** captures what you do as a replayable macro; **Open/Save Macro** use `.csx` files. |
 | Plugins | .NET assemblies in `plugins/` next to the app (or `%APPDATA%/Chamfer/plugins`) implementing `IChamferPlugin` can add commands; they appear under a **Plugins** tab. |
 | Weldments | Sketch centre lines, then **Structural Member** (profile and size from the library, rotation). Each line becomes a body and corners are mitred. **Cut List** groups members by profile and length. |
-| Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
+| Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Scale** (about the centroid or origin), **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
 
 ### Assemblies
 
@@ -405,7 +405,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Planar, offset, ruled, and filled surfaces *(planar, offset, filled)*
 - [~] Knit (sew), trim, untrim, extend, and delete face *(knit, forming solids from closed sets)*
 - [~] Thicken, and thickened cut *(thicken)*
-- [ ] Replace face, cut with surface
+- [~] Replace face, cut with surface *(cut with surface or plane)*
 - [~] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection *(zebra stripes, draft analysis)*
 - [ ] Freeform
 
@@ -422,7 +422,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Cut lists with properties
 
 **Mold Tools**
-- [ ] Scale, parting lines, shut-off surfaces, parting surfaces, tooling split, core/cavity
+- [~] Scale, parting lines, shut-off surfaces, parting surfaces, tooling split, core/cavity *(scale)*
 
 ### Phase 8: Data Exchange & Interop
 - [ ] STEP AP203/AP214/AP242 import and export with colors, names, assembly structure, and PMI where possible

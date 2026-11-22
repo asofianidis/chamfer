@@ -23,6 +23,10 @@ public readonly record struct Transform3(
     }
 
     /// <summary>Reflection through a plane.</summary>
+    /// <summary>Uniform scaling about a point.</summary>
+    public static Transform3 Scale(Vec3 origin, double factor) =>
+        new(factor, 0, 0, origin.X * (1 - factor), 0, factor, 0, origin.Y * (1 - factor), 0, 0, factor, origin.Z * (1 - factor));
+
     public static Transform3 Mirror(Vec3 origin, Vec3 normal)
     {
         var n = normal.Normalized();

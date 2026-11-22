@@ -86,6 +86,8 @@ public sealed partial class FeatureNode : ObservableObject
         TablePatternFeature => "▦",
         CurveDrivenPatternFeature => "∿",
         FillPatternFeature => "⣿",
+        CutWithSurfaceFeature => "⫻",
+        ScaleFeature => "⤢",
         _ => "•",
     };
 }

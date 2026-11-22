@@ -87,6 +87,11 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Swept Surface", "Sweep a profile sketch's curves along a path", new RelayCommand(() => StartFeature(NewSweep(cut: false, surface: true))), "⤳", "Surfaces"),
             new("Offset Surface", "Copy faces offset along their normals", new RelayCommand(() => StartFeature(new OffsetSurfaceFeature { Distance = 2 })), "⧈", "Surfaces"),
             new("Knit", "Sew surfaces together (closed ones become solids)", new RelayCommand(() => StartFeature(new KnitFeature { Bodies = SelectedBodyNames() })), "⨝", "Surfaces"),
+            new("Cut With Surface", "Remove the material on one side of a surface or plane", new RelayCommand(() => StartFeature(new CutWithSurfaceFeature
+            {
+                Surface = Selection.FirstOrDefault(s => s.Kind == SelectionKind.Face && s.Ref is { } r && Document.Bodies.Any(b => b.IsSurface && b.HasFace(r.Name)))?.Ref,
+                Plane = SelectedPlane() ?? PlaneRef.Right,
+            })), "⫻", "Surfaces"),
             new("Thicken", "Give a surface thickness", new RelayCommand(() => StartFeature(new ThickenFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Thickness = 1 })), "▥", "Surfaces"),
 
             new("Base Flange", "Sheet metal from a sketch: closed makes a plate, open makes a bent sheet", new RelayCommand(() => StartSketchFeature(sf => new BaseFlangeFeature { SketchId = sf.Id })), "▬", "Sheet Metal"),
@@ -100,6 +105,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Combine", "Add, subtract or intersect bodies", new RelayCommand(StartCombine), "⊕", "Bodies"),
             new("Split", "Cut bodies in two with a plane", new RelayCommand(() => StartFeature(new SplitBodyFeature { Plane = SelectedPlane() ?? PlaneRef.Right })), "⫽", "Bodies"),
             new("Move/Copy Body", "Move, rotate or copy bodies", new RelayCommand(() => StartFeature(new MoveCopyBodyFeature { Bodies = SelectedBodyNames() })), "✥", "Bodies"),
+            new("Scale", "Scale bodies uniformly", new RelayCommand(() => StartFeature(new ScaleFeature { Bodies = SelectedBodyNames() })), "⤢", "Bodies"),
             new("Delete/Keep Body", "Remove bodies, or keep only some", new RelayCommand(() => StartFeature(new DeleteBodyFeature { Bodies = SelectedBodyNames() })), "✕", "Bodies"),
             new("Appearance", "Colour bodies", new RelayCommand(() => StartFeature(new AppearanceFeature { Bodies = SelectedBodyNames() })), "◆", "Bodies"),
         ];

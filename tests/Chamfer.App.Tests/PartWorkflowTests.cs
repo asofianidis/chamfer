@@ -548,4 +548,33 @@ public class PartWorkflowTests
             }
         }
     }
+
+    [Fact]
+    public void ScaleAndCutWithPlaneFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+        vm.NewSketchCommand.Execute(null);
+        var editor = vm.Sketch!.Editor;
+        editor.BeginChange();
+        editor.Sketch.AddCornerRectangle(new Vec2(-10, 0), new Vec2(10, 20));
+        editor.EndChange(solve: true);
+        vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var volume = vm.Document.MassProperties().Volume;
+
+        vm.SelectTabCommand.Execute("Bodies");
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Scale").Command.Execute(null);
+        var factor = vm.Editor!.Fields.OfType<NumberField>().Single(f => f.Label == "Scale factor");
+        factor.Text = "2";
+        factor.Commit();
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(volume * 8, vm.Document.MassProperties().Volume, 1e-6);
+
+        vm.SelectTabCommand.Execute("Surfaces");
+        vm.SetSelection([SelectionItem.Plane("right", "Right Plane")]);
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Cut With Surface").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(volume * 4, vm.Document.MassProperties().Volume, 1e-6);
+    }
 }
