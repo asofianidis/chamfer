@@ -81,6 +81,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(SketchedBendFeature), "sketchedBend")]
 [JsonDerivedType(typeof(HealFeature), "heal")]
 [JsonDerivedType(typeof(DomeFeature), "dome")]
+[JsonDerivedType(typeof(ToolingSplitFeature), "toolingSplit")]
 public abstract class Feature
 {
     /// <summary>Stable identifier used by references and persistent names. Never shown to users.</summary>

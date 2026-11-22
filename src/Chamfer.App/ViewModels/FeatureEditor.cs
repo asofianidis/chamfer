@@ -277,6 +277,14 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(BodyField(doc, feature, "Bodies (empty = all)", cws.Bodies, names => Set(() => cws.Bodies = names)));
                 break;
 
+            case ToolingSplitFeature ts:
+                ed.Add(new SelectionField("Pull direction", Axes, [AxisItem(ts.Pull)], items => Set(() => ts.Pull = Last(items)?.AsAxis() ?? AxisRef.Z), max: 1));
+                ed.Add(Num("Parting height (from the bottom)", "mm", ts, nameof(ts.PartingHeight)));
+                ed.Add(Num("Block margin", "mm", ts, nameof(ts.Margin), 1e-3));
+                ed.Add(Num("Shrinkage scale", string.Empty, ts, nameof(ts.Shrinkage), 1e-3));
+                ed.Add(new InfoField("Result", "Core and Cavity bodies are added around the part."));
+                break;
+
             case DomeFeature dm:
                 ed.Add(new SelectionField("Face", Faces, dm.Face is { } domeFace ? [new SelectionItem(SelectionKind.Face, domeFace, Label: $"Face <{domeFace.Name}>")] : [],
                     items => Set(() => dm.Face = Last(items)?.Ref), max: 1));
