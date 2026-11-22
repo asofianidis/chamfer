@@ -103,3 +103,17 @@ public static partial class PropertyEvaluator
         }
     }
 }
+
+/// <summary>One entity of a mate reference: a face and how it mates ("concentric" or "coincident").</summary>
+public sealed record MateReferenceEntity(TopoRef Face, string Kind);
+
+/// <summary>
+/// A named set of faces that tells an assembly how to mate this part automatically: when it is
+/// inserted, it is mated to another component with a reference of the same name.
+/// </summary>
+public sealed class MateReference
+{
+    public string Name { get; set; } = "Default";
+
+    public List<MateReferenceEntity> Entities { get; set; } = [];
+}

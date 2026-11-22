@@ -99,7 +99,13 @@ public sealed partial class MainViewModel
         var box = asm.Components.Where(c => !c.Suppressed).SelectMany(c => asm.PlacedBodies(c)).Aggregate(Box3.Empty, (b, p) => b.Union(p.Placed.Bounds));
         var at = box.IsEmpty ? Vec3.Zero : new Vec3(box.Max.X + (box.Size.X * 0.25) + 10, box.Min.Y, box.Min.Z);
         var c = asm.AddComponent(path, Transform3.Translation(at));
+        var auto = asm.ApplyMateReferences(c);
         RebuildAndRefresh();
+        if (auto.Count > 0)
+        {
+            MessageText = $"Mated {c.Name} by its mate references ({string.Join(", ", auto.Select(m => m.Type))}).";
+        }
+
         FitAction?.Invoke();
         return c;
     }

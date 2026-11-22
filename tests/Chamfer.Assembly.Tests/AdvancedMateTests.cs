@@ -351,4 +351,55 @@ public class AdvancedMateTests
         cut.Suppressed = true;
         Assert.Equal(partVolume, asm.BodiesOf(upper)[0].Shape.MassProperties.Volume, 1e-6);
     }
+
+    [Fact]
+    public void MateReferencesMateOnInsert()
+    {
+        var plate = new PartDocument();
+        var ps = new Sketch();
+        ps.AddCornerRectangle(new Vec2(0, 0), new Vec2(60, 40));
+        ps.AddCircle(new Vec2(30, 20), 6);
+        var psf = plate.Add(new SketchFeature { Sketch = ps });
+        plate.Add(new ExtrudeFeature { SketchId = psf.Id, Depth = 10 });
+        plate.Rebuild();
+        plate.MateReferences.Add(new MateReference
+        {
+            Name = "Pin",
+            Entities = [new(Face(plate, f => f.Surface == SurfaceKind.Cylinder), "concentric"), new(Face(plate, f => f.Normal.Z > 0.99), "coincident")],
+        });
+
+        var pin = Pin(6, 35);
+        pin.MateReferences.Add(new MateReference
+        {
+            Name = "Pin",
+            Entities = [new(Face(pin, f => f.Surface == SurfaceKind.Cylinder), "concentric"), new(Face(pin, f => f.Normal.Z < -0.99), "coincident")],
+        });
+
+        // Round trip through the part file.
+        pin = PartDocument.Load(pin.Save());
+        pin.Rebuild();
+        Assert.Equal(2, pin.MateReferences[0].Entities.Count);
+
+        var asm = new AssemblyDocument();
+        asm.RegisterPart("plate.chprt", plate);
+        asm.RegisterPart("pin.chprt", pin);
+        asm.AddComponent("plate.chprt");
+        var p1 = asm.AddComponent("pin.chprt", Transform3.Translation(new Vec3(100, 50, -20)));
+        var mates = asm.ApplyMateReferences(p1);
+        Assert.Equal(2, mates.Count);
+        Assert.Contains(mates, m => m.Type == MateType.Concentric);
+        Assert.Contains(mates, m => m.Type == MateType.Coincident && !m.Aligned);
+        var r = asm.Solve();
+        Assert.True(r.Converged);
+
+        // The pin stands in the hole on top of the plate (bottom at z = 10).
+        var box = asm.PlacedBodies(p1).Single().Placed.Bounds;
+        Assert.Equal(30, box.Center.X, 1e-6);
+        Assert.Equal(20, box.Center.Y, 1e-6);
+        Assert.Equal(10, box.Min.Z, 1e-6);
+
+        // A second pin finds no free hole and is left alone.
+        var p2 = asm.AddComponent("pin.chprt", Transform3.Translation(new Vec3(150, 0, 0)));
+        Assert.Empty(asm.ApplyMateReferences(p2));
+    }
 }
