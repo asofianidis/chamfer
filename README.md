@@ -446,7 +446,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 9: Simulation & Motion
 - [~] Linear static FEA: tetrahedral meshing via OCCT/Netgen or Gmsh, a solver (CalculiX integration or our own), results plots *(our own solver on a voxel mesh: incompatible-mode hexahedra, matrix-free conjugate gradient, fixtures, forces and pressures, von Mises plots on the deformed shape, factor of safety)*
 - [x] Frequency and buckling studies *(natural frequencies and mode shapes; linear buckling load factors from the static stresses)*
-- [~] Thermal studies *(steady-state conduction with fixed temperatures, heat power and convection)*
+- [x] Thermal studies *(steady-state and transient conduction with fixed temperatures, heat power and convection; results at each time step)*
 - [~] Motion study: animation timeline, motors, springs, gravity *(rotary and linear motors, kinematic frames, scrubbing and playback)*
 - [x] Basic kinematics and interference over time
 - [x] Draft-angle and wall-thickness checks for manufacturability *(draft analysis; wall thickness against a minimum, with the thinnest wall)*

@@ -71,6 +71,19 @@ public sealed partial class MainViewModel
         Editor = panel;
     }
 
+    /// <summary>Transient settings: duration (0 = steady state), steps and starting temperature.</summary>
+    [RelayCommand]
+    private void ShowThermalSettings()
+    {
+        CancelEditor();
+        var panel = FeatureEditor.Info("Thermal Study Settings");
+        panel.AddInfo(new NumberField("Duration (0: steady state)", "s", () => Thermal.Duration, v => Thermal.Duration = v, 0));
+        panel.AddInfo(new NumberField("Time steps", string.Empty, () => Thermal.Steps, v => Thermal.Steps = (int)Math.Round(v), 1, wholeNumber: true));
+        panel.AddInfo(new NumberField("Starting temperature", "°C", () => Thermal.InitialTemperature, v => Thermal.InitialTemperature = v));
+        panel.AddInfo(new InfoField("Material", $"{Document.Material.Name}: c = {Document.Material.SpecificHeat.ToString("0", CultureInfo.InvariantCulture)} J/kg·K"));
+        Editor = panel;
+    }
+
     private async Task RunThermalStudy()
     {
         if (AssemblyDoc is not null || DrawingDoc is not null)
@@ -115,6 +128,16 @@ public sealed partial class MainViewModel
         panel.AddInfo(new InfoField("Temperature range", $"{r.MinTemperature.ToString("0.#", inv)} to {r.MaxTemperature.ToString("0.#", inv)} °C"));
         panel.AddInfo(new InfoField("Heat out through fixed faces", $"{r.HeatThroughFixedFaces.ToString("0.###", inv)} W"));
         panel.AddInfo(new InfoField("Mesh", $"{r.Grid.CellCount} voxels, {r.Iterations} iterations, {r.Elapsed.TotalSeconds.ToString("0.0", inv)} s"));
+        if (r.History.Count > 1)
+        {
+            // Transient: pick the moment to plot.
+            var times = r.Times.Select(t => $"{t.ToString("0.###", inv)} s").ToList();
+            panel.AddInfo(new ChoiceField("Time", times, times.Count - 1, i =>
+            {
+                StudyResult = r.AtStep(i).AsPlot();
+                RaiseScene();
+            }));
+        }
         panel.AddInfo(new InfoField("Plot", "Blue is the coolest, red the hottest."));
         panel.AddInfo(new ButtonField("Clear thermal loads", new RelayCommand(() =>
         {

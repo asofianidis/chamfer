@@ -37,7 +37,8 @@ public sealed partial class MainViewModel
         new("Temperature", "Hold the selected faces at a temperature", new RelayCommand(() => StartThermalLoad(ThermalLoadKind.Temperature)), "🌡", "Simulation"),
         new("Heat Power", "Heat put in through the selected faces", new RelayCommand(() => StartThermalLoad(ThermalLoadKind.HeatPower)), "♨", "Simulation"),
         new("Convection", "Selected faces exchange heat with the air", new RelayCommand(() => StartThermalLoad(ThermalLoadKind.Convection)), "≋", "Simulation"),
-        new("Run Thermal", "Solve for steady-state temperatures", new AsyncRelayCommand(RunThermalStudy), "▶", "Simulation"),
+        new("Thermal Settings", "Steady state, or transient over a duration", new RelayCommand(ShowThermalSettings), "⏱", "Simulation"),
+        new("Run Thermal", "Solve for temperatures (steady state or over time)", new AsyncRelayCommand(RunThermalStudy), "▶", "Simulation"),
         new("Results", "Show or hide the stress plot", new RelayCommand(() => ShowResults = !ShowResults && StudyResult is not null), "◑", "Simulation"),
         new("Clear Study", "Remove fixtures, loads and results", new RelayCommand(ClearStudy), "✕", "Simulation"),
     ];
