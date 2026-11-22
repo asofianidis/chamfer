@@ -56,6 +56,92 @@ public sealed class RenderTests
             TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task AssemblyWorkflowMatesAndRenders()
+    {
+        await Session.Value.Dispatch(() => RenderAssembly("light"), TestContext.Current.CancellationToken);
+    }
+
+    private static PartDocument PlateWithHole()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(60, 40));
+        s.AddCircle(new Vec2(30, 20), 6);
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        return doc;
+    }
+
+    private static PartDocument Pin()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCircle(Vec2.Zero, 6);
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 35 });
+        return doc;
+    }
+
+    private static void RenderAssembly(string theme)
+    {
+        var (window, vm) = Open(theme);
+        vm.NewAssemblyCommand.Execute(null);
+        Assert.True(vm.IsAssemblyMode);
+        var plate = vm.InsertPart("plate.chprt", PlateWithHole());
+        var pin = vm.InsertPart("pin.chprt", Pin());
+        Assert.Equal("Under defined (6 DOF)", vm.StatusText);
+
+        var asm = vm.AssemblyDoc!;
+        var plateBody = asm.PartOf(plate).Bodies[0];
+        var pinBody = asm.PartOf(pin).Bodies[0];
+        int FaceOf(Body b, Func<Kernel.Occt.FaceInfo, bool> pick) => Enumerable.Range(1, b.FaceCount).First(i => pick(b.Face(i)));
+        SelectionItem Item(Chamfer.Assembly.Component c, Body b, int face) => new(SelectionKind.Face, b.FaceRef(face), Label: "face", ComponentId: c.Id);
+
+        // Concentric pin and hole.
+        vm.SetSelection([Item(plate, plateBody, FaceOf(plateBody, f => f.Surface == Kernel.Occt.SurfaceKind.Cylinder)), Item(pin, pinBody, FaceOf(pinBody, f => f.Surface == Kernel.Occt.SurfaceKind.Cylinder))]);
+        vm.AssemblyCommands.Single(c => c.Label == "Mate").Command.Execute(null);
+        Assert.Equal("Concentric", vm.Editor!.Fields.OfType<ChoiceField>().First().Options[vm.Editor.Fields.OfType<ChoiceField>().First().Index]);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Single(asm.Mates);
+        Assert.Equal("Under defined (2 DOF)", vm.StatusText);
+
+        // Pin bottom flush with plate bottom.
+        vm.SetSelection([Item(plate, plateBody, FaceOf(plateBody, f => f.Normal.Z < -0.99)), Item(pin, pinBody, FaceOf(pinBody, f => f.Normal.Z < -0.99))]);
+        vm.AssemblyCommands.Single(c => c.Label == "Mate").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal("Under defined (1 DOF)", vm.StatusText);
+        var axis = pin.Transform.Apply(Vec3.Zero);
+        Assert.Equal(30, axis.X, 1e-6);
+        Assert.Equal(20, axis.Y, 1e-6);
+
+        // Undo removes the last mate; redo restores it.
+        vm.UndoCommand.Execute(null);
+        Assert.Single(asm.Mates);
+        vm.RedoCommand.Execute(null);
+        Assert.Equal(2, asm.Mates.Count);
+
+        vm.AssemblyCommands.Single(c => c.Label == "Bill of Materials").Command.Execute(null);
+        Assert.Contains(vm.Editor!.Fields.OfType<InfoField>(), f => f.Label.Contains("pin", StringComparison.Ordinal));
+        vm.AcceptEditorCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Interference").Command.Execute(null);
+        Assert.Contains(vm.Editor!.Fields.OfType<InfoField>(), f => f.Text == "No interferences.");
+        vm.AcceptEditorCommand.Execute(null);
+
+        var viewport = window.FindControl<Controls.ModelViewport>("Viewport")!;
+        viewport.SetView(StandardView.Isometric);
+        Capture(window, $"assembly-{theme}");
+
+        // Edit the pin's part in place and come back.
+        vm.SelectedNode = vm.Tree.First(n => n.Tag == pin);
+        vm.AssemblyCommands.Single(c => c.Label == "Open Part").Command.Execute(null);
+        Assert.True(vm.IsPartMode);
+        Assert.True(vm.CanReturnToAssembly);
+        vm.ReturnToAssemblyCommand.Execute(null);
+        Assert.True(vm.IsAssemblyMode);
+        window.Close();
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open(string theme)
     {
         Application.Current!.RequestedThemeVariant = theme == "dark" ? ThemeVariant.Dark : ThemeVariant.Light;

@@ -27,11 +27,28 @@ public sealed partial class FeatureEditor : ObservableObject
     /// <summary>The feature being edited; null for information panels (mass properties, measure).</summary>
     public Feature? Feature { get; }
 
-    public bool IsInfo => Feature is null;
+    public bool IsInfo => Feature is null && OnAccept is null;
     public bool IsFeature => Feature is not null;
+
+    /// <summary>Shows OK and Cancel (features and commands); information panels only have Close.</summary>
+    public bool HasOkCancel => !IsInfo;
+
+    /// <summary>For command panels: run on OK.</summary>
+    public Action? OnAccept { get; private init; }
+
+    /// <summary>For command panels: run on Cancel.</summary>
+    public Action? OnCancel { get; private init; }
 
     /// <summary>A read-only panel of information fields.</summary>
     public static FeatureEditor Info(string title) => new(title, null, false, () => { });
+
+    /// <summary>A panel for a command that isn't a feature (a mate, a move), with OK and Cancel.</summary>
+    public static FeatureEditor Command(string title, Action changed, Action accept, Action cancel) =>
+        new(title, null, true, changed) { OnAccept = accept, OnCancel = cancel };
+
+    /// <summary>Adds a field to a command panel (selection fields become active in order).</summary>
+    public T AddField<T>(T field)
+        where T : PropertyField => Add(field);
 
     public void AddInfo(PropertyField field) => Fields.Add(field);
 

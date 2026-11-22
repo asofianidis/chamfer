@@ -98,7 +98,8 @@
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,0,0,1">
       <StackPanel Spacing="4">
         <WrapPanel Orientation="Horizontal">
-          <Button Classes="tool" Content="New" Command="{Binding NewCommand}" ToolTip.Tip="New part (Ctrl+N)" />
+          <Button Classes="tool" Content="New Part" Command="{Binding NewCommand}" ToolTip.Tip="New part (Ctrl+N)" />
+          <Button Classes="tool" Content="New Assembly" Command="{Binding NewAssemblyCommand}" ToolTip.Tip="New assembly" />
           <Button Classes="tool" Content="Open" Command="{Binding OpenCommand}" ToolTip.Tip="Open a part (Ctrl+O)" />
           <Button Classes="tool" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save (Ctrl+S)" />
           <Button Classes="tool" Content="Save As" Command="{Binding SaveAsCommand}" />
@@ -121,8 +122,30 @@
           <Button Classes="tool" Content="Wireframe" Command="{Binding SetDisplayStyleCommand}" CommandParameter="Wireframe" IsVisible="{Binding IsModelMode}" />
         </WrapPanel>
 
+        <!-- Assembly commands -->
+        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsAssemblyMode}">
+          <ItemsControl ItemsSource="{Binding AssemblyCommands}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:CommandItem">
+                <Button Classes="command" Command="{Binding Command}" ToolTip.Tip="{Binding Tooltip}">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="{Binding Glyph}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Label}" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </WrapPanel>
+
         <!-- Features -->
-        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsModelMode}">
+        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsPartMode}">
+          <Button Classes="command primary" Content="Back to Assembly" Command="{Binding ReturnToAssemblyCommand}" IsVisible="{Binding CanReturnToAssembly}" />
           <Button Classes="command" Command="{Binding NewSketchCommand}" ToolTip.Tip="Sketch on a plane or planar face">
             <StackPanel Orientation="Horizontal" Spacing="5">
               <TextBlock Text="✎" FontWeight="SemiBold" />
@@ -221,20 +244,20 @@
         <DockPanel IsVisible="{Binding ShowTree}">
           <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsModelMode}">
             <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,6">
-              <TextBlock Classes="section" Text="FEATURES" Margin="0" VerticalAlignment="Center" />
-              <ComboBox Grid.Column="1" ItemsSource="{Binding ConfigurationNames}" SelectedItem="{Binding ActiveConfigurationName}"
+              <TextBlock Classes="section" Text="{Binding TreeTitle}" Margin="0" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1" IsVisible="{Binding IsPartMode}" ItemsSource="{Binding ConfigurationNames}" SelectedItem="{Binding ActiveConfigurationName}"
                         MinWidth="120" FontSize="12" ToolTip.Tip="Active configuration" />
             </Grid>
           </StackPanel>
           <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" IsVisible="{Binding IsModelMode}">
-            <Button Classes="tool" Content="Edit" Command="{Binding EditSelectedCommand}" ToolTip.Tip="Edit the selected feature (double-click)" />
+            <Button Classes="tool" Content="Edit" Command="{Binding EditSelectedCommand}" IsVisible="{Binding IsPartMode}" ToolTip.Tip="Edit the selected feature (double-click)" />
             <Button Classes="tool" Content="Suppress" Command="{Binding ToggleSuppressCommand}" ToolTip.Tip="Suppress or unsuppress" />
             <Button Classes="tool" Content="Delete" Command="{Binding DeleteSelectedCommand}" />
-            <Button Classes="tool" Content="▲" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move the feature earlier in the history" />
-            <Button Classes="tool" Content="▼" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move the feature later in the history" />
-            <Button Classes="tool" Content="Roll Here" Command="{Binding RollbackHereCommand}" ToolTip.Tip="Roll back to just after this feature" />
-            <Button Classes="tool" Content="Roll Forward" Command="{Binding RollForwardCommand}" />
-            <ComboBox x:Name="MaterialBox" Margin="0,6,0,0" MinWidth="180" ItemsSource="{x:Static doc:Material.Library}" PlaceholderText="Material…"
+            <Button Classes="tool" Content="▲" IsVisible="{Binding IsPartMode}" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move the feature earlier in the history" />
+            <Button Classes="tool" Content="▼" IsVisible="{Binding IsPartMode}" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move the feature later in the history" />
+            <Button Classes="tool" Content="Roll Here" IsVisible="{Binding IsPartMode}" Command="{Binding RollbackHereCommand}" ToolTip.Tip="Roll back to just after this feature" />
+            <Button Classes="tool" Content="Roll Forward" IsVisible="{Binding IsPartMode}" Command="{Binding RollForwardCommand}" />
+            <ComboBox x:Name="MaterialBox" Margin="0,6,0,0" MinWidth="180" IsVisible="{Binding IsPartMode}" ItemsSource="{x:Static doc:Material.Library}" PlaceholderText="Material…"
                       ToolTip.Tip="Part material">
               <ComboBox.ItemTemplate>
                 <DataTemplate x:DataType="doc:Material">
@@ -314,9 +337,9 @@
           <StackPanel DockPanel.Dock="Top" Margin="0,8,0,8" Spacing="8">
             <TextBlock Text="{Binding Title, FallbackValue=''}" FontSize="16" FontWeight="SemiBold" />
             <StackPanel Orientation="Horizontal" Spacing="6">
-              <Button Classes="primary" Content="OK" Width="72" IsVisible="{Binding IsFeature, FallbackValue=False}"
+              <Button Classes="primary" Content="OK" Width="72" IsVisible="{Binding HasOkCancel, FallbackValue=False}"
                       Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AcceptEditorCommand, FallbackValue={x:Null}}" />
-              <Button Content="Cancel" Width="72" IsVisible="{Binding IsFeature, FallbackValue=False}"
+              <Button Content="Cancel" Width="72" IsVisible="{Binding HasOkCancel, FallbackValue=False}"
                       Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).CancelEditorCommand, FallbackValue={x:Null}}" />
               <Button Content="Close" Width="72" IsVisible="{Binding IsInfo, FallbackValue=False}"
                       Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AcceptEditorCommand, FallbackValue={x:Null}}" />

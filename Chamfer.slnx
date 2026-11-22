@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/Chamfer.App/Chamfer.App.csproj" />
+    <Project Path="src/Chamfer.Assembly/Chamfer.Assembly.csproj" />
     <Project Path="src/Chamfer.Document/Chamfer.Document.csproj" />
     <Project Path="src/Chamfer.Geometry/Chamfer.Geometry.csproj" />
     <Project Path="src/Chamfer.Kernel.Occt/Chamfer.Kernel.Occt.csproj" />
@@ -9,6 +10,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Chamfer.App.Tests/Chamfer.App.Tests.csproj" />
+    <Project Path="tests/Chamfer.Assembly.Tests/Chamfer.Assembly.Tests.csproj" />
     <Project Path="tests/Chamfer.Document.Tests/Chamfer.Document.Tests.csproj" />
     <Project Path="tests/Chamfer.Kernel.Tests/Chamfer.Kernel.Tests.csproj" />
     <Project Path="tests/Chamfer.Sketching.Tests/Chamfer.Sketching.Tests.csproj" />

@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Assemblies: components, mates and the mate solver, interference, exploded views and bills of materials.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Chamfer.Document\Chamfer.Document.csproj" />
+  </ItemGroup>
+</Project>

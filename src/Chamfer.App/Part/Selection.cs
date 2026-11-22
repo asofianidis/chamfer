@@ -15,7 +15,7 @@ public enum SelectionKind
 /// a reference plane, or a feature in the tree. Selections are stored by
 /// reference rather than by index so they survive rebuilds.
 /// </summary>
-public sealed record SelectionItem(SelectionKind Kind, TopoRef? Ref = null, string? PlaneId = null, string? FeatureId = null, string Label = "")
+public sealed record SelectionItem(SelectionKind Kind, TopoRef? Ref = null, string? PlaneId = null, string? FeatureId = null, string Label = "", string? ComponentId = null)
 {
     public static SelectionItem Face(Body body, int index) =>
         new(SelectionKind.Face, body.FaceRef(index), Label: $"Face <{Describe(body.Face(index).Surface.ToString())}>");
@@ -28,7 +28,7 @@ public sealed record SelectionItem(SelectionKind Kind, TopoRef? Ref = null, stri
     public static SelectionItem ForFeature(Feature f) => new(SelectionKind.Feature, FeatureId: f.Id, Label: f.Name);
 
     public bool SameTarget(SelectionItem other) =>
-        Kind == other.Kind && (Ref?.Name ?? PlaneId ?? FeatureId) == (other.Ref?.Name ?? other.PlaneId ?? other.FeatureId);
+        Kind == other.Kind && ComponentId == other.ComponentId && (Ref?.Name ?? PlaneId ?? FeatureId) == (other.Ref?.Name ?? other.PlaneId ?? other.FeatureId);
 
     /// <summary>The plane reference this selection stands for, if it's a plane or planar face.</summary>
     public PlaneRef? AsPlane() => Kind switch
@@ -54,6 +54,15 @@ public sealed record SelectionItem(SelectionKind Kind, TopoRef? Ref = null, stri
 
 /// <summary>What a pick id in the 3D scene refers to.</summary>
 public abstract record PickTarget;
+
+/// <summary>Maps renderer pick ids back to model entities.</summary>
+public interface IPickSource
+{
+    PickTarget? Target(int id);
+}
+
+/// <summary>A face or edge of a component in an assembly.</summary>
+public sealed record ComponentPick(Chamfer.Assembly.Component Component, Body Body, int Index, bool IsEdge) : PickTarget;
 
 public sealed record FacePick(Body Body, int Index) : PickTarget;
 

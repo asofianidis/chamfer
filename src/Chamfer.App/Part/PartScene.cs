@@ -23,7 +23,7 @@ public sealed record ViewPalette(Rgba Top, Rgba Bottom, Rgba Body, Rgba Edge, Rg
 /// visible reference planes and sketches, with hover and selection colours.
 /// Keeps the pick-id table that maps renderer ids back to model entities.
 /// </summary>
-public sealed class PartScene
+public sealed class PartScene : IPickSource
 {
     private readonly List<PickTarget> _targets = [];
 
