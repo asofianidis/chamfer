@@ -314,6 +314,30 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Left-handed", td.LeftHanded, v => Set(() => td.LeftHanded = v)));
                 break;
 
+            case StructuralMemberFeature sm:
+                var kinds = Enum.GetValues<ProfileKind>();
+                ChoiceField? sizeField = null;
+                List<string> SizesFor(ProfileKind k) => [.. StructuralProfile.Library.Where(p => p.Kind == k).Select(p => p.Name)];
+                ed.Add(new ChoiceField("Profile", ["Square tube", "Rectangular tube", "Angle", "Channel (UPN)", "Beam (IPE)", "Round tube", "Flat bar"], Array.IndexOf(kinds, sm.Kind), i => Set(() =>
+                {
+                    sm.Kind = kinds[i];
+                    sm.Size = SizesFor(sm.Kind)[0];
+                    if (sizeField is not null)
+                    {
+                        ed.Fields[ed.Fields.IndexOf(sizeField)] = sizeField = SizeChoice();
+                    }
+                })));
+                ChoiceField SizeChoice()
+                {
+                    var sizes = SizesFor(sm.Kind);
+                    return new ChoiceField("Size", sizes, Math.Max(0, sizes.IndexOf(sm.Size)), i => Set(() => sm.Size = SizesFor(sm.Kind)[i]));
+                }
+
+                sizeField = ed.Add(SizeChoice());
+                ed.Add(Num("Rotation", "°", sm, nameof(sm.Rotation)));
+                ed.Add(new InfoField("Path", "Each straight sketch line becomes a member; joined lines are mitred."));
+                break;
+
             case FilletFeature fil:
                 ed.Add(Num("Radius", "mm", fil, nameof(fil.Radius), 1e-6));
                 ed.Add(new SelectionField("Edges and faces", Edges,

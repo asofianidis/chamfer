@@ -90,6 +90,9 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Flatten", "Show the flat pattern (toggle)", new RelayCommand(ToggleFlat), "▭", "Sheet Metal"),
             new("Export Flat DXF", "Save the flat pattern for cutting", new AsyncRelayCommand(ExportFlatDxf), "⇩", "Sheet Metal"),
 
+            new("Structural Member", "Profiles along sketch lines, mitred at corners", new RelayCommand(() => StartSketchFeature(sf => new StructuralMemberFeature { SketchId = sf.Id })), "⌗", "Weldments"),
+            new("Cut List", "Members grouped by profile and length", new RelayCommand(ShowCutList), "☰", "Weldments"),
+
             new("Combine", "Add, subtract or intersect bodies", new RelayCommand(StartCombine), "⊕", "Bodies"),
             new("Split", "Cut bodies in two with a plane", new RelayCommand(() => StartFeature(new SplitBodyFeature { Plane = SelectedPlane() ?? PlaneRef.Right })), "⫽", "Bodies"),
             new("Move/Copy Body", "Move, rotate or copy bodies", new RelayCommand(() => StartFeature(new MoveCopyBodyFeature { Bodies = SelectedBodyNames() })), "✥", "Bodies"),
@@ -147,7 +150,26 @@ public sealed partial class MainViewModel : ViewModelBase
     public partial IReadOnlyList<CommandItem> FeatureCommands { get; set; }
 
     [ObservableProperty]
-    public partial IReadOnlyList<string> CommandTabs { get; set; } = ["Features", "Surfaces", "Sheet Metal", "Bodies", "Simulation"];
+    public partial IReadOnlyList<string> CommandTabs { get; set; } = ["Features", "Surfaces", "Sheet Metal", "Weldments", "Bodies", "Simulation"];
+
+    private void ShowCutList()
+    {
+        CancelEditor();
+        var panel = FeatureEditor.Info("Cut List");
+        var items = CutList.Build(Document);
+        if (items.Count == 0)
+        {
+            panel.AddInfo(new InfoField("Cut list", "No structural members yet."));
+        }
+
+        foreach (var item in items)
+        {
+            panel.AddInfo(new InfoField($"{item.Item}. {item.Description}",
+                string.Create(CultureInfo.InvariantCulture, $"Length {item.Length:0.#} mm · Qty {item.Quantity} · {item.MassEach:0.###} kg each")));
+        }
+
+        Editor = panel;
+    }
 
     /// <summary>Showing the sheet metal flat pattern instead of the folded part.</summary>
     [ObservableProperty]

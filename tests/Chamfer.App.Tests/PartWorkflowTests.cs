@@ -329,4 +329,27 @@ public class PartWorkflowTests
         var code = vm.Editor!.Fields.OfType<CodeField>().Single().Text;
         Assert.Contains("\"feature\": \"chamfer\"", code.Replace("\"\"", "\"", StringComparison.Ordinal), StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void WeldmentFrameFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.SetSelection([SelectionItem.Plane("top", "Top Plane")]);
+        vm.NewSketchCommand.Execute(null);
+        var editor = vm.Sketch!.Editor;
+        editor.BeginChange();
+        editor.Sketch.AddCornerRectangle(new Vec2(0, 0), new Vec2(500, 300));
+        editor.EndChange(solve: true);
+        vm.SelectTabCommand.Execute("Weldments");
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Structural Member").Command.Execute(null);
+        var member = Assert.IsType<StructuralMemberFeature>(vm.Editor!.Feature);
+        vm.Editor.Fields.OfType<ChoiceField>().Single(f => f.Label == "Profile").Index = 1; // rectangular tube
+        Assert.Equal(ProfileKind.RectangularTube, member.Kind);
+        vm.Editor.Fields.OfType<ChoiceField>().Single(f => f.Label == "Size").Index = 1;
+        Assert.Equal("60x40x3", member.Size);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(4, vm.Document.Bodies.Count);
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Cut List").Command.Execute(null);
+        Assert.Equal(2, vm.Editor!.Fields.OfType<InfoField>().Count());
+    }
 }
