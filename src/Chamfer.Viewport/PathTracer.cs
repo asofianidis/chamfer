@@ -40,6 +40,40 @@ public sealed class RenderSettings
     public double MetalRoughness { get; set; } = 0.25;
 
     public int Seed { get; set; } = 1;
+
+    /// <summary>Sky colour at the horizon and overhead (linear RGB, about 0 to 1).</summary>
+    public Vec3 SkyHorizon { get; set; } = new(0.95, 0.96, 1.0);
+
+    public Vec3 SkyZenith { get; set; } = new(0.45, 0.6, 0.9);
+
+    public Vec3 SunColor { get; set; } = new(1, 0.97, 0.9);
+
+    /// <summary>The scenes offered: lighting and sky presets.</summary>
+    public static IReadOnlyList<string> Scenes { get; } = ["Daylight", "Studio", "Sunset", "Overcast"];
+
+    /// <summary>Sets the sky, sun and floor for a scene from <see cref="Scenes"/>.</summary>
+    public void ApplyScene(string scene)
+    {
+        switch (scene)
+        {
+            case "Studio":
+                (SkyHorizon, SkyZenith, SunColor) = (new Vec3(0.85, 0.85, 0.86), new Vec3(0.75, 0.75, 0.77), new Vec3(1, 1, 1));
+                (SunDirection, SunRadius, SunIntensity) = (new Vec3(0.3, 0.9, 0.6).Normalized(), 0.12, 1.4);
+                break;
+            case "Sunset":
+                (SkyHorizon, SkyZenith, SunColor) = (new Vec3(1.0, 0.62, 0.35), new Vec3(0.35, 0.3, 0.55), new Vec3(1, 0.65, 0.35));
+                (SunDirection, SunRadius, SunIntensity) = (new Vec3(-0.8, 0.18, 0.55).Normalized(), 0.04, 2.2);
+                break;
+            case "Overcast":
+                (SkyHorizon, SkyZenith, SunColor) = (new Vec3(0.8, 0.82, 0.85), new Vec3(0.7, 0.72, 0.76), new Vec3(0.9, 0.9, 0.92));
+                (SunDirection, SunRadius, SunIntensity) = (new Vec3(0.2, 1, 0.3).Normalized(), 0.35, 0.8);
+                break;
+            default:
+                (SkyHorizon, SkyZenith, SunColor) = (new Vec3(0.95, 0.96, 1.0), new Vec3(0.45, 0.6, 0.9), new Vec3(1, 0.97, 0.9));
+                (SunDirection, SunRadius, SunIntensity) = (new Vec3(0.45, 0.8, 0.4).Normalized(), 0.03, 1.8);
+                break;
+        }
+    }
 }
 
 /// <summary>
@@ -270,12 +304,10 @@ public sealed class PathTracer
         return true;
     }
 
-    private static Vec3 Sky(Vec3 d)
+    private Vec3 Sky(Vec3 d)
     {
         var t = Math.Clamp((d.Y * 0.5) + 0.5, 0, 1);
-        var horizon = new Vec3(0.95, 0.96, 1.0);
-        var zenith = new Vec3(0.45, 0.6, 0.9);
-        return ((horizon * (1 - t)) + (zenith * t)) * 0.5;
+        return ((_settings.SkyHorizon * (1 - t)) + (_settings.SkyZenith * t)) * 0.5;
     }
 
     private Vec3 Trace(Vec3 o, Vec3 d, Random rng)
@@ -283,7 +315,7 @@ public sealed class PathTracer
         var throughput = new Vec3(1, 1, 1);
         var radiance = Vec3.Zero;
         var sunDir = _settings.SunDirection.Normalized();
-        var sun = new Vec3(1, 0.97, 0.9) * _settings.SunIntensity;
+        var sun = _settings.SunColor * _settings.SunIntensity;
         for (var bounce = 0; bounce <= _settings.MaxBounces; bounce++)
         {
             var floorT = _settings.Floor && d.Y < -1e-9 ? (_floorY - o.Y) / d.Y : double.MaxValue;

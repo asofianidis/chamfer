@@ -20,6 +20,9 @@ public sealed partial class MainViewModel
 
     public RenderSettings RenderOptions { get; } = new() { Samples = 64 };
 
+    /// <summary>The render scene (lighting and sky) from <see cref="RenderSettings.Scenes"/>.</summary>
+    private string _renderScene = "Daylight";
+
     /// <summary>Glossy metal for metals, matte for wood, clear-coated plastic otherwise.</summary>
     public static Finish FinishOf(Material m)
     {
@@ -39,6 +42,11 @@ public sealed partial class MainViewModel
         var panel = FeatureEditor.Info("Render");
         var qualities = new[] { 16, 64, 256 };
         panel.AddInfo(new ChoiceField("Quality", ["Draft (16 samples)", "Good (64 samples)", "Best (256 samples)"], 1, i => RenderOptions.Samples = qualities[i]));
+        panel.AddInfo(new ChoiceField("Scene", [.. RenderSettings.Scenes], Math.Max(0, RenderSettings.Scenes.ToList().IndexOf(_renderScene)), i =>
+        {
+            _renderScene = RenderSettings.Scenes[i];
+            RenderOptions.ApplyScene(_renderScene);
+        }));
         panel.AddInfo(new BoolField("Floor with shadows", RenderOptions.Floor, v => RenderOptions.Floor = v));
         panel.AddInfo(new NumberField("Exposure", string.Empty, () => RenderOptions.Exposure, v => RenderOptions.Exposure = v, 0.05));
         panel.AddInfo(new ButtonField("Render", new AsyncRelayCommand(RenderPhotoAsync)));
@@ -74,6 +82,7 @@ public sealed partial class MainViewModel
             Floor = RenderOptions.Floor,
             Exposure = RenderOptions.Exposure,
         };
+        settings.ApplyScene(_renderScene);
         foreach (var (k, v) in MeshFinishes(scene))
         {
             settings.Finishes[k] = v;

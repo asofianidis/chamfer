@@ -295,4 +295,25 @@ public class ViewportTests
         var hit = r.PointAt((int)at.X, (int)at.Y);
         Assert.Equal(10, hit!.Value.Z, 1);
     }
+
+    [Fact]
+    public void ScenesChangeTheLight()
+    {
+        var empty = new Scene();
+        var camera = new Camera();
+        camera.SetView(StandardView.Front);
+        (double R, double B) Average(string scene)
+        {
+            var settings = new RenderSettings { Samples = 2, Floor = false };
+            settings.ApplyScene(scene);
+            var px = new PathTracer().Render(empty, camera, 16, 16, settings);
+            return (px.Average(p => (p >> 16) & 0xFF), px.Average(p => p & 0xFF));
+        }
+
+        var day = Average("Daylight");
+        var sunset = Average("Sunset");
+        Assert.True(day.B > day.R, $"daylight sky {day}"); // a blue sky
+        Assert.True(sunset.R > sunset.B, $"sunset sky {sunset}"); // a warm one
+        Assert.Equal(4, RenderSettings.Scenes.Count);
+    }
 }
