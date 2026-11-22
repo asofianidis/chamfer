@@ -419,6 +419,31 @@ public class FeatureTests
     }
 
     [Fact]
+    public void ToolboxBearingsAndInchFasteners()
+    {
+        // A 6204 bearing: 20 bore, 47 outside, 14 wide (less two shallow grooves).
+        var bearing = new FastenerSpec(FastenerKind.Bearing, "6204");
+        Assert.Equal("toolbox:Bearing 6204", bearing.Path);
+        Assert.Equal(bearing, FastenerSpec.Parse(bearing.Path));
+        var part = Toolbox.Create(bearing.Path);
+        var box = part.Bodies[0].Shape.Bounds;
+        Assert.Equal(47, box.Size.X, 1e-6);
+        Assert.Equal(14, box.Size.Z, 1e-6);
+        var ring = Math.PI * ((23.5 * 23.5) - (10 * 10)) * 14;
+        Assert.InRange(part.MassProperties().Volume, ring * 0.95, ring);
+
+        // A 1/4-20 x 1 in socket head cap screw (ASME B18.3): 3/8 in head, 1/4 in shank.
+        var screw = new FastenerSpec(FastenerKind.SocketHeadCapScrew, "1/4-20", 25.4);
+        Assert.True(screw.IsInch);
+        Assert.Equal("ASME B18.3 1/4-20 x 1in", screw.Description);
+        Assert.Equal(screw, FastenerSpec.Parse(screw.Path));
+        var s = Toolbox.Create(screw.Path).Bodies[0].Shape.Bounds;
+        Assert.Equal(0.375 * 25.4, s.Size.X, 1e-6);
+        Assert.Equal((0.25 + 1) * 25.4, s.Size.Z, 1e-6);
+        Assert.Equal("ASME B18.2.2", new FastenerSpec(FastenerKind.HexNut, "3/8-16").Standard);
+    }
+
+    [Fact]
     public void IncrementalRebuildReusesUnchangedPrefix()
     {
         var (doc, _, _, _) = Block();

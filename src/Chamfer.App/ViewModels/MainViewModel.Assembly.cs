@@ -180,22 +180,68 @@ public sealed partial class MainViewModel
 
         CancelEditor();
         var kinds = Enum.GetValues<FastenerKind>();
-        var kindNames = new[] { "Socket head cap screw (ISO 4762)", "Hex bolt (ISO 4017)", "Hex nut (ISO 4032)", "Flat washer (ISO 7089)" };
+        var kindNames = new[] { "Socket head cap screw", "Hex bolt", "Hex nut", "Flat washer", "Deep groove ball bearing" };
         var spec = new FastenerSpec(FastenerKind.SocketHeadCapScrew, "M6", 20);
         var panel = FeatureEditor.Command("Toolbox", () => { },
             accept: () => InsertPart(spec.Path),
             cancel: () => { });
         var preview = new InfoField("Part", spec.Description);
+        IReadOnlyList<string> sizes = Toolbox.SizeNames;
+        IReadOnlyList<double> lengthValues = Toolbox.StandardLengths;
+        static string Inches(double mm) => (mm / 25.4).ToString("0.###", CultureInfo.InvariantCulture) + " in";
+        ChoiceField? sizeField = null, lengthField = null;
         void Update(FastenerSpec next)
         {
             spec = next;
             preview.Text = spec.Description;
         }
 
-        panel.AddField(new ChoiceField("Type", kindNames, 0, i => Update(spec with { Kind = kinds[i] })));
-        panel.AddField(new ChoiceField("Size", [.. Toolbox.SizeNames], Toolbox.SizeNames.ToList().IndexOf("M6"), i => Update(spec with { Size = Toolbox.SizeNames[i] })));
-        var lengths = Toolbox.StandardLengths.Select(l => l.ToString("0", CultureInfo.InvariantCulture)).ToList();
-        panel.AddField(new ChoiceField("Length (screws, bolts)", lengths, lengths.IndexOf("20"), i => Update(spec with { Length = Toolbox.StandardLengths[i] })));
+        void Refill()
+        {
+            // Bearings have designations; inch screws have inch lengths.
+            var wantSizes = spec.Kind == FastenerKind.Bearing ? Toolbox.BearingNames : Toolbox.SizeNames;
+            if (!ReferenceEquals(wantSizes, sizes) && sizeField is not null)
+            {
+                sizes = wantSizes;
+                sizeField.Options = [.. sizes];
+                spec = spec with { Size = sizes[spec.Kind == FastenerKind.Bearing ? Math.Max(0, sizes.ToList().IndexOf("6204")) : Math.Max(0, sizes.ToList().IndexOf("M6"))] };
+                sizeField.Index = sizes.ToList().IndexOf(spec.Size);
+            }
+
+            var wantLengths = spec.IsInch ? Toolbox.InchLengths : Toolbox.StandardLengths;
+            if (!ReferenceEquals(wantLengths, lengthValues) && lengthField is not null)
+            {
+                lengthValues = wantLengths;
+                lengthField.Options = [.. lengthValues.Select(l => spec.IsInch ? Inches(l) : l.ToString("0", CultureInfo.InvariantCulture))];
+                spec = spec with { Length = lengthValues[Math.Min(2, lengthValues.Count - 1)] };
+                lengthField.Index = Math.Min(2, lengthValues.Count - 1);
+            }
+
+            Update(spec);
+        }
+
+        panel.AddField(new ChoiceField("Type", kindNames, 0, i =>
+        {
+            spec = spec with { Kind = kinds[i] };
+            Refill();
+        }));
+        sizeField = new ChoiceField("Size", [.. sizes], sizes.ToList().IndexOf("M6"), i =>
+        {
+            if (i >= 0 && i < sizes.Count)
+            {
+                spec = spec with { Size = sizes[i] };
+                Refill();
+            }
+        });
+        panel.AddField(sizeField);
+        lengthField = new ChoiceField("Length (screws, bolts)", [.. lengthValues.Select(l => l.ToString("0", CultureInfo.InvariantCulture))], lengthValues.ToList().IndexOf(20), i =>
+        {
+            if (i >= 0 && i < lengthValues.Count)
+            {
+                Update(spec with { Length = lengthValues[i] });
+            }
+        });
+        panel.AddField(lengthField);
         panel.AddField(preview);
         Editor = panel;
     }
