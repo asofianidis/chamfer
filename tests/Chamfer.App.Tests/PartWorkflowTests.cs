@@ -502,4 +502,50 @@ public class PartWorkflowTests
         vm.AcceptEditorCommand.Execute(null);
         Assert.Equal((100 * 60 * 10) - (15 * Math.PI * 9 * 10), vm.Document.MassProperties().Volume, 1e-3);
     }
+
+    [Fact]
+    public void AutoSaveAndRecoveryAfterACrash()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), $"chamfer-ar-{Guid.NewGuid():N}");
+        try
+        {
+            var vm = new MainViewModel { Recovery = new AutoRecovery(folder) };
+            Assert.Null(vm.AutoSaveNow()); // nothing unsaved yet
+            vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+            vm.NewSketchCommand.Execute(null);
+            var editor = vm.Sketch!.Editor;
+            editor.BeginChange();
+            editor.Sketch.AddCornerRectangle(new Vec2(0, 0), new Vec2(30, 20));
+            editor.EndChange(solve: true);
+            vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+            var copy = vm.AutoSaveNow();
+            Assert.NotNull(copy);
+            Assert.True(File.Exists(copy));
+            Assert.EndsWith(".chprt", copy, StringComparison.Ordinal);
+
+            // "Crash": a new session sees the copy and recovers it as an unsaved part.
+            var next = new MainViewModel { Recovery = new AutoRecovery(folder) };
+            var found = Assert.Single(next.Recovery.Find());
+            Assert.Equal("Part1.chprt", found.Name);
+            next.ShowRecoveryPanel();
+            Assert.Equal("Document Recovery", next.Editor!.Title);
+            next.Editor.Fields.OfType<ButtonField>().Single(f => f.Label.StartsWith("Open", StringComparison.Ordinal)).Command.Execute(null);
+            Assert.Equal(20 * 30 * 10, next.Document.MassProperties().Volume, 1e-6);
+            Assert.Null(next.FilePath);
+            Assert.False(File.Exists(found.Path));
+            Assert.DoesNotContain(new AutoRecovery(folder).Find(), r => r.Path == found.Path);
+
+            // A new document abandons the work, so its recovery copy goes too.
+            next.NewCommand.Execute(null);
+            Assert.Empty(Directory.EnumerateFiles(folder));
+        }
+        finally
+        {
+            if (Directory.Exists(folder))
+            {
+                Directory.Delete(folder, recursive: true);
+            }
+        }
+    }
 }

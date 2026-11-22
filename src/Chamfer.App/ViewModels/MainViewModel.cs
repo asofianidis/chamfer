@@ -1672,6 +1672,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _undo.Clear();
         _redo.Clear();
         _dirty = false;
+        DiscardRecovery();
         _lastSketch = null;
         SetSelection([]);
         RebuildAndRefresh();
@@ -1811,6 +1812,7 @@ public sealed partial class MainViewModel : ViewModelBase
             await File.WriteAllTextAsync(path, Document.Save());
             FilePath = path;
             _dirty = false;
+            DiscardRecovery();
             RefreshTitle();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

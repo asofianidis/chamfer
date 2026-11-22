@@ -887,6 +887,7 @@ public sealed partial class MainViewModel
         await File.WriteAllTextAsync(path, d.Save());
         FilePath = path;
         _dirty = false;
+        DiscardRecovery();
         RefreshDrawing();
     }
 
