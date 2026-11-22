@@ -414,7 +414,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 6: Surfacing
 - [x] Extruded, revolved, swept, lofted, and boundary surfaces
 - [x] Planar, offset, ruled, and filled surfaces
-- [~] Knit (sew), trim, untrim, extend, and delete face *(knit, forming solids from closed sets)*
+- [x] Knit (sew), trim, untrim, extend, and delete face *(knit and form solids; trim by a plane; untrim; extend flat surfaces; delete face)*
 - [x] Thicken, and thickened cut
 - [~] Replace face, cut with surface *(cut with surface or plane)*
 - [x] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection

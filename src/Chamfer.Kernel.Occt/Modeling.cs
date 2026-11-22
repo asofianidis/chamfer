@@ -260,6 +260,20 @@ public static unsafe class Modeling
         return Shape.Wrap(Native.chf_flex(s.Handle, frame, mode, amount, length), "flex");
     }
 
+    /// <summary>A face without its holes (or, with <paramref name="natural"/>, its surface's whole extent where finite).</summary>
+    public static Shape UntrimFace(Shape face, bool natural = false)
+    {
+        ArgumentNullException.ThrowIfNull(face);
+        return Shape.Wrap(Native.chf_face_untrim(face.Handle, natural ? 1 : 0), "untrim");
+    }
+
+    /// <summary>A flat face grown outward by a distance all round.</summary>
+    public static Shape ExtendFace(Shape face, double distance)
+    {
+        ArgumentNullException.ThrowIfNull(face);
+        return Shape.Wrap(Native.chf_face_extend(face.Handle, distance), "extend");
+    }
+
     /// <summary>Joins curves end to end into one wire.</summary>
     public static Shape JoinCurves(IReadOnlyList<Shape> curves)
     {

@@ -631,6 +631,45 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void TrimUntrimAndExtendSurfaces()
+    {
+        // A flat 40 x 20 surface with a 5 mm hole in it.
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 20));
+        s.AddCircle(new Vec2(10, 10), 5);
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new PlanarSurfaceFeature { SketchId = sf.Id });
+        doc.Rebuild();
+        var surface = Assert.Single(doc.Bodies).Name;
+        double Area() => doc.Bodies.Single().Shape.MassProperties.SurfaceArea;
+        var holed = (40 * 20) - (Math.PI * 25);
+        Assert.Equal(holed, Area(), 1e-3);
+
+        // Untrim fills the hole.
+        var edit = doc.Add(new SurfaceEditFeature { Body = surface, Operation = SurfaceEdit.Untrim });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(800, Area(), 1e-3);
+
+        // Extend grows the outline 2 mm all round (rounded corners).
+        edit.Operation = SurfaceEdit.Extend;
+        edit.Distance = 2;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal((44 * 24) - (4 * 4) + (Math.PI * 4) - (Math.PI * 25), Area(), 0.05);
+
+        // Trim with the Right plane moved to x = 25: keep the 15 mm on the far side.
+        var cut = doc.Add(new ReferencePlaneFeature { Base = PlaneRef.Right, Offset = 25 });
+        edit.Operation = SurfaceEdit.Trim;
+        edit.Tool = new PlaneRef(cut.Id);
+        doc.Move(cut, -1);
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(15 * 20, Area(), 1e-3);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

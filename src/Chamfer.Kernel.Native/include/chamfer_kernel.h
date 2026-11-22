@@ -211,6 +211,10 @@ CHF_API chf_op* chf_split_line(chf_shape* s, chf_shape* tool);
 CHF_API chf_shape* chf_project_curve(chf_shape* curve, chf_shape* target, const double* dir3);
 /* Joins curves end to end into one wire. */
 CHF_API chf_shape* chf_join_curves(int count, chf_shape* const* curves);
+/* Untrim a face: its outer boundary only, or (natural) its surface's own bounds where they're finite. */
+CHF_API chf_shape* chf_face_untrim(chf_shape* face, int natural);
+/* Extend a flat face outward by a distance all round. */
+CHF_API chf_shape* chf_face_extend(chf_shape* face, double distance);
 /* Flex along an axis (frame: origin, axis, x direction) over a length: mode 0 twists by amount
    radians, 1 tapers to (1 + amount) times the size, 2 stretches by (1 + amount), 3 pushes the surface
    near the origin along the axis by amount, fading out at a distance of length (point deform). */

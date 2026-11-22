@@ -68,6 +68,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(WrapFeature), "wrap")]
 [JsonDerivedType(typeof(FlexFeature), "flex")]
 [JsonDerivedType(typeof(DeformFeature), "deform")]
+[JsonDerivedType(typeof(SurfaceEditFeature), "surface-edit")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
 [JsonDerivedType(typeof(CombineFeature), "combine")]
 [JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]

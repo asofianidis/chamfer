@@ -10,6 +10,8 @@
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepLib.hxx>
+#include <Precision.hxx>
+#include <BRepOffsetAPI_MakeOffset.hxx>
 #include <BRepBuilderAPI_NurbsConvert.hxx>
 #include <BRep_Builder.hxx>
 #include <Geom_BSplineSurface.hxx>
@@ -728,6 +730,59 @@ chf_shape* chf_flex(chf_shape* s, const double* frame9, int mode, double amount,
     Handle(ShapeFix_Shape) fix = new ShapeFix_Shape(shape);
     fix->Perform();
     return new chf_shape(fix->Shape());
+  });
+}
+
+// Untrim: the face rebuilt from its outer boundary alone (holes filled in); faces on bounded
+// surfaces other than planes go back to the surface's own bounds when `natural` is set.
+chf_shape* chf_face_untrim(chf_shape* face, int natural) {
+  return chf_guard<chf_shape*>(nullptr, [&] {
+    requireShape(face);
+    if (face->shape.ShapeType() != TopAbs_FACE) throw std::runtime_error("untrim needs a face");
+    TopoDS_Face f = TopoDS::Face(face->shape);
+    Handle(Geom_Surface) surface = BRep_Tool::Surface(f);
+    if (natural && !surface->IsKind(STANDARD_TYPE(Geom_Plane))) {
+      double u0, u1, v0, v1;
+      surface->Bounds(u0, u1, v0, v1);
+      if (!Precision::IsInfinite(u0) && !Precision::IsInfinite(u1) && !Precision::IsInfinite(v0) && !Precision::IsInfinite(v1)) {
+        BRepBuilderAPI_MakeFace whole(surface, u0, u1, v0, v1, 1e-6);
+        if (whole.IsDone()) return new chf_shape(whole.Face());
+      }
+    }
+    BRepBuilderAPI_MakeFace outer(surface, BRepTools::OuterWire(f), Standard_True);
+    if (!outer.IsDone()) throw std::runtime_error("couldn't rebuild the face");
+    ShapeFix_Face fix(outer.Face());
+    fix.Perform();
+    return new chf_shape(fix.Face());
+  });
+}
+
+// Extend a flat face outward by a distance all round (its outline offset in its plane).
+chf_shape* chf_face_extend(chf_shape* face, double distance) {
+  return chf_guard<chf_shape*>(nullptr, [&] {
+    requireShape(face);
+    if (face->shape.ShapeType() != TopAbs_FACE) throw std::runtime_error("extend needs a face");
+    TopoDS_Face f = TopoDS::Face(face->shape);
+    if (!BRep_Tool::Surface(f)->IsKind(STANDARD_TYPE(Geom_Plane))) throw std::runtime_error("only flat faces can be extended");
+    BRepOffsetAPI_MakeOffset offset(BRepBuilderAPI_MakeFace(BRep_Tool::Surface(f), BRepTools::OuterWire(f), Standard_True).Face(), GeomAbs_Arc);
+    offset.Perform(distance);
+    if (!offset.IsDone()) throw std::runtime_error("couldn't offset the outline");
+    TopoDS_Wire wire;
+    for (TopExp_Explorer ex(offset.Shape(), TopAbs_WIRE); ex.More(); ex.Next()) {
+      wire = TopoDS::Wire(ex.Current());
+      break;
+    }
+    if (wire.IsNull()) throw std::runtime_error("the offset outline vanished");
+    BRepBuilderAPI_MakeFace grown(BRep_Tool::Surface(f), wire, Standard_True);
+    if (!grown.IsDone()) throw std::runtime_error("couldn't make the extended face");
+    // Holes stay as they are.
+    TopoDS_Wire outer = BRepTools::OuterWire(f);
+    for (TopExp_Explorer ex(f, TopAbs_WIRE); ex.More(); ex.Next()) {
+      if (!ex.Current().IsSame(outer)) grown.Add(TopoDS::Wire(ex.Current()));
+    }
+    ShapeFix_Face fix(grown.Face());
+    fix.Perform();
+    return new chf_shape(fix.Face());
   });
 }
 

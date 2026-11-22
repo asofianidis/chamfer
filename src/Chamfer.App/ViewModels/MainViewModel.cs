@@ -150,6 +150,9 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 Edges = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => s.Ref!)],
             })), "▦", "Surfaces"),
+            new("Trim Surface", "Cut a surface body with a plane and keep one side", new RelayCommand(() => StartFeature(new SurfaceEditFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Operation = SurfaceEdit.Trim, Tool = SelectedPlane() ?? PlaneRef.Front })), "✂", "Surfaces"),
+            new("Untrim Surface", "Fill a surface's holes back in", new RelayCommand(() => StartFeature(new SurfaceEditFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Operation = SurfaceEdit.Untrim })), "◻", "Surfaces"),
+            new("Extend Surface", "Grow a flat surface outward all round", new RelayCommand(() => StartFeature(new SurfaceEditFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Operation = SurfaceEdit.Extend })), "⬚", "Surfaces"),
             new("Thickened Cut", "Cut away a thickened surface's volume", new RelayCommand(() => StartFeature(new ThickenFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Thickness = 1, IsCut = true })), "▤", "Surfaces"),
 
             new("Base Flange", "Sheet metal from a sketch: closed makes a plate, open makes a bent sheet", new RelayCommand(() => StartSketchFeature(sf => new BaseFlangeFeature { SketchId = sf.Id })), "▬", "Sheet Metal"),
