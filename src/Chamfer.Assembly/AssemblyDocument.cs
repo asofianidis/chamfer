@@ -44,6 +44,27 @@ public enum MateType
     Concentric,
     Tangent,
     Lock,
+
+    /// <summary>A and B mirror each other about plane C.</summary>
+    Symmetric,
+
+    /// <summary>The faces A and B (a tab) are centred between the faces C and D (a slot).</summary>
+    Width,
+
+    /// <summary>Distance between A and B kept between Value and Value2.</summary>
+    LimitDistance,
+
+    /// <summary>Angle between A and B kept between Value and Value2 degrees.</summary>
+    LimitAngle,
+
+    /// <summary>Axes A and B turn together at the ratio Value (A turns Value times for each turn of B, oppositely).</summary>
+    Gear,
+
+    /// <summary>The rack (edge A) moves Value mm per radian the pinion (axis B) turns.</summary>
+    RackPinion,
+
+    /// <summary>B advances Value mm along axis A per revolution about it.</summary>
+    Screw,
 }
 
 /// <summary>Geometry on a component a mate refers to: a face, an edge, or a reference plane of the part.</summary>
@@ -79,6 +100,20 @@ public sealed class Mate
 
     /// <summary>For lock mates: B's placement relative to A when the mate was made.</summary>
     public Transform3? Relative { get; set; }
+
+    /// <summary>Third reference: the symmetry plane, or the first face of a width mate's slot.</summary>
+    public MateRef? C { get; set; }
+
+    /// <summary>Fourth reference: the second face of a width mate's slot.</summary>
+    public MateRef? D { get; set; }
+
+    /// <summary>Upper bound for limit mates.</summary>
+    public double Value2 { get; set; }
+
+    /// <summary>For mechanical mates: where A and B were when the mate was made (motion is measured from there).</summary>
+    public Transform3? InitialA { get; set; }
+
+    public Transform3? InitialB { get; set; }
 }
 
 /// <summary>
@@ -187,7 +222,9 @@ public sealed class AssemblyDocument
         };
 
         // Pick the alignment closest to how the parts sit now, as other CAD tools do.
-        mate.Aligned = aligned ?? MateSolver.ClosestAlignment(this, mate);
+        mate.Aligned = aligned ?? (type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.Symmetric or MateType.Width
+            ? false
+            : MateSolver.ClosestAlignment(this, mate));
         if (type == MateType.Lock)
         {
             var ta = Find(a.ComponentId)!.Transform;
@@ -195,8 +232,46 @@ public sealed class AssemblyDocument
             mate.Relative = Inverse(ta) * tb;
         }
 
+        if (type is MateType.Gear or MateType.RackPinion or MateType.Screw)
+        {
+            mate.InitialA = Find(a.ComponentId)!.Transform;
+            mate.InitialB = Find(b.ComponentId)!.Transform;
+        }
+
         Mates.Add(mate);
         return mate;
+    }
+
+    /// <summary>
+    /// Copies a component along a direction: <paramref name="count"/> instances including the seed,
+    /// each locked to the seed so they move with it.
+    /// </summary>
+    public IReadOnlyList<Component> LinearPattern(Component seed, Vec3 direction, double spacing, int count)
+    {
+        ArgumentNullException.ThrowIfNull(seed);
+        var step = direction.Normalized() * spacing;
+        return Pattern(seed, count, i => Transform3.Translation(step * i));
+    }
+
+    /// <summary>Copies a component around an axis, evenly over 360°, locked to the seed.</summary>
+    public IReadOnlyList<Component> CircularPattern(Component seed, Vec3 axisOrigin, Vec3 axisDirection, int count)
+    {
+        ArgumentNullException.ThrowIfNull(seed);
+        return Pattern(seed, count, i => Transform3.Rotation(axisOrigin, axisDirection, 2 * Math.PI * i / count));
+    }
+
+    private List<Component> Pattern(Component seed, int count, Func<int, Transform3> placement)
+    {
+        var made = new List<Component>();
+        for (var i = 1; i < count; i++)
+        {
+            var c = AddComponent(seed.Path, placement(i) * seed.Transform, seed.Configuration);
+            c.Fixed = false;
+            AddMate(MateType.Lock, new MateRef(seed.Id, PlaneId: "front"), new MateRef(c.Id, PlaneId: "front"));
+            made.Add(c);
+        }
+
+        return made;
     }
 
     /// <summary>Deletes a component and the mates that reference it.</summary>
@@ -204,7 +279,7 @@ public sealed class AssemblyDocument
     {
         ArgumentNullException.ThrowIfNull(c);
         Components.Remove(c);
-        Mates.RemoveAll(m => m.A.ComponentId == c.Id || m.B.ComponentId == c.Id);
+        Mates.RemoveAll(m => m.A.ComponentId == c.Id || m.B.ComponentId == c.Id || m.C?.ComponentId == c.Id || m.D?.ComponentId == c.Id);
     }
 
     public MateSolveResult Solve() => MateSolver.Solve(this);
@@ -306,6 +381,11 @@ public sealed class AssemblyDocument
             mine.Aligned = m.Aligned;
             mine.Suppressed = m.Suppressed;
             mine.Relative = m.Relative;
+            mine.C = m.C;
+            mine.D = m.D;
+            mine.Value2 = m.Value2;
+            mine.InitialA = m.InitialA;
+            mine.InitialB = m.InitialB;
             return mine;
         }).ToList();
         Mates.Clear();

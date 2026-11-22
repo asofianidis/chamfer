@@ -125,15 +125,31 @@ public static class MateSolver
     /// <summary>Which types of mate make sense between two entities.</summary>
     public static IReadOnlyList<MateType> Applicable(MateEntityKind a, MateEntityKind b) => (a, b) switch
     {
-        (MateEntityKind.Plane, MateEntityKind.Plane) => [MateType.Coincident, MateType.Parallel, MateType.Perpendicular, MateType.Distance, MateType.Angle, MateType.Lock],
-        (MateEntityKind.Axis, MateEntityKind.Axis) => [MateType.Concentric, MateType.Parallel, MateType.Perpendicular, MateType.Angle, MateType.Coincident, MateType.Distance, MateType.Lock],
+        (MateEntityKind.Plane, MateEntityKind.Plane) => [MateType.Coincident, MateType.Parallel, MateType.Perpendicular, MateType.Distance, MateType.Angle, MateType.Lock, MateType.Symmetric, MateType.Width, MateType.LimitDistance, MateType.LimitAngle],
+        (MateEntityKind.Axis, MateEntityKind.Axis) => [MateType.Concentric, MateType.Parallel, MateType.Perpendicular, MateType.Angle, MateType.Coincident, MateType.Distance, MateType.Lock, MateType.Gear, MateType.Screw, MateType.RackPinion, MateType.Symmetric, MateType.LimitDistance],
         (MateEntityKind.Plane, MateEntityKind.Axis) or (MateEntityKind.Axis, MateEntityKind.Plane) => [MateType.Tangent, MateType.Coincident, MateType.Parallel, MateType.Perpendicular, MateType.Distance, MateType.Lock],
         _ => [MateType.Coincident, MateType.Distance, MateType.Lock],
     };
 
     /// <summary>Residuals of one mate for the given world-space entities and component placements.</summary>
-    private static void Residuals(Mate m, MateEntity a, MateEntity b, Transform3 ta, Transform3 tb, List<double> r)
+    /// <summary>Rotation of a placement relative to its initial one, about an axis (radians).</summary>
+    private static double TurnAbout(Transform3 now, Transform3? initial, Vec3 axis)
     {
+        if (initial is not { } t0)
+        {
+            return 0;
+        }
+
+        var rel = now * AssemblyDocument.Inverse(t0);
+        var u = axis.AnyPerpendicular();
+        var v = rel.ApplyVector(u);
+        v -= axis * Vec3.Dot(v, axis);
+        return Math.Atan2(Vec3.Dot(Vec3.Cross(u, v), axis), Vec3.Dot(u, v));
+    }
+
+    private static void Residuals(Mate m, MateEntity a, MateEntity b, Transform3 ta, Transform3 tb, List<double> r, MateEntity? c = null, MateEntity? d = null)
+    {
+        var mechanical = m.Type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.Symmetric or MateType.Width;
         var s = m.Aligned ? -1.0 : 1.0; // anti-aligned: dA = -dB  →  dA + dB = 0
         void Vec(Vec3 v)
         {
@@ -145,8 +161,8 @@ public static class MateSolver
         void Facing() => Vec(a.Direction + (b.Direction * s));
         void Parallel() => Vec(Vec3.Cross(a.Direction, b.Direction));
 
-        // Swap so that a plane, if any, comes first.
-        if (a.Kind != MateEntityKind.Plane && b.Kind == MateEntityKind.Plane)
+        // Swap so that a plane, if any, comes first (not for mates where order matters).
+        if (!mechanical && a.Kind != MateEntityKind.Plane && b.Kind == MateEntityKind.Plane)
         {
             (a, b) = (b, a);
         }
@@ -256,6 +272,61 @@ public static class MateSolver
 
                 break;
 
+            case MateType.Symmetric when c is { } sym:
+                var n = sym.Direction;
+                if (a.Kind == MateEntityKind.Plane && b.Kind == MateEntityKind.Plane)
+                {
+                    Vec(a.Direction - (n * (2 * Vec3.Dot(a.Direction, n))) - b.Direction);
+                }
+                else
+                {
+                    Vec(Vec3.Cross(b.Origin - a.Origin, n));
+                }
+
+                r.Add(Vec3.Dot(a.Origin - sym.Origin, n) + Vec3.Dot(b.Origin - sym.Origin, n));
+                break;
+
+            case MateType.Width when c is { } c1 && d is { } d1:
+                Vec(Vec3.Cross(a.Direction, c1.Direction));
+                r.Add(Vec3.Dot(((a.Origin + b.Origin) * 0.5) - ((c1.Origin + d1.Origin) * 0.5), c1.Direction));
+                break;
+
+            case MateType.LimitDistance:
+                var dist = a.Kind == MateEntityKind.Plane ? Vec3.Dot(b.Origin - a.Origin, a.Direction) : Vec3.Distance(a.Origin, b.Origin);
+                if (a.Kind == MateEntityKind.Plane && b.Kind == MateEntityKind.Plane)
+                {
+                    Facing();
+                }
+
+                r.Add(dist > m.Value2 ? dist - m.Value2 : dist < m.Value ? dist - m.Value : 0);
+                break;
+
+            case MateType.LimitAngle:
+                var angle = Math.Acos(Math.Clamp(Vec3.Dot(a.Direction, b.Direction), -1, 1)) * 180 / Math.PI;
+                r.Add((angle > m.Value2 ? angle - m.Value2 : angle < m.Value ? angle - m.Value : 0) * Math.PI / 180 * 100);
+                break;
+
+            case MateType.Gear:
+                var ra = Math.Max(a.Radius, 1);
+                var thetaA = TurnAbout(ta, m.InitialA, a.Direction);
+                var thetaB = TurnAbout(tb, m.InitialB, b.Direction);
+                var ratio = m.Value > 0 ? m.Value : Math.Max(b.Radius, 1e-9) / ra;
+                r.Add((thetaA + ((m.Aligned ? -1 : 1) * ratio * thetaB)) * ra);
+                break;
+
+            case MateType.RackPinion:
+                var travel = m.InitialA is { } ia ? Vec3.Dot(new Vec3(ta.Tx - ia.Tx, ta.Ty - ia.Ty, ta.Tz - ia.Tz), a.Direction) : 0;
+                var turn = TurnAbout(tb, m.InitialB, b.Direction);
+                var perRadian = m.Value > 0 ? m.Value : b.Radius;
+                r.Add(travel - ((m.Aligned ? -1 : 1) * perRadian * turn));
+                break;
+
+            case MateType.Screw:
+                var advance = m.InitialB is { } ib ? Vec3.Dot(new Vec3(tb.Tx - ib.Tx, tb.Ty - ib.Ty, tb.Tz - ib.Tz), a.Direction) : 0;
+                var spin = TurnAbout(tb, m.InitialB, a.Direction);
+                r.Add(advance - ((m.Aligned ? -1 : 1) * m.Value * spin / (2 * Math.PI)));
+                break;
+
             case MateType.Lock:
                 var expected = ta * (m.Relative ?? Transform3.Identity);
                 foreach (var p in new[] { Vec3.Zero, new Vec3(100, 0, 0), new Vec3(0, 100, 0) })
@@ -271,9 +342,9 @@ public static class MateSolver
     public static MateSolveResult Solve(AssemblyDocument asm, int maxIterations = 200)
     {
         ArgumentNullException.ThrowIfNull(asm);
-        var mates = asm.Mates.Where(m => !m.Suppressed && Active(asm, m.A) && Active(asm, m.B)).ToList();
+        var mates = asm.Mates.Where(m => !m.Suppressed && Active(asm, m.A) && Active(asm, m.B) && (m.C is null || Active(asm, m.C)) && (m.D is null || Active(asm, m.D))).ToList();
         var movable = asm.Components.Where(c => !c.Fixed && !c.Suppressed).ToList();
-        var mated = movable.Where(c => mates.Any(m => m.A.ComponentId == c.Id || m.B.ComponentId == c.Id)).ToList();
+        var mated = movable.Where(c => mates.Any(m => new[] { m.A, m.B, m.C, m.D }.Any(r => r?.ComponentId == c.Id))).ToList();
         var freeUnmated = movable.Count - mated.Count;
 
         // Mate entities in each part's own coordinates, resolved once.
@@ -283,7 +354,7 @@ public static class MateSolver
         {
             try
             {
-                foreach (var r in new[] { m.A, m.B })
+                foreach (var r in new[] { m.A, m.B, m.C, m.D }.OfType<MateRef>())
                 {
                     if (!local.ContainsKey(r))
                     {
@@ -301,6 +372,10 @@ public static class MateSolver
         var index = mated.Select((c, i) => (c.Id, i)).ToDictionary(x => x.Id, x => x.i);
         var start = mated.Select(c => c.Transform).ToArray();
 
+        // Rotation unknowns are scaled by each component's size, so a unit of rotation costs about as
+        // much as a unit of travel: the minimum-norm solve then slides parts rather than spinning them.
+        var lever = mated.Select(c => Math.Max(1, asm.PartOf(c).Bodies.Aggregate(Box3.Empty, (b, x) => b.Union(x.Shape.Bounds)).Diagonal)).ToArray();
+
         Transform3 Place(Component c, double[] x)
         {
             if (!index.TryGetValue(c.Id, out var i))
@@ -311,7 +386,7 @@ public static class MateSolver
             var o = 6 * i;
             var t0 = start[i];
             var origin = new Vec3(t0.Tx, t0.Ty, t0.Tz);
-            var w = new Vec3(x[o + 3], x[o + 4], x[o + 5]);
+            var w = new Vec3(x[o + 3], x[o + 4], x[o + 5]) / lever[i];
             var angle = w.Length;
             var rotated = angle < 1e-15 ? t0 : Transform3.Rotation(origin, w / angle, angle) * t0;
             return Transform3.Translation(new Vec3(x[o], x[o + 1], x[o + 2])) * rotated;
@@ -327,7 +402,9 @@ public static class MateSolver
                 var ta = Place(ca, x);
                 var tb = Place(cb, x);
                 var before = r.Count;
-                Residuals(m, local[m.A].Transformed(ta), local[m.B].Transformed(tb), ta, tb, r);
+                MateEntity? ec = m.C is { } mc ? local[mc].Transformed(Place(asm.Find(mc.ComponentId)!, x)) : null;
+                MateEntity? ed = m.D is { } md ? local[md].Transformed(Place(asm.Find(md.ComponentId)!, x)) : null;
+                Residuals(m, local[m.A].Transformed(ta), local[m.B].Transformed(tb), ta, tb, r, ec, ed);
                 for (var k = before; k < r.Count; k++)
                 {
                     owners?.Add(mates.IndexOf(m));
@@ -358,9 +435,9 @@ public static class MateSolver
                 var (rx, ry, rz) = starts[attempt - 1];
                 for (var c = 0; c < mated.Count; c++)
                 {
-                    xk[(6 * c) + 3] = rx;
-                    xk[(6 * c) + 4] = ry;
-                    xk[(6 * c) + 5] = rz;
+                    xk[(6 * c) + 3] = rx * lever[c];
+                    xk[(6 * c) + 4] = ry * lever[c];
+                    xk[(6 * c) + 5] = rz * lever[c];
                 }
 
                 res = Evaluate(xk);
@@ -484,7 +561,19 @@ public static class MateSolver
             }
 
             a[p, n] = -g;
-            a[p, p] += (lambda * a[p, p]) + 1e-12;
+        }
+
+        // Damping, plus a floor tied to the largest curvature so free directions (zero columns)
+        // don't amplify finite-difference noise into large drifts.
+        double maxDiag = 0;
+        for (var p = 0; p < n; p++)
+        {
+            maxDiag = Math.Max(maxDiag, a[p, p]);
+        }
+
+        for (var p = 0; p < n; p++)
+        {
+            a[p, p] += (lambda * a[p, p]) + (1e-9 * maxDiag) + 1e-12;
         }
 
         for (var col = 0; col < n; col++)
