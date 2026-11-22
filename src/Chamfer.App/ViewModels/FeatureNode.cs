@@ -91,6 +91,7 @@ public sealed partial class FeatureNode : ObservableObject
         Sketch3DFeature => "⟋",
         HemFeature => "⊃",
         TabFeature => "⊓",
+        SketchedBendFeature => "⌒",
         _ => "•",
     };
 }

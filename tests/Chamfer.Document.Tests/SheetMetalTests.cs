@@ -181,4 +181,50 @@ public class SheetMetalTests
         using var flat = FlatPattern.Solid(doc);
         Assert.Equal(shape.MassProperties.Volume, flat.MassProperties.Volume, 1e-3);
     }
+
+    [Fact]
+    public void SketchedBendFoldsAlongALine()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(100, 60));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new BaseFlangeFeature { SketchId = sf.Id, Thickness = 2, BendRadius = 1, KFactor = 0.5 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99 && body.Face(i).Centroid.Z > 1.9);
+        var plane = body.Shape.FacePlane(top)!.Value;
+        var bend = new Sketch();
+        var (u0, v0) = plane.ToLocal(new Vec3(-10, 30, 2));
+        var (u1, v1) = plane.ToLocal(new Vec3(110, 30, 2));
+        bend.AddLine(new Vec2(u0, v0), new Vec2(u1, v1));
+        var bf = doc.Add(new SketchFeature { Plane = new PlaneRef(Face: body.FaceRef(top)), Sketch = bend });
+        var feature = (SketchedBendFeature)doc.Add(new SketchedBendFeature { SketchId = bf.Id, Angle = 90 });
+        doc.Rebuild();
+        AssertOk(doc);
+        var folded = Assert.Single(doc.Bodies).Shape;
+        Assert.True(folded.IsValid);
+        Assert.Equal(1, folded.SolidCount);
+        Assert.Equal(100 * 60 * 2, folded.MassProperties.Volume, 1e-3); // K = 0.5 keeps the volume
+
+        // The far side stands up: it starts at the end of the bend and rises its remaining length.
+        var rise = 2 + 1 + (30 - (Math.PI / 2));
+        Assert.Equal(rise, folded.Bounds.Max.Z, 1e-6);
+        Assert.Equal(30 - (Math.PI / 2) + 1 + 2, folded.Bounds.Max.Y, 1e-6);
+
+        // Flat pattern: unchanged outline, one bend line across the plate.
+        var (w, h) = FlatPattern.Size(doc);
+        Assert.Equal((100.0, 60.0), (Math.Round(w, 6), Math.Round(h, 6)));
+        var line = Assert.Single(doc.State.SheetMetal!.BendLines);
+        Assert.Equal(100, Point2.Distance(line.A, line.B), 1e-6);
+        using var flat = FlatPattern.Solid(doc);
+        Assert.Equal(folded.MassProperties.Volume, flat.MassProperties.Volume, 1e-3);
+
+        // Folding the other side, downward.
+        feature.FlipSide = true;
+        feature.Reverse = true;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(-(30 - (Math.PI / 2) + 1), doc.Bodies[0].Shape.Bounds.Min.Z, 1e-6);
+    }
 }

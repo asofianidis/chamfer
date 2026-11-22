@@ -459,6 +459,171 @@ public sealed class TabFeature : Feature
     }
 }
 
+/// <summary>
+/// Bends a flat sheet along a sketched line: one side stays, the other folds through the angle
+/// around a bend of the sheet's radius. The flat pattern keeps its outline and gains a bend line.
+/// </summary>
+public sealed class SketchedBendFeature : Feature
+{
+    public override string DefaultName => "Sketched Bend";
+
+    /// <summary>A sketch on the sheet's face with one straight line: the bend line.</summary>
+    public string SketchId { get; set; } = string.Empty;
+
+    /// <summary>Bend angle in degrees.</summary>
+    public double Angle { get; set; } = 90;
+
+    /// <summary>Fold the other side of the line.</summary>
+    public bool FlipSide { get; set; }
+
+    /// <summary>Fold toward the sheet's other face.</summary>
+    public bool Reverse { get; set; }
+
+    public override IEnumerable<string> Dependencies => [SketchId];
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var sm = ctx.SheetMetal ?? throw new FeatureException("Add a base flange first.");
+        if (Angle <= 0 || Angle >= 180)
+        {
+            throw new FeatureException("The bend angle must be between 0 and 180 degrees.");
+        }
+
+        var sketch = ctx.Sketch(SketchId);
+        var line = sketch.Sketch.Entities.OfType<SketchLine>().FirstOrDefault(l => !l.IsConstruction && l.Length > 1e-9)
+            ?? throw new FeatureException("Sketch one straight line where the sheet should bend.");
+        var body = ctx.Bodies.FirstOrDefault(b => !b.IsSurface) ?? throw new FeatureException("There is no sheet to bend.");
+
+        // Frame: n = sheet thickness direction (bottom face to top), d along the line, u toward the moving side,
+        // w the side the sheet folds to.
+        var t = sm.Thickness;
+        var r = sm.BendRadius;
+        var a = Angle * Math.PI / 180;
+        var n = sm.FlatExtrusion.Normalized();
+        var bottom = sm.FlatPlane.Origin;
+        var l0 = sketch.Plane.ToWorld(line.Start.X, line.Start.Y);
+        var l1 = sketch.Plane.ToWorld(line.End.X, line.End.Y);
+        var d = (l1 - l0).Normalized();
+        var u = Vec3.Cross(n, d).Normalized() * (FlipSide ? -1 : 1);
+        var w = Reverse ? -n : n;
+        var p0 = l0 - (n * Vec3.Dot(l0 - bottom, n)); // the line, dropped onto the bottom face
+        var ba = sm.BendAllowance(a);
+
+        // The face on the outside of the bend, where the bend starts, and the bend axis r + t inside it.
+        var outer = Reverse ? p0 + (n * t) : p0;
+        var start = outer - (u * (ba / 2));
+        var axis = start + (w * (r + t));
+        var axisDir = Vec3.Cross(u, w).Normalized();
+
+        var size = (body.Shape.Bounds.Diagonal * 2) + 10;
+        using var fixedPart = Side(body.Shape, p0 - (u * (ba / 2)), -u, size);
+        using var movingPart = Side(body.Shape, p0 + (u * (ba / 2)), u, size);
+
+        // Where the sheet crosses the bend start: intervals along the line, from the section's bottom edges.
+        using var section = Modeling.Section(body.Shape, start, u);
+        var intervals = new List<(double From, double To)>();
+        for (var i = 1; i <= section.EdgeCount; i++)
+        {
+            var e = section.Edge(i);
+            if (Math.Abs(Vec3.Dot((e.End - e.Start).Normalized(), d)) < 0.999 || Math.Abs(Vec3.Dot(e.Start - bottom, n)) > 1e-6)
+            {
+                continue;
+            }
+
+            var s0 = Vec3.Dot(e.Start - start, d);
+            var s1 = Vec3.Dot(e.End - start, d);
+            intervals.Add((Math.Min(s0, s1), Math.Max(s0, s1)));
+        }
+
+        if (intervals.Count == 0)
+        {
+            throw new FeatureException("The bend line must cross the sheet.");
+        }
+
+        // The bend zone: the cross-section (outer face to inner face, along w) revolved about the axis.
+        var pieces = new List<Shape> { fixedPart };
+        try
+        {
+            foreach (var (from, to) in intervals)
+            {
+                var frame = new Plane3(outer - (u * (ba / 2)) + (d * from), -u, d);
+                var sign = Vec3.Dot(frame.YDirection, w) > 0 ? 1 : -1;
+                var len = to - from;
+                List<ProfileSegment> rect =
+                [
+                    ProfileSegment.Line(0, 0, len, 0),
+                    ProfileSegment.Line(len, 0, len, sign * t),
+                    ProfileSegment.Line(len, sign * t, 0, sign * t),
+                    ProfileSegment.Line(0, sign * t, 0, 0),
+                ];
+                using var face = Modeling.Face(frame, [rect]);
+                using var rev = Modeling.Revolve(face, axis, axisDir, a);
+                pieces.Add(rev.Result);
+            }
+
+            using var moved = Modeling.Transform(movingPart, Transform3.Rotation(axis, axisDir, a) * Transform3.Translation(-u * ba));
+            pieces.Add(moved.Result);
+
+            var result = pieces[0];
+            foreach (var piece in pieces.Skip(1))
+            {
+                using var fuse = Modeling.Boolean(result, piece, BooleanKind.Fuse);
+                result = fuse.Result;
+            }
+
+            var names = Naming.Finish(result, new string?[result.FaceCount], Id);
+            ctx.Bodies[ctx.Bodies.IndexOf(body)] = new Body(result, names, body.Name, body.Color);
+        }
+        finally
+        {
+            foreach (var p in pieces.Skip(1))
+            {
+                p.Dispose();
+            }
+        }
+
+        // Flat pattern: same outline, plus a bend line where the sheet crosses the sketched line.
+        var bendLines = new List<(Point2, Point2)>(sm.BendLines);
+        foreach (var (from, to) in intervals)
+        {
+            var (ax, ay) = sm.FlatPlane.ToLocal(p0 + (d * (from + Vec3.Dot(start - p0, d))));
+            var (bx, by) = sm.FlatPlane.ToLocal(p0 + (d * (to + Vec3.Dot(start - p0, d))));
+            bendLines.Add((new Point2(ax, ay), new Point2(bx, by)));
+        }
+
+        ctx.SheetMetal = sm with { BendLines = bendLines };
+    }
+
+    /// <summary>The part of a shape on one side of a plane.</summary>
+    private static Shape Side(Shape shape, Vec3 origin, Vec3 keep, double size)
+    {
+        using var tool = Modeling.PlaneFace(new Plane3(origin, keep, keep.AnyPerpendicular()), size);
+        using var split = Modeling.Split(shape, tool);
+        var whole = split.Result;
+        var kept = new List<Shape>();
+        for (var i = 1; i <= whole.SolidCount; i++)
+        {
+            var piece = whole.Sub(TopoKind.Solid, i);
+            if (Vec3.Dot(piece.MassProperties.CenterOfMass - origin, keep) > 0)
+            {
+                kept.Add(piece);
+            }
+            else
+            {
+                piece.Dispose();
+            }
+        }
+
+        return kept.Count switch
+        {
+            0 => throw new FeatureException("The bend line must cross the sheet."),
+            1 => kept[0],
+            _ => Modeling.Compound(kept),
+        };
+    }
+}
+
 /// <summary>Builds the flat pattern of a sheet metal part.</summary>
 public static class FlatPattern
 {
