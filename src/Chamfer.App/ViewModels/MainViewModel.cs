@@ -65,6 +65,8 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Lofted Boss", "Loft through profile sketches in order", new RelayCommand(() => StartFeature(NewLoft(cut: false))), "⏢"),
             new("Swept Cut", "Cut by sweeping a profile along a path", new RelayCommand(() => StartFeature(NewSweep(cut: true))), "⤳"),
             new("Lofted Cut", "Cut by lofting through profiles", new RelayCommand(() => StartFeature(NewLoft(cut: true))), "⏢"),
+            new("Boundary Boss", "Smooth solid through profiles, leaving and meeting them normal", new RelayCommand(() => StartFeature(NewBoundary())), "⬭"),
+            new("Boundary Cut", "Cut with a boundary shape through profiles", new RelayCommand(() => StartFeature(NewBoundary(cut: true))), "⬭"),
             new("Rib", "Thicken an open sketch into the part", new RelayCommand(() => StartSketchFeature(sf => new RibFeature { SketchId = sf.Id, Thickness = 2 })), "⊿"),
             new("Fillet", "Round edges", new RelayCommand(() => StartFeature(new FilletFeature { Radius = 2 })), "◜"),
             new("Chamfer", "Bevel edges", new RelayCommand(() => StartFeature(new ChamferFeature { Distance = 1 })), "◸"),
@@ -92,6 +94,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Revolved Surface", "Revolve sketch curves about a centerline", new RelayCommand(() => StartSketchFeature(sf => new SurfaceRevolveFeature { SketchId = sf.Id })), "◐", "Surfaces"),
             new("Planar Surface", "Flat surface from closed sketch regions", new RelayCommand(() => StartSketchFeature(sf => new PlanarSurfaceFeature { SketchId = sf.Id })), "▭", "Surfaces"),
             new("Filled Surface", "Smooth patch inside a closed sketch boundary", new RelayCommand(() => StartSketchFeature(sf => new FilledSurfaceFeature { SketchId = sf.Id })), "◍", "Surfaces"),
+            new("Boundary Surface", "Smooth surface through profile outlines", new RelayCommand(() => StartFeature(NewBoundary(surface: true))), "⬭", "Surfaces"),
             new("Swept Surface", "Sweep a profile sketch's curves along a path", new RelayCommand(() => StartFeature(NewSweep(cut: false, surface: true))), "⤳", "Surfaces"),
             new("Offset Surface", "Copy faces offset along their normals", new RelayCommand(() => StartFeature(new OffsetSurfaceFeature { Distance = 2 })), "⧈", "Surfaces"),
             new("Knit", "Sew surfaces together (closed ones become solids)", new RelayCommand(() => StartFeature(new KnitFeature { Bodies = SelectedBodyNames() })), "⨝", "Surfaces"),
@@ -954,6 +957,9 @@ public sealed partial class MainViewModel : ViewModelBase
             PathSketchId = sketches.Count > 1 ? sketches[1].Id : string.Empty,
         };
     }
+
+    private BoundaryFeature NewBoundary(bool cut = false, bool surface = false) =>
+        new() { IsCut = cut, IsSurface = surface, ProfileSketchIds = [.. SelectedSketches().Select(s => s.Id)] };
 
     private LoftFeature NewLoft(bool cut) => new() { IsCut = cut, SectionSketchIds = [.. SelectedSketches().Select(s => s.Id)] };
 

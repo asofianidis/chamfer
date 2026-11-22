@@ -61,6 +61,49 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void BoundaryLeavesItsProfileNormal()
+    {
+        var doc = new PartDocument();
+        var bottom = new Sketch();
+        bottom.AddCenterRectangle(Vec2.Zero, new Vec2(10, 10));
+        var b = doc.Add(new SketchFeature { Plane = PlaneRef.Top, Sketch = bottom });
+        var plane = doc.Add(new ReferencePlaneFeature { Base = PlaneRef.Top, Offset = 30 });
+        var top = new Sketch();
+        top.AddCenterRectangle(Vec2.Zero, new Vec2(5, 5));
+        var t = doc.Add(new SketchFeature { Plane = new PlaneRef(plane.Id), Sketch = top });
+
+        // Without constraints it's the straight frustum (20² to 10² over 30: 7000 mm³).
+        var boundary = doc.Add(new BoundaryFeature { ProfileSketchIds = [b.Id, t.Id], StartTangency = BoundaryTangency.None, EndTangency = BoundaryTangency.None });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(7000, Volume(doc), 1);
+
+        // Leaving the base normal keeps it wider for longer: more volume, still under the 20² prism.
+        boundary.StartTangency = BoundaryTangency.NormalToProfile;
+        doc.Rebuild();
+        AssertOk(doc);
+        var normal = Volume(doc);
+        Assert.InRange(normal, 7300, 12000);
+        Assert.Equal(30, doc.Bodies[0].Shape.Bounds.Size.Y, 1e-3);
+        Assert.Equal(20, doc.Bodies[0].Shape.Bounds.Size.X, 0.25); // about as wide as the base (B-spline bounds are loose)
+
+        // A longer tangent pulls harder.
+        boundary.StartTangentLength = 2;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.True(Volume(doc) > normal);
+
+        // As a surface: an open shell through the outlines, no volume.
+        boundary.IsSurface = true;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.True(doc.Bodies[0].IsSurface);
+
+        var reloaded = PartDocument.Load(doc.Save());
+        Assert.IsType<BoundaryFeature>(reloaded.Features[^1]);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

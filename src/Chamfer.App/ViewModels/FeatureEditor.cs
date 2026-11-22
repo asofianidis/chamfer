@@ -202,6 +202,23 @@ public sealed partial class FeatureEditor : ObservableObject
 
                 break;
 
+            case BoundaryFeature bf:
+            {
+                ed.Add(new SelectionField("Profiles (in order)", FeatureKinds, SketchItems(doc, bf.ProfileSketchIds),
+                    items => Set(() => bf.ProfileSketchIds = [.. items.Select(i => i.FeatureId!).Where(id => doc.Find(id) is SketchFeature)])));
+                string[] tangency = ["None", "Normal to profile"];
+                ed.Add(new ChoiceField("Start constraint", tangency, (int)bf.StartTangency, i => Set(() => bf.StartTangency = (BoundaryTangency)i)));
+                ed.Add(Num("Start tangent length", "", bf, nameof(bf.StartTangentLength), 1e-6));
+                ed.Add(new ChoiceField("End constraint", tangency, (int)bf.EndTangency, i => Set(() => bf.EndTangency = (BoundaryTangency)i)));
+                ed.Add(Num("End tangent length", "", bf, nameof(bf.EndTangentLength), 1e-6));
+                if (!bf.IsCut && !bf.IsSurface)
+                {
+                    ed.Add(new BoolField("Merge result", bf.Merge, v => Set(() => bf.Merge = v)));
+                }
+
+                break;
+            }
+
             case RibFeature rib:
                 ed.Add(Num("Thickness", "mm", rib, nameof(rib.Thickness), 1e-6));
                 ed.Add(new BoolField("Both sides of sketch", rib.BothSides, v => Set(() => rib.BothSides = v)));

@@ -51,6 +51,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(ImportFeature), "import")]
 [JsonDerivedType(typeof(SweepFeature), "sweep")]
 [JsonDerivedType(typeof(LoftFeature), "loft")]
+[JsonDerivedType(typeof(BoundaryFeature), "boundary")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
 [JsonDerivedType(typeof(CombineFeature), "combine")]
 [JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]

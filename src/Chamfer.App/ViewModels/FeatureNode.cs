@@ -64,6 +64,7 @@ public sealed partial class FeatureNode : ObservableObject
         ImportFeature => "⬇",
         SweepFeature => "⤳",
         LoftFeature => "⏢",
+        BoundaryFeature => "⬭",
         RibFeature => "⊿",
         SurfaceExtrudeFeature => "▤",
         SurfaceRevolveFeature => "◐",
