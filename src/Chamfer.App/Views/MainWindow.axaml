@@ -269,6 +269,7 @@
           <Button Classes="tool" Content="Linear Pattern" Command="{Binding Sketch.LinearPatternCommand, FallbackValue={x:Null}}" ToolTip.Tip="Copy the selection Count times along X, Size apart" />
           <Button Classes="tool" Content="Circular Pattern" Command="{Binding Sketch.CircularPatternCommand, FallbackValue={x:Null}}" ToolTip.Tip="Copy the selection Count times around the origin" />
           <Button Classes="tool" Content="Convert Face" Command="{Binding ConvertFaceCommand}" ToolTip.Tip="Project the outline of the face this sketch is on" />
+          <Button Classes="tool" Content="Intersection" Command="{Binding IntersectionCurvesCommand}" ToolTip.Tip="Add the curves where the sketch plane cuts the model" />
           <Button Classes="tool" Content="Import DXF" Command="{Binding ImportDxfCommand}" ToolTip.Tip="Add lines, arcs, circles and polylines from a DXF file" />
           <Border Classes="separator" />
           <Button Classes="tool" Content="Construction" Command="{Binding Sketch.ToggleConstructionCommand, FallbackValue={x:Null}}"

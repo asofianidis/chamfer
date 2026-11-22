@@ -1265,4 +1265,21 @@ public class PartWorkflowTests
         vm.UndoCommand.Execute(null);
         Assert.Single(vm.Document.Folders);
     }
+
+    [Fact]
+    public void IntersectionCurvesCutTheModel()
+    {
+        // A plate with a hole; sketch on an offset plane halfway up it.
+        var vm = BlockOnFront();
+        var height = vm.Document.Bodies[0].Shape.Bounds.Max.Z;
+        var plane = vm.Document.Add(new ReferencePlaneFeature { Base = PlaneRef.Front, Offset = height / 2 });
+        vm.RebuildAndRefresh();
+        vm.SetSelection([SelectionItem.Plane(plane.Id, plane.Name)]);
+        vm.NewSketchCommand.Execute(null);
+        vm.IntersectionCurvesCommand.Execute(null);
+        var lines = vm.Sketch!.Editor.Sketch.Entities.OfType<SketchLine>().ToList();
+        Assert.Equal(4, lines.Count); // the block's outline at that height
+        var box = vm.Document.Bodies[0].Shape.Bounds;
+        Assert.Equal(box.Size.X, lines.Max(l => Math.Max(l.Start.Position.X, l.End.Position.X)) - lines.Min(l => Math.Min(l.Start.Position.X, l.End.Position.X)), 1e-6);
+    }
 }
