@@ -852,4 +852,33 @@ public class PartWorkflowTests
             File.Delete(file);
         }
     }
+
+    [Fact]
+    public void DraggingTheExtrudeHandleChangesTheDepth()
+    {
+        var vm = new MainViewModel();
+        vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+        vm.NewSketchCommand.Execute(null);
+        var editor = vm.Sketch!.Editor;
+        editor.BeginChange();
+        editor.Sketch.AddCornerRectangle(new Vec2(0, 0), new Vec2(30, 20));
+        editor.EndChange(solve: true);
+        vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+        var scene = vm.BuildScene();
+        Assert.Contains(scene.Lines, l => l.PickId == MainViewModel.HandlePickId);
+        Assert.True(vm.IsHandle(MainViewModel.HandlePickId));
+        var (tip, dir) = vm.ActiveHandle!.Value;
+        Assert.Equal(new Geometry.Vec3(15, 10, 10), tip);
+        Assert.Equal(Geometry.Vec3.UnitZ, dir);
+
+        // A mouse ray passing the handle's axis at z = 35 drags the depth to 35.
+        vm.DragHandle(new Geometry.Vec3(-100, 10, 35), Geometry.Vec3.UnitX);
+        var ex = Assert.IsType<ExtrudeFeature>(vm.Editor!.Feature);
+        Assert.Equal(35, ex.Depth, 1e-9);
+        Assert.Equal("35", vm.Editor.Fields.OfType<NumberField>().Single(f => f.Label == "Depth").Text);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(30 * 20 * 35, vm.Document.MassProperties().Volume, 1e-6);
+        vm.BuildScene();
+        Assert.False(vm.IsHandle(MainViewModel.HandlePickId)); // no handle once the editor closes
+    }
 }

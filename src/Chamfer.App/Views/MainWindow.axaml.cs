@@ -70,6 +70,8 @@ public partial class MainWindow : Window
 
         vm.StorageProvider = StorageProvider;
         vm.FitAction = Viewport.ZoomToFit;
+        Viewport.IsHandle = vm.IsHandle;
+        Viewport.HandleDragged += (_, ray) => vm.DragHandle(ray.Origin, ray.Direction);
         vm.ViewProvider = () => (Viewport.Camera.Clone(), Viewport.PixelSize.Width, Viewport.PixelSize.Height);
         vm.ShowImageAction = Viewport.ShowStill;
         vm.ViewAction = v => Viewport.SetView(v);

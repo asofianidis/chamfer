@@ -46,6 +46,7 @@ public sealed class ModelViewport : Control
         Zoom,
         PendingRightPan,
         LeftPress,
+        Handle,
     }
 
     public ModelViewport()
@@ -67,6 +68,12 @@ public sealed class ModelViewport : Control
         _bitmap?.Dispose();
         _bitmap = null;
     }
+
+    /// <summary>Tells the viewport which pick ids are drag handles.</summary>
+    public Func<int, bool>? IsHandle { get; set; }
+
+    /// <summary>A handle is being dragged: the mouse ray in model space.</summary>
+    public event EventHandler<(Vec3 Origin, Vec3 Direction)>? HandleDragged;
 
     public Scene Scene
     {
@@ -182,6 +189,10 @@ public sealed class ModelViewport : Control
         {
             _drag = DragMode.PendingRightPan;
         }
+        else if (props.IsLeftButtonPressed && IsHandle?.Invoke(PickAt(point.Position)) == true)
+        {
+            _drag = DragMode.Handle;
+        }
         else if (props.IsLeftButtonPressed)
         {
             _drag = DragMode.LeftPress;
@@ -217,6 +228,9 @@ public sealed class ModelViewport : Control
             case DragMode.Zoom:
                 Camera.Zoom(Math.Pow(1.01, dy / PixelScale), _pressedAt.X * PixelScale, _pressedAt.Y * PixelScale, PixelWidth, PixelHeight);
                 Changed();
+                break;
+            case DragMode.Handle:
+                HandleDragged?.Invoke(this, Camera.Ray(p.X * PixelScale, p.Y * PixelScale, PixelWidth, PixelHeight));
                 break;
             case DragMode.PendingRightPan when _moved:
                 _drag = DragMode.Pan;
