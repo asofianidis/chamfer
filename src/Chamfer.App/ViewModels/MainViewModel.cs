@@ -96,6 +96,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Delete/Keep Body", "Remove bodies, or keep only some", new RelayCommand(() => StartFeature(new DeleteBodyFeature { Bodies = SelectedBodyNames() })), "✕", "Bodies"),
             new("Appearance", "Colour bodies", new RelayCommand(() => StartFeature(new AppearanceFeature { Bodies = SelectedBodyNames() })), "◆", "Bodies"),
         ];
+        FeatureCommands = [.. FeatureCommands, .. SimulationCommands];
         VisibleFeatureCommands = [.. FeatureCommands.Where(c => c.Tab == "Features")];
         RebuildAndRefresh();
     }
@@ -144,7 +145,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public IReadOnlyList<CommandItem> FeatureCommands { get; }
 
-    public IReadOnlyList<string> CommandTabs { get; } = ["Features", "Surfaces", "Sheet Metal", "Bodies"];
+    public IReadOnlyList<string> CommandTabs { get; } = ["Features", "Surfaces", "Sheet Metal", "Bodies", "Simulation"];
 
     /// <summary>Showing the sheet metal flat pattern instead of the folded part.</summary>
     [ObservableProperty]
@@ -474,6 +475,11 @@ public sealed partial class MainViewModel : ViewModelBase
         if (AssemblyDoc is { } asm)
         {
             return AssemblyBuilder.Build(asm, Selection, Hover, Palette, DisplayStyle, Exploded);
+        }
+
+        if (ResultScene() is { } results)
+        {
+            return results;
         }
 
         if (ShowFlat && FlatShape() is { } flat && Document.State.SheetMetal is { } sm)

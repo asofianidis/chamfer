@@ -291,6 +291,7 @@ public sealed class SoftwareRenderer
                 var by1 = Math.Min(y1 - 1, maxY[t]);
                 var face = faces[t];
                 var color = item.FaceColors.TryGetValue(face, out var fc) ? fc : item.Color;
+                var vc = item.VertexColors;
                 var pick = item.FacePickBase == 0 ? 0 : item.FacePickBase + face - 1;
                 for (var y = by0; y <= by1; y++)
                 {
@@ -325,7 +326,17 @@ public sealed class SoftwareRenderer
                             var nx = (wa * p.Nx[ia]) + (wb * p.Nx[ib]) + (wc * p.Nx[ic]);
                             var ny = (wa * p.Ny[ia]) + (wb * p.Ny[ib]) + (wc * p.Ny[ic]);
                             var nz = (wa * p.Nz[ia]) + (wb * p.Nz[ib]) + (wc * p.Nz[ic]);
-                            shaded = Shade(color, nx, ny, nz);
+                            var pixelColor = color;
+                            if (vc is not null)
+                            {
+                                Rgba ca = vc[ia], cb = vc[ib], cc = vc[ic];
+                                pixelColor = new Rgba(
+                                    (byte)((wa * ca.R) + (wb * cb.R) + (wc * cc.R)),
+                                    (byte)((wa * ca.G) + (wb * cb.G) + (wc * cc.G)),
+                                    (byte)((wa * ca.B) + (wb * cb.B) + (wc * cc.B)));
+                            }
+
+                            shaded = Shade(pixelColor, nx, ny, nz);
                         }
 
                         if (opaque)

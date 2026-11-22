@@ -144,6 +144,7 @@ chamfer/
 │   ├── Chamfer.Sketching/        # 2D sketch entities + constraint solver ✅
 │   ├── Chamfer.Assembly/         # Components, mates, assembly solver, BOM ✅
 │   ├── Chamfer.Drawing/          # 2D drawings, views, dimensions, PDF/SVG/DXF ✅
+│   ├── Chamfer.Simulation/       # Linear static FEA on voxel meshes ✅
 │   ├── Chamfer.Geometry/         # Kernel-agnostic math and mesh types ✅
 │   ├── Chamfer.Kernel.Occt/      # C# bindings to the native shim ✅
 │   ├── Chamfer.Kernel.Native/    # C++ shim over OCCT (CMake) ✅
@@ -156,6 +157,7 @@ chamfer/
 │   ├── Chamfer.Viewport.Tests/    ✅
 │   ├── Chamfer.Assembly.Tests/    ✅
 │   ├── Chamfer.Drawing.Tests/     ✅
+│   ├── Chamfer.Simulation.Tests/  ✅
 │   ├── Chamfer.IO.Tests/
 │   └── Chamfer.App.Tests/        # Avalonia.Headless UI tests ✅
 ├── samples/                      # Example parts, assemblies, drawings
@@ -221,6 +223,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
 | Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids) and **Thicken**. |
 | Sheet metal | The **Sheet Metal** tab: **Base Flange** from a sketch (closed makes a plate, open lines make a bent sheet with the bend radius), **Edge Flange** on straight edges (length, angle, either direction), **Flatten** to see the blank with bend lines, and **Export Flat DXF**. |
+| Simulation | The **Simulation** tab: select faces and click **Fixture**, **Force** (normal or along an axis) or **Pressure**, then **Run Study**. The part is shown deformed and coloured by von Mises stress, with max stress, max displacement and factor of safety against the material's yield strength. |
 | Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
 
 ### Assemblies
@@ -423,7 +426,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] FeatureWorks-style feature recognition on imported solids (stretch goal)
 
 ### Phase 9: Simulation & Motion
-- [ ] Linear static FEA: tetrahedral meshing via OCCT/Netgen or Gmsh, a solver (CalculiX integration or our own), results plots
+- [~] Linear static FEA: tetrahedral meshing via OCCT/Netgen or Gmsh, a solver (CalculiX integration or our own), results plots *(our own solver on a voxel mesh: incompatible-mode hexahedra, matrix-free conjugate gradient, fixtures, forces and pressures, von Mises plots on the deformed shape, factor of safety)*
 - [ ] Frequency and buckling studies
 - [ ] Thermal studies
 - [ ] Motion study: animation timeline, motors, springs, gravity
@@ -473,7 +476,7 @@ A high-level tracker against SolidWorks capability areas.
 | Weldments | Structural members, cut lists | 7 | ⬜ |
 | Mold tools | Parting line/surface, core/cavity | 7 | ⬜ |
 | Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | 🟨 STEP/IGES in and out; STL, 3MF, OBJ out; drawing DXF |
-| Simulation | SimulationXpress-level FEA, frequency, thermal | 9 | ⬜ |
+| Simulation | SimulationXpress-level FEA, frequency, thermal | 9 | 🟨 Linear static stress |
 | Motion | Motion studies, animation | 9 | ⬜ |
 | Rendering | Visualize-style photoreal rendering | 10 | ⬜ |
 | MBD | 3D PMI | 10 | ⬜ |

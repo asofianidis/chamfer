@@ -5,6 +5,7 @@
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepGProp.hxx>
 #include <BRepGProp_Face.hxx>
@@ -307,6 +308,19 @@ int chf_edge_sample(chf_shape* s, int index, double deflection, double* out, int
     int n = pts.NbPoints();
     for (int i = 0; i < n && i < cap; ++i) put3(out + 3 * i, pts.Value(i + 1).XYZ());
     return n;
+  });
+}
+
+int chf_classify(const chf_shape* s, int count, const double* points, unsigned char* out) {
+  return chf_guard(0, [&] {
+    if (!s || s->shape.IsNull()) return 0;
+    BRepClass3d_SolidClassifier classifier(s->shape);
+    for (int i = 0; i < count; ++i) {
+      classifier.Perform(gp_Pnt(points[3 * i], points[3 * i + 1], points[3 * i + 2]), 1e-7);
+      TopAbs_State st = classifier.State();
+      out[i] = st == TopAbs_IN ? 1 : st == TopAbs_ON ? 2 : 0;
+    }
+    return 1;
   });
 }
 

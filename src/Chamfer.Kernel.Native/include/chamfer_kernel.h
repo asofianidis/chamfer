@@ -111,6 +111,11 @@ CHF_API int chf_edge_info(chf_shape* s, int index, double* out);
 CHF_API int chf_edge_sample(chf_shape* s, int index, double deflection, double* out, int cap);
 /* Minimum distance between two shapes; out6 receives the closest points. Returns -1 on failure. */
 CHF_API double chf_distance(const chf_shape* a, const chf_shape* b, double* out6);
+/*
+ * Point-in-solid tests: for each of count points (3 doubles each) writes 1
+ * (inside), 0 (outside) or 2 (on the boundary) to out. Returns 1 on success.
+ */
+CHF_API int chf_classify(const chf_shape* s, int count, const double* points, unsigned char* out);
 /* Vertex position. */
 CHF_API int chf_vertex_point(chf_shape* s, int index, double* out3);
 

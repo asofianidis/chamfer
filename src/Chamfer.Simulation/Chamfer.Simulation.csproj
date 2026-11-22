@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Linear static stress analysis of parts on a voxel hexahedral mesh.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Chamfer.Document\Chamfer.Document.csproj" />
+  </ItemGroup>
+</Project>

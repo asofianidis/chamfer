@@ -6,6 +6,7 @@
     <Project Path="src/Chamfer.Drawing/Chamfer.Drawing.csproj" />
     <Project Path="src/Chamfer.Geometry/Chamfer.Geometry.csproj" />
     <Project Path="src/Chamfer.Kernel.Occt/Chamfer.Kernel.Occt.csproj" />
+    <Project Path="src/Chamfer.Simulation/Chamfer.Simulation.csproj" />
     <Project Path="src/Chamfer.Sketching/Chamfer.Sketching.csproj" />
     <Project Path="src/Chamfer.Viewport/Chamfer.Viewport.csproj" />
   </Folder>
@@ -15,6 +16,7 @@
     <Project Path="tests/Chamfer.Document.Tests/Chamfer.Document.Tests.csproj" />
     <Project Path="tests/Chamfer.Drawing.Tests/Chamfer.Drawing.Tests.csproj" />
     <Project Path="tests/Chamfer.Kernel.Tests/Chamfer.Kernel.Tests.csproj" />
+    <Project Path="tests/Chamfer.Simulation.Tests/Chamfer.Simulation.Tests.csproj" />
     <Project Path="tests/Chamfer.Sketching.Tests/Chamfer.Sketching.Tests.csproj" />
     <Project Path="tests/Chamfer.Viewport.Tests/Chamfer.Viewport.Tests.csproj" />
   </Folder>

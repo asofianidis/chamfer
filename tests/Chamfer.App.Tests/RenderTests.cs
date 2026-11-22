@@ -144,6 +144,49 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task SimulationWorkflowRenders()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            var bracket = new PartDocument();
+            var s = new Sketch();
+            s.AddPolyline([new Vec2(0, 0), new Vec2(80, 0), new Vec2(80, 10), new Vec2(10, 10), new Vec2(10, 60), new Vec2(0, 60)], closed: true);
+            var sf = bracket.Add(new SketchFeature { Sketch = s });
+            bracket.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 20 });
+            vm.LoadFile("bracket.chprt", bracket.Save());
+            var body = vm.Document.Bodies[0];
+            int Face(Func<Kernel.Occt.FaceInfo, bool> pick) => Enumerable.Range(1, body.FaceCount).Single(i => pick(body.Face(i)));
+
+            vm.SelectTabCommand.Execute("Simulation");
+            vm.SetSelection([SelectionItem.Face(body, Face(f => f.Normal.Y > 0.99 && f.Centroid.Y > 59))]);
+            vm.VisibleFeatureCommands.Single(c => c.Label == "Fixture").Command.Execute(null);
+            vm.SetSelection([SelectionItem.Face(body, Face(f => f.Normal.X > 0.99 && f.Centroid.X > 79))]);
+            vm.VisibleFeatureCommands.Single(c => c.Label == "Force").Command.Execute(null);
+            vm.Editor!.Fields.OfType<ChoiceField>().Single().Index = 4; // -Y
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.Single(vm.Study.Fixtures);
+            Assert.Single(vm.Study.Loads);
+
+            var run = (CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.VisibleFeatureCommands.Single(c => c.Label == "Run Study").Command;
+            var task = run.ExecuteAsync(null);
+            while (!task.IsCompleted)
+            {
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(10);
+            }
+
+            Assert.NotNull(vm.StudyResult);
+            Assert.True(vm.StudyResult!.MaxStress > 0);
+            Assert.True(vm.ShowResults);
+            Assert.Contains(vm.Editor!.Fields.OfType<InfoField>(), f => f.Label == "Factor of safety");
+            window.FindControl<Controls.ModelViewport>("Viewport")!.SetView(StandardView.Isometric);
+            Capture(window, "simulation");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static PartDocument PlateWithHole()
     {
         var doc = new PartDocument();
