@@ -106,7 +106,7 @@ public sealed class CutWithSurfaceFeature : Feature
     }
 
     /// <summary>Signed distance from the surface along its normal at the nearest point.</summary>
-    private static double SideOfSurface(Shape surface, Vec3 p)
+    internal static double SideOfSurface(Shape surface, Vec3 p)
     {
         (Vec3 Point, Vec3 Normal, double Distance)? best = null;
         for (var f = 1; f <= surface.FaceCount; f++)
@@ -307,3 +307,118 @@ public static class PartingLines
         return edges;
     }
 }
+
+/// <summary>
+/// Replace Face: moves a flat face of a solid onto a surface (a face of a surface body) or a plane,
+/// growing the solid out to it or trimming it back, whichever the surface needs.
+/// </summary>
+public sealed class ReplaceFaceFeature : Feature
+{
+    public override string DefaultName => "Replace Face";
+
+    public TopoRef? Face { get; set; }
+
+    /// <summary>A face of the replacement surface body; when null, <see cref="Plane"/> replaces.</summary>
+    public TopoRef? Surface { get; set; }
+
+    public PlaneRef Plane { get; set; } = PlaneRef.Top;
+
+    public override IEnumerable<string> Dependencies => Plane.PlaneId is { } id && id is not ("front" or "top" or "right") ? [id] : [];
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var (body, index) = ctx.ResolveFace(Face ?? throw new FeatureException("Select the face to replace."));
+        var facePlane = body.Shape.FacePlane(index) ?? throw new FeatureException("Replace Face works on flat faces.");
+        var surfaceBody = Surface is { } s ? ctx.ResolveFace(s).Body : null;
+        var plane = surfaceBody is null ? ctx.ResolvePlane(Plane) : (Plane3?)null;
+        var size = (body.Shape.Bounds.Diagonal * 4) + 20;
+        using var planeTool = plane is { } p ? Modeling.PlaneFace(p, size) : null;
+        var tool = planeTool ?? surfaceBody!.Shape;
+        double Side(Vec3 point) => plane is { } pl ? pl.SignedDistance(point) : CutWithSurfaceFeature.SideOfSurface(surfaceBody!.Shape, point);
+
+        // The kept side of the new surface is the one behind it as seen from the face's outside:
+        // step back (against the face's normal) from where the face's centre meets the surface.
+        var c = body.Face(index).Centroid;
+        Vec3 onSurface;
+        if (plane is { } pp)
+        {
+            var along = Vec3.Dot(facePlane.Normal, pp.Normal);
+            onSurface = Math.Abs(along) > 1e-9 ? c + (facePlane.Normal * (-pp.SignedDistance(c) / along)) : c;
+        }
+        else
+        {
+            onSurface = Enumerable.Range(1, surfaceBody!.Shape.FaceCount)
+                .Select(f => surfaceBody.Shape.ProjectOnFace(f, c))
+                .OfType<(Vec3 Point, Vec3 Normal, double Distance)>()
+                .MinBy(x => x.Distance).Point;
+        }
+
+        var bodySide = Math.Sign(Side(onSurface - (facePlane.Normal * 1e-3)));
+        if (bodySide == 0)
+        {
+            throw new FeatureException("The replacement surface runs along the face; move it off.");
+        }
+
+        // Grow: the face swept outward, clipped at the surface, joined on.
+        Shape grown;
+        using (var face = body.Shape.Sub(TopoKind.Face, index))
+        using (var prism = Modeling.Extrude(face, facePlane.Normal * size))
+        using (var split = Modeling.Split(prism.Result, tool))
+        {
+            var pieces = new List<Shape>();
+            for (var i = 1; i <= split.Result.SolidCount; i++)
+            {
+                var piece = split.Result.Sub(TopoKind.Solid, i);
+                if (Math.Sign(Side(piece.MassProperties.CenterOfMass)) == bodySide)
+                {
+                    pieces.Add(piece);
+                }
+                else
+                {
+                    piece.Dispose();
+                }
+            }
+
+            grown = body.Shape;
+            foreach (var piece in pieces)
+            {
+                using var fuse = Modeling.Boolean(grown, piece, BooleanKind.Fuse);
+                grown = fuse.Result;
+                piece.Dispose();
+            }
+        }
+
+        // Trim: anything past the surface on the face's side goes.
+        using var cut = Modeling.Split(grown, tool);
+        var kept = new List<Shape>();
+        for (var i = 1; i <= cut.Result.SolidCount; i++)
+        {
+            var piece = cut.Result.Sub(TopoKind.Solid, i);
+            if (Math.Sign(Side(piece.MassProperties.CenterOfMass)) == bodySide)
+            {
+                kept.Add(piece);
+            }
+            else
+            {
+                piece.Dispose();
+            }
+        }
+
+        if (kept.Count == 0)
+        {
+            throw new FeatureException("The surface leaves nothing of the body.");
+        }
+
+        var result = kept[0];
+        foreach (var more in kept.Skip(1))
+        {
+            using var fuse = Modeling.Boolean(result, more, BooleanKind.Fuse);
+            result = fuse.Result;
+        }
+
+        var names = Naming.Finish(result, new string?[result.FaceCount], Id);
+        ctx.Bodies[ctx.Bodies.IndexOf(body)] = new Body(result, names, body.Name, body.Color);
+    }
+}
+

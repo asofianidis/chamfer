@@ -309,6 +309,14 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Through all (project onto every face in line)", sl.ThroughAll, v => Set(() => sl.ThroughAll = v)));
                 break;
 
+            case ReplaceFaceFeature rf:
+                ed.Add(new SelectionField("Face to replace", Faces, rf.Face is { } rff ? [new SelectionItem(SelectionKind.Face, rff, Label: $"Face <{rff.Name}>")] : [],
+                    items => Set(() => rf.Face = Last(items)?.Ref), max: 1));
+                ed.Add(new SelectionField("Replacement surface (or a plane below)", Faces, rf.Surface is { } rfs ? [new SelectionItem(SelectionKind.Face, rfs, Label: $"Face <{rfs.Name}>")] : [],
+                    items => Set(() => rf.Surface = Last(items)?.Ref), max: 1));
+                ed.Add(new SelectionField("Replacement plane", Planes, [PlaneItem(doc, rf.Plane)], items => Set(() => rf.Plane = Last(items)?.AsPlane() ?? PlaneRef.Top), max: 1));
+                break;
+
             case SurfaceEditFeature se2:
                 ed.Add(BodyField(doc, feature, "Surface body", se2.Body.Length > 0 ? [se2.Body] : [], names => Set(() => se2.Body = names.FirstOrDefault() ?? string.Empty), 1));
                 ed.Add(new ChoiceField("Operation", ["Trim", "Untrim", "Extend"], (int)se2.Operation, i => Set(() => se2.Operation = (SurfaceEdit)i)));
