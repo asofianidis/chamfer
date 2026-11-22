@@ -98,7 +98,7 @@ public sealed partial class FeatureEditor : ObservableObject
     private static readonly SelectionKind[] Axes = [SelectionKind.Edge, SelectionKind.Face, SelectionKind.Plane];
     private static readonly SelectionKind[] FeatureKinds = [SelectionKind.Feature];
 
-    private static readonly string[] EndConditions = ["Blind", "Through All", "Mid Plane", "Up To Surface", "Offset From Surface"];
+    private static readonly string[] EndConditions = ["Blind", "Through All", "Mid Plane", "Up To Surface", "Offset From Surface", "Up To Vertex"];
 
     /// <summary>Builds the panel for a feature. <paramref name="selection"/> pre-fills selection fields.</summary>
     public static FeatureEditor Create(PartDocument doc, Feature feature, bool isNew, IReadOnlyList<SelectionItem> selection, Action changed)
@@ -159,6 +159,8 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new SelectionField("Up to face", Faces, ex.UpToFace is { } upTo ? [new SelectionItem(SelectionKind.Face, upTo, Label: $"Face <{upTo.Name}>")] : [],
                     items => Set(() => ex.UpToFace = Last(items)?.Ref), max: 1));
                 ed.Add(Num("Surface offset", "mm", ex, nameof(ex.SurfaceOffset), 0));
+                ed.Add(new SelectionField("Up to point", FeatureKinds, PointItems(doc, ex.UpToPoint is { } upToPoint ? [upToPoint] : []),
+                    items => Set(() => ex.UpToPoint = PointIds(doc, items).LastOrDefault()), max: 1));
                 ed.Add(Num("Draft angle", "°", ex, nameof(ex.DraftAngle), 0));
                 ed.Add(new BoolField("Draft outward", ex.DraftOutward, v => Set(() => ex.DraftOutward = v)));
                 ed.Add(new BoolField("Thin feature", ex.IsThin, v => Set(() => ex.IsThin = v)));

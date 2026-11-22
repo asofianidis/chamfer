@@ -15,6 +15,9 @@ public enum EndCondition
     MidPlane,
     UpToSurface,
     OffsetFromSurface,
+
+    /// <summary>To the plane through a point (a reference point), parallel to the sketch.</summary>
+    UpToVertex,
 }
 
 /// <summary>Extruded boss or cut from a sketch's closed contours (or a thin wall from any chain).</summary>
@@ -46,6 +49,9 @@ public sealed class ExtrudeFeature : Feature
     /// <summary>Face to stop at, for <see cref="EndCondition.UpToSurface"/> and <see cref="EndCondition.OffsetFromSurface"/>.</summary>
     public TopoRef? UpToFace { get; set; }
 
+    /// <summary>Reference point to stop at, for <see cref="EndCondition.UpToVertex"/>.</summary>
+    public string? UpToPoint { get; set; }
+
     /// <summary>Distance short of <see cref="UpToFace"/> for <see cref="EndCondition.OffsetFromSurface"/>.</summary>
     public double SurfaceOffset { get; set; }
 
@@ -66,7 +72,7 @@ public sealed class ExtrudeFeature : Feature
     /// <summary>Fuse a boss into the bodies it touches instead of making a new body.</summary>
     public bool Merge { get; set; } = true;
 
-    public override IEnumerable<string> Dependencies => [SketchId];
+    public override IEnumerable<string> Dependencies => UpToPoint is { } point ? [SketchId, point] : [SketchId];
 
     public override void Execute(RebuildContext ctx)
     {
@@ -110,6 +116,7 @@ public sealed class ExtrudeFeature : Feature
             var d1 = EndCondition switch
             {
                 EndCondition.ThroughAll or EndCondition.UpToSurface or EndCondition.OffsetFromSurface => through,
+                EndCondition.UpToVertex => VertexReach(ctx, plane, dir),
                 _ => Depth,
             };
             var d2 = HasDirection2 ? (EndCondition2 == EndCondition.ThroughAll ? through : Depth2) : 0;
@@ -156,6 +163,14 @@ public sealed class ExtrudeFeature : Feature
         }
 
         AdvancedShapes.Apply(ctx, Id, pieces, IsCut, Merge);
+    }
+
+    /// <summary>How far along the extrusion the up-to point's parallel plane is.</summary>
+    private double VertexReach(RebuildContext ctx, Plane3 plane, Vec3 dir)
+    {
+        var point = ctx.ResolvePoint(UpToPoint ?? throw new FeatureException("Select a point to extrude up to."));
+        var reach = Vec3.Dot(point - plane.Origin, dir) - StartOffset;
+        return reach > 1e-9 ? reach : throw new FeatureException("The point is behind the sketch. Try reversing the direction.");
     }
 
     private (Shape, string[]) Taper(Operation prism, Shape solid, string[] names, Shape face, Dictionary<int, int> entityOfEdge, Plane3 startPlane, Vec3 dir)

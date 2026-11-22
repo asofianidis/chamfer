@@ -106,4 +106,24 @@ public class ReferenceGeometryTests
         Assert.Single(reloaded.Features.OfType<CoordinateSystemFeature>());
         Assert.Equal(2, reloaded.Features.OfType<ReferencePointFeature>().Count());
     }
+
+    [Fact]
+    public void ExtrudeUpToAVertex()
+    {
+        var doc = Box(40, 20, 10);
+        var body = doc.Bodies[0];
+        var top = body.FaceRef(Enumerable.Range(1, body.FaceCount).First(i => body.Face(i).Normal.Z > 0.99));
+        var tip = doc.Add(new ReferencePointFeature { X = 100, Y = -50, Z = 27 }); // anywhere; only its height counts
+        var s = new Sketch();
+        s.AddCircle(new Vec2(0, 0), 3);
+        var sf = doc.Add(new SketchFeature { Plane = new PlaneRef(Face: top), Sketch = s });
+        var boss = doc.Add(new ExtrudeFeature { SketchId = sf.Id, EndCondition = EndCondition.UpToVertex, UpToPoint = tip.Id });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(27, doc.Bodies[0].Shape.Bounds.Max.Z, 1e-6);
+
+        boss.Reverse = true; // now the point is behind the sketch
+        doc.Rebuild();
+        Assert.Equal(FeatureStatus.Error, doc.Results[boss.Id].Status);
+    }
 }
