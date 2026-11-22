@@ -563,7 +563,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             DimensionKind.Diameter => "⌀",
             DimensionKind.Radius => "R",
             _ => string.Empty,
-        } + v.ToString("0.##", CultureInfo.InvariantCulture) + (d.Tolerance ?? string.Empty));
+        } + Units.Format(v, doc.LengthUnit) + (d.Tolerance ?? string.Empty));
         const double textHeight = 3.5;
 
         if (d.Kind is DimensionKind.Diameter or DimensionKind.Radius)

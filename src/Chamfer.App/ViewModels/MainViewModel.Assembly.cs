@@ -1,5 +1,6 @@
 using System.Globalization;
 using Avalonia.Platform.Storage;
+using Chamfer.App.Editing;
 using Chamfer.App.Part;
 using Chamfer.Assembly;
 using Chamfer.Document;
@@ -534,6 +535,7 @@ public sealed partial class MainViewModel
     private void RefreshAssembly()
     {
         var asm = AssemblyDoc!;
+        DisplayUnits.Length = LengthUnit.Millimeter;
         _lastSolve = asm.Solve();
         var selectedTag = SelectedNode?.Tag;
         Tree.Clear();

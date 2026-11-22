@@ -419,7 +419,7 @@ public partial class MainWindow : Window
 
                 value = linked;
             }
-            else if (!ValueParser.TryParse(text, out value))
+            else if (dim is AngleConstraint ? !ValueParser.TryParse(text, out value) : !DisplayUnits.TryParse(text, out value))
             {
                 sketch.Editor.SetMessage("Enter a number (25, 25.4*2, 1in) or an equation (=Width/2).");
                 return;

@@ -434,10 +434,30 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private void RefreshStatus()
     {
+        DisplayUnits.Length = Document.Units;
+        var system = Units.SystemName(Document.Units);
         var bodies = Document.Bodies.Count;
         StatusText = Sketch is not null ? Sketch.StatusText
-            : bodies == 0 ? "MMGS · Empty part"
-            : $"MMGS · {bodies} bod{(bodies == 1 ? "y" : "ies")} · {Document.Material.Name}";
+            : bodies == 0 ? $"{system} · Empty part"
+            : $"{system} · {bodies} bod{(bodies == 1 ? "y" : "ies")} · {Document.Material.Name}";
+    }
+
+    /// <summary>Document units: lengths show and are typed in this unit.</summary>
+    [RelayCommand]
+    private void ShowUnits()
+    {
+        CancelEditor();
+        var panel = FeatureEditor.Info("Units");
+        var units = Enum.GetValues<LengthUnit>();
+        panel.AddInfo(new ChoiceField("Unit system", ["MMGS (millimetre)", "CGS (centimetre)", "MKS (metre)", "IPS (inch)"], Array.IndexOf(units, Document.Units), i =>
+        {
+            Snapshot();
+            Document.Units = units[i];
+            RebuildAndRefresh();
+            ShowUnits();
+        }));
+        panel.AddInfo(new InfoField("Typing values", "Numbers are in the document unit; add a unit to use another (25mm, 1in, 2.5cm)."));
+        Editor = panel;
     }
 
     private void RefreshTitle()
