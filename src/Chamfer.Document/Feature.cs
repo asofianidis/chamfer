@@ -53,6 +53,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(LoftFeature), "loft")]
 [JsonDerivedType(typeof(BoundaryFeature), "boundary")]
 [JsonDerivedType(typeof(InContextPlaneFeature), "in-context-plane")]
+[JsonDerivedType(typeof(FreeformFeature), "freeform")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
 [JsonDerivedType(typeof(CombineFeature), "combine")]
 [JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]

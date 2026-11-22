@@ -1115,4 +1115,31 @@ public class PartWorkflowTests
         vm.AssemblyCommands.Single(c => c.Label == "External References").Command.Execute(null);
         Assert.Single(vm.Editor!.Fields.OfType<BoolField>(), f => f.Label.StartsWith("Lock ", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public void FreeformFromTheUi()
+    {
+        var vm = BlockOnFront();
+        var before = vm.Document.MassProperties().Volume;
+        var body = vm.Document.Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99);
+        vm.SetSelection([SelectionItem.Face(body, top)]);
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Freeform").Command.Execute(null);
+        var fields = vm.Editor!.Fields.OfType<NumberField>().ToList();
+        Assert.True(fields.Single(f => f.Label == "Point 3,3").IsVisible);
+        Assert.False(fields.Single(f => f.Label == "Point 4,4").IsVisible);
+
+        var middle = fields.Single(f => f.Label == "Point 2,2");
+        middle.Text = "4";
+        middle.Commit();
+
+        // Growing the grid keeps the middle point's offset where it was.
+        var rows = fields.Single(f => f.Label == "Rows");
+        rows.Text = "4";
+        rows.Commit();
+        Assert.True(fields.Single(f => f.Label == "Point 4,1").IsVisible);
+        Assert.Equal(4, Assert.IsType<FreeformFeature>(vm.Document.Features[^1]).OffsetAt(1, 1));
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.True(vm.Document.MassProperties().Volume > before + 50);
+    }
 }

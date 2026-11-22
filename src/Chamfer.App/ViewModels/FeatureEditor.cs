@@ -309,6 +309,53 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Sink into the part", dm.Reverse, v => Set(() => dm.Reverse = v)));
                 break;
 
+            case FreeformFeature free:
+            {
+                ed.Add(new SelectionField("Face", Faces, free.Face is { } freeFace ? [new SelectionItem(SelectionKind.Face, freeFace, Label: $"Face <{freeFace.Name}>")] : [],
+                    items => Set(() => free.Face = Last(items)?.Ref), max: 1));
+
+                // Up to 5 x 5 control points; the fields beyond the grid are hidden.
+                const int max = 5;
+                var points = new List<(int Row, int Column, NumberField Field)>();
+                void ShowGrid()
+                {
+                    foreach (var (r, c, field) in points)
+                    {
+                        field.IsVisible = r < free.Rows && c < free.Columns;
+                    }
+                }
+
+                void Resize(Action change)
+                {
+                    // Keep each point's offset where it is when the grid changes shape.
+                    var old = Enumerable.Range(0, max * max).ToDictionary(i => (i / max, i % max), i => i / max < free.Rows && i % max < free.Columns ? free.OffsetAt(i / max, i % max) : 0);
+                    change();
+                    free.Rows = Math.Clamp(free.Rows, 1, max);
+                    free.Columns = Math.Clamp(free.Columns, 1, max);
+                    free.Offsets = [.. Enumerable.Range(0, free.Rows * free.Columns).Select(i => old[(i / free.Columns, i % free.Columns)])];
+                    ShowGrid();
+                }
+
+                ed.Add(new NumberField("Rows", "", () => free.Rows, v => Set(() => Resize(() => free.Rows = (int)Math.Round(v))), 1, wholeNumber: true));
+                ed.Add(new NumberField("Columns", "", () => free.Columns, v => Set(() => Resize(() => free.Columns = (int)Math.Round(v))), 1, wholeNumber: true));
+                ed.AddInfo(new InfoField("Control points", "How far each point moves out of the face (negative: in), row by row across the face."));
+                for (var r = 0; r < max; r++)
+                {
+                    for (var c = 0; c < max; c++)
+                    {
+                        var (row, column) = (r, c);
+                        var field = new NumberField($"Point {r + 1},{c + 1}", "mm",
+                            () => row < free.Rows && column < free.Columns ? free.OffsetAt(row, column) : 0,
+                            v => Set(() => free.SetOffset(row, column, v)));
+                        points.Add((r, c, field));
+                        ed.Add(field);
+                    }
+                }
+
+                ShowGrid();
+                break;
+            }
+
             case DeleteFaceFeature df:
                 ed.Add(new SelectionField("Faces to delete", Faces, isNew ? Pre(Faces) : Refs(df.Faces, SelectionKind.Face),
                     items => Set(() => df.Faces = [.. items.Select(i => i.Ref!)])));

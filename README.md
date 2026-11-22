@@ -418,7 +418,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Thicken, and thickened cut *(thicken)*
 - [~] Replace face, cut with surface *(cut with surface or plane)*
 - [~] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection *(zebra stripes, draft analysis)*
-- [ ] Freeform
+- [~] Freeform *(flat faces reshaped through a grid of up to 5 x 5 control points pulled in or out, staying on their edges)*
 
 ### Phase 7: Specialized Toolsets
 **Sheet Metal**
