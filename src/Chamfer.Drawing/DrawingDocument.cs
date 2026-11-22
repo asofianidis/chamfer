@@ -60,6 +60,12 @@ public enum DimensionKind
     Aligned,
     Diameter,
     Radius,
+
+    /// <summary>B's distance along X from the datum A, written at the end of a leader.</summary>
+    OrdinateHorizontal,
+
+    /// <summary>B's distance along Y from the datum A.</summary>
+    OrdinateVertical,
 }
 
 /// <summary>A dimension in a view, measured on the projected model.</summary>

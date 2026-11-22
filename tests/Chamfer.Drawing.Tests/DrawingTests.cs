@@ -163,6 +163,50 @@ public class DrawingTests
     }
 
     [Fact]
+    public void BaselineChainAndOrdinateDimensions()
+    {
+        // A plate 80 x 50 with the hole at (40, 25) and another at (65, 25).
+        var (part, _) = Part();
+        var holes = new Sketch();
+        holes.AddCircle(new Vec2(65, 25), 4);
+        var hs = part.Add(new SketchFeature { Sketch = holes });
+        part.Add(new ExtrudeFeature { SketchId = hs.Id, IsCut = true, EndCondition = EndCondition.ThroughAll, Reverse = true });
+        part.Rebuild();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        var front = drawing.Add(sheet, ViewKind.Front, 150, 150);
+        var renderer = new DrawingRenderer(drawing);
+        var vg = renderer.Geometry(sheet, front);
+
+        double[] Values() => [.. sheet.Dimensions.Select(x => Math.Round(renderer.Measure(sheet, x), 6))];
+
+        // Baseline: 40, 65 and 80 from the left edge, stacked further out each time.
+        var baseline = DimensionSets.Add(drawing, sheet, front, vg, DimensionSetKind.Baseline, vertical: false);
+        Assert.Equal([40, 65, 80], Values());
+        Assert.True(baseline[2].Offset < baseline[0].Offset);
+
+        // Chain: 40, then 25, then 15, in a row.
+        sheet.Dimensions.Clear();
+        DimensionSets.Add(drawing, sheet, front, vg, DimensionSetKind.Chain, vertical: false);
+        Assert.Equal([40, 25, 15], Values());
+
+        // Ordinate: zero at the datum, then each distance from it; drawn as text at leader ends.
+        sheet.Dimensions.Clear();
+        DimensionSets.Add(drawing, sheet, front, vg, DimensionSetKind.Ordinate, vertical: false);
+        Assert.Equal([0, 40, 65, 80], Values());
+        var g = renderer.Render(sheet);
+        foreach (var text in new[] { "0", "40", "65", "80" })
+        {
+            Assert.Contains(g.Items.OfType<TextPrimitive>(), t => t.Text == text);
+        }
+
+        // Vertically: the holes share a height, so it's one stop at 25 and the top at 50.
+        sheet.Dimensions.Clear();
+        DimensionSets.Add(drawing, sheet, front, vg, DimensionSetKind.Baseline, vertical: true);
+        Assert.Equal([25, 50], Values());
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();

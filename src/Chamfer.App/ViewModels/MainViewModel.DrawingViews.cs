@@ -43,6 +43,51 @@ public sealed partial class MainViewModel
         }
     }
 
+    private void StartDimensionSet()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet || SelectedView() is not { } view || _drawingRenderer is null)
+        {
+            MessageText = "Select a view to dimension.";
+            return;
+        }
+
+        if (view.Kind is ViewKind.Isometric or ViewKind.Section or ViewKind.Detail)
+        {
+            MessageText = "Dimension sets work on orthographic views (front, top, right...).";
+            return;
+        }
+
+        CancelEditor();
+        var kind = DimensionSetKind.Baseline;
+        var vertical = false;
+        var made = new List<DrawingDimension>();
+        void Apply()
+        {
+            foreach (var m in made)
+            {
+                sheet.Dimensions.Remove(m);
+            }
+
+            made = [.. DimensionSets.Add(d, sheet, view, _drawingRenderer.Geometry(sheet, view), kind, vertical)];
+            RefreshDrawing();
+        }
+
+        var panel = DrawingPanel("Dimension Set", d, Apply);
+        panel.AddField(new ChoiceField("Type", ["Baseline", "Chain", "Ordinate"], 0, i =>
+        {
+            kind = (DimensionSetKind)i;
+            Apply();
+        }));
+        panel.AddField(new ChoiceField("Direction", ["Horizontal", "Vertical"], 0, i =>
+        {
+            vertical = i == 1;
+            Apply();
+        }));
+        panel.AddInfo(new InfoField("Measures", "Hole centres and the far edge, from the view's lower-left corner."));
+        Editor = panel;
+        Apply();
+    }
+
     private void StartProjectedView()
     {
         if (DrawingDoc is not { } d || CurrentSheet is not { } sheet || SelectedView() is not { } parent || _drawingRenderer is null)

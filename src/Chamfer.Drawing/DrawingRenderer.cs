@@ -776,8 +776,8 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         var b = vg.ToView(Resolve(d.B ?? d.A).Point);
         return d.Kind switch
         {
-            DimensionKind.Horizontal => Math.Abs(b.X - a.X),
-            DimensionKind.Vertical => Math.Abs(b.Y - a.Y),
+            DimensionKind.Horizontal or DimensionKind.OrdinateHorizontal => Math.Abs(b.X - a.X),
+            DimensionKind.Vertical or DimensionKind.OrdinateVertical => Math.Abs(b.Y - a.Y),
             _ => Point2.Distance(a, b),
         };
     }
@@ -825,6 +825,32 @@ public sealed class DrawingRenderer(DrawingDocument doc)
 
         var a = vg.ToSheet(pa);
         var b = vg.ToSheet(Resolve(d.B ?? d.A).Point);
+        if (d.Kind is DimensionKind.OrdinateHorizontal or DimensionKind.OrdinateVertical)
+        {
+            // A leader from the point out past the datum's side, with the distance from zero at its end.
+            var across = d.Kind == DimensionKind.OrdinateHorizontal;
+            var gap = 1.5;
+            var end = across ? new Point2(b.X, a.Y + d.Offset) : new Point2(a.X + d.Offset, b.Y);
+            var dir = (end - b).Normalized();
+            if (Point2.Distance(b, end) > gap)
+            {
+                g.Line(Pen.Thin, b + (dir * gap), end, owner);
+            }
+
+            var ordinate = (across ? Math.Abs(b.X - a.X) : Math.Abs(b.Y - a.Y)) / vg.Scale;
+            var text = d.Text ?? (Units.Format(ordinate, doc.LengthUnit) + (d.Tolerance ?? string.Empty));
+            if (across)
+            {
+                g.Text(end + new Point2(0, d.Offset < 0 ? -1 - textHeight : 1), text, textHeight, TextAnchor.Center, owner: owner);
+            }
+            else
+            {
+                g.Text(end + new Point2(d.Offset < 0 ? -1 : 1, -textHeight / 2), text, textHeight, d.Offset < 0 ? TextAnchor.Right : TextAnchor.Left, owner: owner);
+            }
+
+            return;
+        }
+
         Point2 along, normal;
         switch (d.Kind)
         {
