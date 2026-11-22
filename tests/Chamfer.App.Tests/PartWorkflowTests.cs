@@ -1439,4 +1439,37 @@ public class PartWorkflowTests
         vm.ToggleCurvatureAnalysisCommand.Execute(null);
         Assert.All(vm.BuildScene().Meshes, m => Assert.NotNull(m.VertexColors));
     }
+
+    [Fact]
+    public void DragComponentsFollowTheMouseWithinTheirMates()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var asm = vm.AssemblyDoc!;
+        var moving = asm.Components[1];
+        moving.Fixed = false;
+        vm.BuildScene();
+
+        // Find a pick id on the second screw.
+        var id = Enumerable.Range(1, 100000).First(i => vm.AssemblyBuilder.Target(i) is Chamfer.App.Part.ComponentPick p && p.Component == moving);
+        Assert.False(vm.IsHandle(id)); // not in drag mode yet
+        vm.AssemblyCommands.Single(c => c.Label == "Drag").Command.Execute(null);
+        Assert.True(vm.IsHandle(id));
+
+        // Looking down -Z: the first ray grabs, the next one 10 mm over in X drags it 10 mm.
+        var start = moving.Transform.Tx;
+        var height = moving.Transform.Tz;
+        vm.DragHandle(new Chamfer.Geometry.Vec3(start, 0, 100), new Chamfer.Geometry.Vec3(0, 0, -1));
+        vm.DragHandle(new Chamfer.Geometry.Vec3(start + 10, 0, 100), new Chamfer.Geometry.Vec3(0, 0, -1));
+        Assert.Equal(start + 10, moving.Transform.Tx, 1e-6);
+        Assert.Equal(height, moving.Transform.Tz, 1e-6); // across the view plane only
+
+        // One undo step takes the whole drag back.
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(start, vm.AssemblyDoc!.Components[1].Transform.Tx, 1e-6);
+    }
 }
