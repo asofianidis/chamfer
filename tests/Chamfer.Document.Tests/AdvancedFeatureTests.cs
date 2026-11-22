@@ -714,6 +714,36 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void VariablePatternVariesDepthAndSize()
+    {
+        // A plate with one 4 mm-radius hole 2 deep; then copies deeper and bigger along X.
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(100, 20));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var top = body.FaceRef(Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99));
+        var (u, v) = body.Shape.FacePlane(Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99))!.Value.ToLocal(new Vec3(10, 10, 10));
+        var hole = new Sketch();
+        hole.AddCircle(new Vec2(u, v), 4);
+        var hf = doc.Add(new SketchFeature { Plane = new PlaneRef(Face: top), Sketch = hole });
+        var seed = doc.Add(new ExtrudeFeature { SketchId = hf.Id, IsCut = true, Depth = 2 });
+        var pattern = doc.Add(new VariablePatternFeature
+        {
+            SeedId = seed.Id,
+            Instances = VariablePatternFeature.Parse("x, y, depth, scale\n20, 0, 4\n40, 0, 6, 1.5"),
+        });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(2, pattern.Instances.Count);
+        var removed = Math.PI * 16 * (2 + 4) + (Math.PI * 36 * 6);
+        Assert.Equal((100 * 20 * 10) - removed, Volume(doc), 1e-3);
+        Assert.Equal("20,0,4,1 | 40,0,6,1.5", pattern.Format());
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

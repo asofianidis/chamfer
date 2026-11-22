@@ -104,6 +104,10 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Circular Pattern", "Repeat features around an axis", new RelayCommand(() => StartFeature(new CircularPatternFeature { Count = 6 })), "⟳"),
             new("Sketch Pattern", "Copy features to the points of a sketch", new RelayCommand(() => StartFeature(new SketchDrivenPatternFeature())), "⁘"),
             new("Table Pattern", "Copy features to a list of X, Y offsets", new RelayCommand(() => StartFeature(new TablePatternFeature())), "▦"),
+            new("Variable Pattern", "Copy an extrusion to places of its own, each with its own depth and size", new RelayCommand(() => StartFeature(new VariablePatternFeature
+            {
+                SeedId = Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => Document.Find(s.FeatureId!)).OfType<ExtrudeFeature>().FirstOrDefault()?.Id ?? string.Empty,
+            })), "▤"),
             new("Curve Pattern", "Repeat features along a sketched curve", new RelayCommand(() => StartFeature(new CurveDrivenPatternFeature())), "∿"),
             new("Fill Pattern", "Fill a face with copies on a grid", new RelayCommand(() => StartFeature(new FillPatternFeature())), "⣿"),
             new("Mirror", "Mirror features about a plane", new RelayCommand(() => StartFeature(new MirrorFeature())), "⇋"),
