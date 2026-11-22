@@ -1,324 +1,998 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text.Json;
 using Avalonia.Platform.Storage;
 using Chamfer.App.Editing;
 using Chamfer.App.Editing.Tools;
-using Chamfer.Sketching;
-using Chamfer.Sketching.Constraints;
-using Chamfer.Sketching.Entities;
-using Chamfer.Sketching.Solving;
+using Chamfer.App.Part;
+using Chamfer.Document;
+using Chamfer.Document.Features;
+using Chamfer.Geometry;
+using Chamfer.Kernel.Occt;
+using Chamfer.Sketching.Serialization;
+using Chamfer.Viewport;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 namespace Chamfer.App.ViewModels;
 
-/// <summary>A toolbar button that activates a sketch tool.</summary>
-public sealed partial class ToolItem(string id, string label, string shortcut, string tooltip, Func<SketchTool> create) : ObservableObject
+/// <summary>A button in the command bar.</summary>
+public sealed class CommandItem(string label, string tooltip, IRelayCommand command, string glyph = "")
 {
-    public string Id { get; } = id;
     public string Label { get; } = label;
-    public string Shortcut { get; } = shortcut;
-    public string Tooltip { get; } = string.IsNullOrEmpty(shortcut) ? tooltip : $"{tooltip} ({shortcut})";
-    public Func<SketchTool> Create { get; } = create;
-
-    [ObservableProperty]
-    public partial bool IsActive { get; set; }
-
-    public required IRelayCommand Activate { get; init; }
+    public string Tooltip { get; } = tooltip;
+    public IRelayCommand Command { get; } = command;
+    public string Glyph { get; } = glyph;
 }
 
-/// <summary>An "Add Relation" button, enabled when the relation applies to the selection.</summary>
-public sealed partial class RelationItem(ConstraintKind kind) : ObservableObject
-{
-    public ConstraintKind Kind { get; } = kind;
-    public string Label { get; } = RelationRules.Label(kind);
-    public string Glyph { get; } = RelationRules.Glyph(kind);
-
-    [ObservableProperty]
-    public partial bool IsEnabled { get; set; }
-
-    public required IRelayCommand Apply { get; init; }
-}
-
-/// <summary>A row in the relations and dimensions list.</summary>
-public sealed class ConstraintRow(SketchConstraint constraint, bool redundant)
-{
-    public SketchConstraint Constraint { get; } = constraint;
-    public string Glyph { get; } = constraint is DimensionConstraint ? "<->" : RelationRules.Glyph(constraint.Kind);
-
-    public string Text { get; } = constraint is DimensionConstraint d
-        ? $"{RelationRules.Label(constraint.Kind)} {DimensionGeometry.FormatValue(d)}"
-        : RelationRules.Label(constraint.Kind);
-
-    public string Targets { get; } = string.Join(", ", constraint.References.Select(Describe));
-    public bool IsRedundant { get; } = redundant;
-
-    public static string Describe(SketchEntity e) => e switch
-    {
-        { Id: Sketch.OriginId } => "Origin",
-        SketchPoint { Owner: { } owner } p => $"{owner.Kind} {owner.Id} {PointRole(owner, p)}",
-        _ => $"{e.Kind} {e.Id}",
-    };
-
-    private static string PointRole(SketchEntity owner, SketchPoint p) => owner switch
-    {
-        SketchLine l when ReferenceEquals(l.Start, p) => "start",
-        SketchLine => "end",
-        SketchArc a when ReferenceEquals(a.Center, p) => "center",
-        SketchArc a when ReferenceEquals(a.Start, p) => "start",
-        SketchArc => "end",
-        _ => "center",
-    };
-}
-
+/// <summary>
+/// The part editor: document, feature tree, selection, the active command's
+/// property panel, sketch mode, files and undo. The 3D view and sketch canvas
+/// are driven from here through <see cref="SceneChanged"/> and the request actions.
+/// </summary>
 public sealed partial class MainViewModel : ViewModelBase
 {
-    private const string FileExtension = "chsk";
-    private static readonly FilePickerFileType SketchFileType = new("Chamfer Sketch") { Patterns = [$"*.{FileExtension}"] };
+    private static readonly FilePickerFileType PartFileType = new("Chamfer Part") { Patterns = [$"*.{PartDocument.FileExtension}"] };
+    private static readonly FilePickerFileType SketchFileType = new("Chamfer Sketch") { Patterns = ["*.chsk"] };
+    private static readonly FilePickerFileType StepFileType = new("STEP") { Patterns = ["*.step", "*.stp"] };
+    private static readonly FilePickerFileType IgesFileType = new("IGES") { Patterns = ["*.iges", "*.igs"] };
+    private static readonly FilePickerFileType StlFileType = new("STL") { Patterns = ["*.stl"] };
+
+    private readonly Stack<string> _undo = new();
+    private readonly Stack<string> _redo = new();
+    private string? _editorSnapshot;
+    private Action<SketchFeature>? _afterSketch;
+    private Action<SelectionItem>? _pendingPlanePick;
+    private bool _dirty;
 
     public MainViewModel()
     {
-        Editor = new SketchEditor();
-        Tools =
+        Document = new PartDocument();
+        FeatureCommands =
         [
-            MakeTool("select", "Select", "Esc", "Select, drag geometry, double-click a dimension to edit it", () => new SelectTool()),
-            MakeTool("line", "Line", "L", "Draw connected lines", () => new LineTool(construction: false)),
-            MakeTool("centerline", "Centerline", "", "Draw construction lines", () => new LineTool(construction: true)),
-            MakeTool("rect-corner", "Corner Rect", "R", "Rectangle from two corners", () => new CornerRectangleTool()),
-            MakeTool("rect-center", "Center Rect", "", "Rectangle from center and corner", () => new CenterRectangleTool()),
-            MakeTool("rect-3pt", "3-Pt Rect", "", "Angled rectangle from three points", () => new ThreePointRectangleTool()),
-            MakeTool("circle", "Circle", "C", "Circle from center and radius", () => new CircleTool()),
-            MakeTool("arc-3pt", "3-Pt Arc", "A", "Arc through start, end and a third point", () => new ThreePointArcTool()),
-            MakeTool("arc-center", "Center Arc", "", "Arc from center, start and end", () => new CenterArcTool()),
-            MakeTool("polygon", "Polygon", "G", "Regular polygon", () => new PolygonTool(() => PolygonSides)),
-            MakeTool("slot", "Slot", "T", "Straight slot", () => new SlotTool()),
-            MakeTool("point", "Point", "P", "Sketch point", () => new PointTool()),
-            MakeTool("dimension", "Smart Dimension", "D", "Dimension lengths, distances, angles and radii", () => new DimensionTool()),
+            new("Extruded Boss", "Extrude a sketch into a solid", new RelayCommand(() => StartSketchFeature(sf => new ExtrudeFeature { SketchId = sf.Id })), "▣"),
+            new("Revolved Boss", "Revolve a sketch about a centerline", new RelayCommand(() => StartSketchFeature(sf => new RevolveFeature { SketchId = sf.Id })), "◐"),
+            new("Extruded Cut", "Cut by extruding a sketch", new RelayCommand(() => StartSketchFeature(sf => new ExtrudeFeature { SketchId = sf.Id, IsCut = true, EndCondition = EndCondition.ThroughAll })), "▭"),
+            new("Revolved Cut", "Cut by revolving a sketch", new RelayCommand(() => StartSketchFeature(sf => new RevolveFeature { SketchId = sf.Id, IsCut = true })), "◑"),
+            new("Fillet", "Round edges", new RelayCommand(() => StartFeature(new FilletFeature { Radius = 2 })), "◜"),
+            new("Chamfer", "Bevel edges", new RelayCommand(() => StartFeature(new ChamferFeature { Distance = 1 })), "◸"),
+            new("Shell", "Hollow the part", new RelayCommand(() => StartFeature(new ShellFeature { Thickness = 1 })), "□"),
+            new("Draft", "Taper faces", new RelayCommand(() => StartFeature(new DraftFeature { Angle = 3 })), "⟋"),
+            new("Hole Wizard", "Standard holes on a face", new RelayCommand(StartHole), "◎"),
+            new("Linear Pattern", "Repeat features in rows", new RelayCommand(() => StartFeature(new LinearPatternFeature { Count = 3, Spacing = 20 })), "⋯"),
+            new("Circular Pattern", "Repeat features around an axis", new RelayCommand(() => StartFeature(new CircularPatternFeature { Count = 6 })), "⟳"),
+            new("Mirror", "Mirror features about a plane", new RelayCommand(() => StartFeature(new MirrorFeature())), "⇋"),
+            new("Plane", "Reference plane", new RelayCommand(() => StartFeature(new ReferencePlaneFeature { Base = SelectedPlane() ?? PlaneRef.Front })), "▱"),
         ];
-        Relations = [.. RelationRules.Offered.Select(k => new RelationItem(k) { Apply = new RelayCommand(() => Editor.ApplyRelation(k)) })];
-
-        Editor.Changed += (_, _) => Refresh();
-        Editor.SelectionChanged += (_, _) => RefreshSelection();
-        Editor.ToolChanged += (_, _) => RefreshTool();
-        Refresh();
-        RefreshTool();
+        RebuildAndRefresh();
     }
 
-    public SketchEditor Editor { get; }
+    public PartDocument Document { get; private set; }
 
-    public ObservableCollection<ToolItem> Tools { get; }
-    public ObservableCollection<RelationItem> Relations { get; }
-    public ObservableCollection<ConstraintRow> ConstraintRows { get; } = [];
+    public PartScene SceneBuilder { get; } = new();
 
-    /// <summary>Set by the window; used for open/save dialogs.</summary>
+    public ObservableCollection<FeatureNode> Tree { get; } = [];
+
+    public IReadOnlyList<CommandItem> FeatureCommands { get; }
+
+    public List<SelectionItem> Selection { get; } = [];
+
+    public SelectionItem? Hover { get; private set; }
+
+    public ViewPalette Palette { get; set; } = ViewPalette.Light;
+
+    /// <summary>Set by the window; used for file dialogs.</summary>
     public IStorageProvider? StorageProvider { get; set; }
 
-    /// <summary>Set by the window; zooms the canvas to fit the sketch.</summary>
-    public Action? ZoomToFitAction { get; set; }
+    /// <summary>Raised when the 3D scene must be rebuilt (model, selection or hover changed).</summary>
+    public event EventHandler? SceneChanged;
+
+    /// <summary>Set by the window: fit the model in view.</summary>
+    public Action? FitAction { get; set; }
+
+    /// <summary>Set by the window: look normal to a plane.</summary>
+    public Action<Plane3>? NormalToAction { get; set; }
+
+    /// <summary>Set by the window: show a standard view.</summary>
+    public Action<StandardView>? ViewAction { get; set; }
 
     [ObservableProperty]
-    public partial int PolygonSides { get; set; } = 6;
-
-    [ObservableProperty]
-    public partial string StatusText { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial bool IsUnderDefined { get; set; } = true;
-
-    [ObservableProperty]
-    public partial bool IsOverDefined { get; set; }
-
-    [ObservableProperty]
-    public partial string MessageText { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string HintText { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string CursorText { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string SelectionText { get; set; } = "Nothing selected";
+    public partial string? FilePath { get; set; }
 
     [ObservableProperty]
     public partial string Title { get; set; } = "Chamfer";
 
     [ObservableProperty]
-    public partial bool ShowAllRelations { get; set; }
+    public partial string HintText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial ConstraintRow? SelectedRow { get; set; }
+    public partial string MessageText { get; set; } = string.Empty;
 
     [ObservableProperty]
-    public partial bool HasSelectedDimension { get; set; }
+    public partial string StatusText { get; set; } = string.Empty;
 
-    partial void OnShowAllRelationsChanged(bool value)
-    {
-        Editor.ShowAllRelations = value;
-        Editor.Invalidate();
-    }
+    [ObservableProperty]
+    public partial FeatureNode? SelectedNode { get; set; }
 
-    partial void OnSelectedRowChanged(ConstraintRow? value)
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsModelMode), nameof(ShowTree))]
+    public partial SketchViewModel? Sketch { get; set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowTree), nameof(HasEditor))]
+    public partial FeatureEditor? Editor { get; set; }
+
+    [ObservableProperty]
+    public partial DisplayStyle DisplayStyle { get; set; } = DisplayStyle.ShadedWithEdges;
+
+    [ObservableProperty]
+    public partial bool Perspective { get; set; }
+
+    public bool IsModelMode => Sketch is null;
+    public bool IsSketchMode => Sketch is not null;
+    public bool ShowTree => Editor is null;
+    public bool HasEditor => Editor is not null;
+
+    /// <summary>The sketch feature being edited in sketch mode.</summary>
+    public SketchFeature? EditingSketch { get; private set; }
+
+    partial void OnSketchChanged(SketchViewModel? value) => OnPropertyChanged(nameof(IsSketchMode));
+
+    partial void OnDisplayStyleChanged(DisplayStyle value) => RaiseScene();
+
+    partial void OnSelectedNodeChanged(FeatureNode? value)
     {
-        if (value is not null && !Editor.IsSelected(value.Constraint))
+        if (value is null)
         {
-            Editor.ClearSelection();
-            Editor.Select(value.Constraint);
+            return;
+        }
+
+        SelectionItem? item = value.Feature is { } f ? SelectionItem.ForFeature(f) : value.PlaneId is { } p ? SelectionItem.Plane(p, value.Name) : null;
+        if (item is not null && !Selection.Any(s => s.SameTarget(item)))
+        {
+            SetSelection([item]);
         }
     }
 
-    private ToolItem MakeTool(string id, string label, string shortcut, string tooltip, Func<SketchTool> create)
+    // ------------------------------------------------------------- rebuild
+
+    public void RebuildAndRefresh()
     {
-        ToolItem? item = null;
-        item = new ToolItem(id, label, shortcut, tooltip, create) { Activate = new RelayCommand(() => ActivateTool(item!)) };
-        return item;
+        Document.Rebuild();
+        RefreshTree();
+        var errors = Document.Features.Where(f => Document.Results.TryGetValue(f.Id, out var r) && r.Status == FeatureStatus.Error).ToList();
+        var warnings = Document.Features.Where(f => Document.Results.TryGetValue(f.Id, out var r) && r.Status == FeatureStatus.Warning).ToList();
+        MessageText = errors.Count > 0
+            ? $"{errors[0].Name}: {Document.Results[errors[0].Id].Message}"
+            : warnings.Count > 0 ? $"{warnings[0].Name}: {Document.Results[warnings[0].Id].Message}" : string.Empty;
+        if (Editor?.Feature is { } editing && Document.Results.TryGetValue(editing.Id, out var res))
+        {
+            Editor.Message = res.Status is FeatureStatus.Error or FeatureStatus.Warning ? res.Message : null;
+        }
+
+        RefreshStatus();
+        RefreshTitle();
+        RaiseScene();
     }
 
-    private void ActivateTool(ToolItem item) => Editor.Tool = item.Create();
-
-    public void ActivateTool(string id)
+    private void RefreshStatus()
     {
-        if (Tools.FirstOrDefault(t => t.Id == id) is { } item)
+        var bodies = Document.Bodies.Count;
+        StatusText = Sketch is not null ? Sketch.StatusText
+            : bodies == 0 ? "MMGS · Empty part"
+            : $"MMGS · {bodies} bod{(bodies == 1 ? "y" : "ies")} · {Document.Material.Name}";
+    }
+
+    private void RefreshTitle()
+    {
+        var name = FilePath is null ? "Part1" : Path.GetFileNameWithoutExtension(FilePath);
+        Title = $"{name}{(_dirty ? " •" : string.Empty)} — Chamfer";
+    }
+
+    private void RefreshTree()
+    {
+        var selectedFeature = SelectedNode?.Feature?.Id;
+        Tree.Clear();
+        Tree.Add(new FeatureNode($"Material <{Document.Material.Name}>", "◆"));
+        Tree.Add(new FeatureNode("Front Plane", "▱", planeId: "front"));
+        Tree.Add(new FeatureNode("Top Plane", "▱", planeId: "top"));
+        Tree.Add(new FeatureNode("Right Plane", "▱", planeId: "right"));
+        Tree.Add(new FeatureNode("Origin", "⊹"));
+
+        // Sketches used by exactly one feature are shown under it, as in other feature-based CAD.
+        var owner = new Dictionary<string, Feature>();
+        foreach (var f in Document.Features.Where(f => f is not SketchFeature and not PatternFeatureBase))
         {
-            ActivateTool(item);
+            foreach (var dep in f.Dependencies)
+            {
+                if (Document.Find(dep) is SketchFeature && !owner.ContainsKey(dep))
+                {
+                    owner[dep] = f;
+                }
+            }
+        }
+
+        var rollback = Document.RollbackIndex;
+        for (var i = 0; i < Document.Features.Count; i++)
+        {
+            var f = Document.Features[i];
+            if (rollback == i)
+            {
+                Tree.Add(new FeatureNode("── Rollback ──", string.Empty) { IsRollbackBar = true });
+            }
+
+            if (f is SketchFeature && owner.ContainsKey(f.Id))
+            {
+                continue;
+            }
+
+            Tree.Add(MakeNode(f, 0));
+            foreach (var absorbed in owner.Where(kv => kv.Value == f).Select(kv => Document.Find(kv.Key)!))
+            {
+                Tree.Add(MakeNode(absorbed, 1));
+            }
+        }
+
+        if (selectedFeature is not null)
+        {
+            SelectedNode = Tree.FirstOrDefault(n => n.Feature?.Id == selectedFeature);
         }
     }
 
-    public void SetCursor(Vec2 world) => CursorText = $"X {world.X:0.00}   Y {world.Y:0.00} mm";
-
-    // ------------------------------------------------------------------ Refresh
-
-    private void Refresh()
+    private FeatureNode MakeNode(Feature f, int indent)
     {
-        var analysis = Editor.Analysis;
-        StatusText = analysis.Status switch
+        var node = new FeatureNode(f.Name, FeatureNode.GlyphFor(f), f, indent: indent);
+        if (Document.Results.TryGetValue(f.Id, out var r))
         {
-            SketchStatus.FullyDefined => "Fully Defined",
-            SketchStatus.OverDefined => analysis.SolveFailed ? "Over Defined (can't solve)" : $"Over Defined ({analysis.RedundantConstraints.Count} redundant)",
-            _ => $"Under Defined ({analysis.DegreesOfFreedom} DOF)",
-        };
-        IsUnderDefined = analysis.Status == SketchStatus.UnderDefined;
-        IsOverDefined = analysis.Status == SketchStatus.OverDefined;
-        MessageText = Editor.Message ?? string.Empty;
-
-        ConstraintRows.Clear();
-        foreach (var c in Editor.Sketch.Constraints)
-        {
-            ConstraintRows.Add(new ConstraintRow(c, analysis.IsRedundant(c)));
+            node.Status = r.Status;
+            node.Message = r.Message;
         }
 
-        var name = Editor.FilePath is null ? "Untitled" : Path.GetFileName(Editor.FilePath);
-        Title = $"{name}{(Editor.IsDirty ? " •" : string.Empty)} — Chamfer";
+        return node;
+    }
+
+    private void RaiseScene() => SceneChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Builds the 3D scene for the current state.</summary>
+    public Scene BuildScene() => SceneBuilder.Build(Document, Selection, Hover, Palette, DisplayStyle, EditingSketch?.Id);
+
+    // ------------------------------------------------------------- undo
+
+    private void Snapshot()
+    {
+        _undo.Push(Document.Save());
+        _redo.Clear();
+        _dirty = true;
         UndoCommand.NotifyCanExecuteChanged();
         RedoCommand.NotifyCanExecuteChanged();
-        RefreshSelection();
-        RefreshTool();
     }
 
-    private void RefreshSelection()
+    private void Restore(string json)
     {
-        var available = Editor.AvailableRelations().ToHashSet();
-        foreach (var r in Relations)
-        {
-            r.IsEnabled = available.Contains(r.Kind);
-        }
-
-        var entities = Editor.Selection;
-        var constraints = Editor.SelectedConstraints;
-        SelectionText = (entities.Count, constraints.Count) switch
-        {
-            (0, 0) => "Nothing selected",
-            (1, 0) => Details(entities[0]),
-            (0, 1) => constraints.First() is DimensionConstraint d
-                ? $"{RelationRules.Label(d.Kind)} {DimensionGeometry.FormatValue(d)} ({(d.IsDriving ? "driving" : "driven")})"
-                : RelationRules.Label(constraints.First().Kind),
-            _ => $"{entities.Count} entities, {constraints.Count} relations/dimensions",
-        };
-        HasSelectedDimension = constraints.Count == 1 && constraints.First() is DimensionConstraint;
-
-        if (SelectedRow is not null && !Editor.IsSelected(SelectedRow.Constraint))
-        {
-            SelectedRow = null;
-        }
-
-        DeleteCommand.NotifyCanExecuteChanged();
-        ToggleConstructionCommand.NotifyCanExecuteChanged();
+        Document = PartDocument.Load(json);
+        Selection.Clear();
+        Hover = null;
+        RebuildAndRefresh();
     }
-
-    private string Details(SketchEntity e)
-    {
-        var state = Editor.Analysis.IsFullyDefined(e) ? "fully defined" : "under defined";
-        return e switch
-        {
-            SketchLine l => $"Line {l.Id}: length {l.Length:0.###}, angle {l.Direction.Angle * 180 / Math.PI:0.##}°{(l.IsConstruction ? ", construction" : string.Empty)} — {state}",
-            SketchCircle c => $"Circle {c.Id}: ⌀{2 * c.Radius:0.###} at {c.Center.Position} — {state}",
-            SketchArc a => $"Arc {a.Id}: R{a.Radius:0.###}, sweep {a.Sweep * 180 / Math.PI:0.##}° — {state}",
-            SketchPoint p => $"{ConstraintRow.Describe(p)} at {p.Position} — {state}",
-            _ => e.ToString(),
-        };
-    }
-
-    private void RefreshTool()
-    {
-        foreach (var t in Tools)
-        {
-            t.IsActive = t.Id == Editor.Tool.Id;
-        }
-
-        HintText = Editor.Tool.Hint;
-    }
-
-    public void RefreshHint() => HintText = Editor.Tool.Hint;
-
-    // ------------------------------------------------------------------ Commands
 
     [RelayCommand(CanExecute = nameof(CanUndo))]
-    private void Undo() => Editor.Undo();
+    private void Undo()
+    {
+        if (Sketch is not null)
+        {
+            Sketch.UndoCommand.Execute(null);
+            return;
+        }
 
-    private bool CanUndo() => Editor.CanUndo;
+        if (_undo.Count == 0)
+        {
+            return;
+        }
+
+        CancelEditor();
+        _redo.Push(Document.Save());
+        Restore(_undo.Pop());
+        _dirty = true;
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool CanUndo() => Sketch?.Editor.CanUndo ?? _undo.Count > 0;
 
     [RelayCommand(CanExecute = nameof(CanRedo))]
-    private void Redo() => Editor.Redo();
+    private void Redo()
+    {
+        if (Sketch is not null)
+        {
+            Sketch.RedoCommand.Execute(null);
+            return;
+        }
 
-    private bool CanRedo() => Editor.CanRedo;
+        if (_redo.Count == 0)
+        {
+            return;
+        }
 
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void Delete() => Editor.DeleteSelection();
+        _undo.Push(Document.Save());
+        Restore(_redo.Pop());
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
 
-    private bool HasSelection() => Editor.Selection.Count > 0 || Editor.SelectedConstraints.Count > 0;
+    private bool CanRedo() => Sketch?.Editor.CanRedo ?? _redo.Count > 0;
 
-    [RelayCommand(CanExecute = nameof(HasSelection))]
-    private void ToggleConstruction() => Editor.ToggleConstruction();
+    // ------------------------------------------------------------- selection
+
+    public void SetSelection(IEnumerable<SelectionItem> items)
+    {
+        Selection.Clear();
+        Selection.AddRange(items);
+        OnSelectionChanged();
+    }
+
+    private void OnSelectionChanged()
+    {
+        Editor?.ActiveSelection?.Sync(Selection);
+        if (_measuring)
+        {
+            UpdateMeasure();
+        }
+
+        HintText = Selection.Count switch
+        {
+            0 => Sketch is null ? "Select faces, edges or planes, then pick a command. Middle-drag or Alt+drag rotates, right-drag pans, scroll zooms." : HintText,
+            1 => Selection[0].Label,
+            _ => $"{Selection.Count} items selected",
+        };
+        RaiseScene();
+    }
+
+    public SelectionItem? ToSelection(PickTarget? target) => target switch
+    {
+        FacePick f => SelectionItem.Face(f.Body, f.Index),
+        EdgePick e => SelectionItem.Edge(e.Body, e.Index),
+        PlanePick p => SelectionItem.Plane(p.PlaneId, p.Label),
+        SketchPick s when Document.Find(s.FeatureId) is { } f => SelectionItem.ForFeature(f),
+        _ => null,
+    };
+
+    /// <summary>The viewport hovered a pick id.</summary>
+    public void OnHover(int id)
+    {
+        var item = ToSelection(SceneBuilder.Target(id));
+        if (item?.SameTarget(Hover ?? new SelectionItem(SelectionKind.Feature)) == true || (item is null && Hover is null))
+        {
+            return;
+        }
+
+        Hover = item;
+        RaiseScene();
+    }
+
+    /// <summary>The viewport was clicked. Ctrl/Cmd/Shift adds to the selection.</summary>
+    public void OnPick(int id, bool add, int clickCount)
+    {
+        var item = ToSelection(SceneBuilder.Target(id));
+        if (item is not null && _pendingPlanePick is { } pending && item.AsPlane() is not null)
+        {
+            _pendingPlanePick = null;
+            pending(item);
+            return;
+        }
+
+        if (clickCount >= 2 && item?.Kind == SelectionKind.Feature && Document.Find(item.FeatureId!) is SketchFeature sf)
+        {
+            EditSketch(sf);
+            return;
+        }
+
+        if (item is null)
+        {
+            if (!add)
+            {
+                SetSelection([]);
+            }
+
+            return;
+        }
+
+        // A single-item selection field (a plane, an axis) takes the click as a replacement.
+        var single = Editor?.ActiveSelection is { Max: 1 } field && field.Accept(item);
+        if (add && !single)
+        {
+            var existing = Selection.FindIndex(s => s.SameTarget(item));
+            if (existing >= 0)
+            {
+                Selection.RemoveAt(existing);
+            }
+            else
+            {
+                Selection.Add(item);
+            }
+
+            OnSelectionChanged();
+        }
+        else if (Editor?.ActiveSelection is { } active && active.Max > 1 && active.Accept(item))
+        {
+            // While a multi-select field is active, clicks toggle items in it.
+            var existing = Selection.FindIndex(s => s.SameTarget(item));
+            if (existing >= 0)
+            {
+                Selection.RemoveAt(existing);
+            }
+            else
+            {
+                Selection.Add(item);
+            }
+
+            OnSelectionChanged();
+        }
+        else
+        {
+            SetSelection([item]);
+        }
+    }
+
+    private PlaneRef? SelectedPlane() => Selection.Select(s => s.AsPlane()).LastOrDefault(p => p is not null);
+
+    private Plane3? ResolvePlane(PlaneRef r)
+    {
+        try
+        {
+            if (r.PlaneId is { } id && Document.State.Planes.TryGetValue(id, out var p))
+            {
+                return p;
+            }
+
+            if (r.Face is { } face)
+            {
+                foreach (var b in Document.Bodies)
+                {
+                    if (b.HasFace(face.Name))
+                    {
+                        return b.Shape.FacePlane(b.ResolveFace(face, out _));
+                    }
+                }
+            }
+        }
+        catch (KernelException)
+        {
+        }
+
+        return null;
+    }
+
+    // ------------------------------------------------------------- features
+
+    private void StartFeature(Feature feature)
+    {
+        if (Sketch is not null)
+        {
+            ExitSketch();
+        }
+
+        CancelEditor();
+        _editorSnapshot = Document.Save();
+        Document.Add(feature);
+        Editor = FeatureEditor.Create(Document, feature, isNew: true, Selection, RebuildAndRefresh);
+        Editor.ActiveSelectionChanged += (_, _) => LoadActiveField();
+        LoadActiveField();
+        HintText = Editor.ActiveSelection?.Prompt ?? "Set the parameters, then click OK.";
+        RebuildAndRefresh();
+    }
+
+    /// <summary>Makes the viewport selection show what the active selection field holds.</summary>
+    private void LoadActiveField()
+    {
+        if (Editor?.ActiveSelection is { } field)
+        {
+            Selection.Clear();
+            Selection.AddRange(field.Items);
+            HintText = field.Prompt;
+            RaiseScene();
+        }
+    }
+
+    public void EditFeature(Feature feature)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        if (feature is SketchFeature sf)
+        {
+            EditSketch(sf);
+            return;
+        }
+
+        if (Sketch is not null)
+        {
+            ExitSketch();
+        }
+
+        CancelEditor();
+        _editorSnapshot = Document.Save();
+        Editor = FeatureEditor.Create(Document, feature, isNew: false, Selection, RebuildAndRefresh);
+        Editor.ActiveSelectionChanged += (_, _) => LoadActiveField();
+        LoadActiveField();
+        RebuildAndRefresh();
+    }
+
+    /// <summary>Starts a sketch-based feature: uses the selected or just-finished sketch, or starts a new one.</summary>
+    private void StartSketchFeature(Func<SketchFeature, Feature> make)
+    {
+        if (Sketch is not null && EditingSketch is { } editing)
+        {
+            ExitSketch();
+            StartFeature(make(editing));
+            return;
+        }
+
+        var sketch = Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => Document.Find(s.FeatureId!)).OfType<SketchFeature>().LastOrDefault()
+            ?? _lastSketch;
+        var used = Document.Features.Any(f => f is not SketchFeature && sketch is not null && f.Dependencies.Contains(sketch.Id));
+        if (sketch is not null && Document.Features.Contains(sketch) && (!used || Selection.Any(s => s.FeatureId == sketch.Id)))
+        {
+            StartFeature(make(sketch));
+            return;
+        }
+
+        StartSketch(after: sf => StartFeature(make(sf)));
+    }
+
+    private SketchFeature? _lastSketch;
+
+    private void StartHole()
+    {
+        if (Selection.LastOrDefault(s => s.Kind == SelectionKind.Face) is not { } face || ResolvePlane(new PlaneRef(Face: face.Ref)) is null)
+        {
+            MessageText = "Select a planar face for the holes, then click Hole Wizard.";
+            return;
+        }
+
+        StartSketchOn(new PlaneRef(Face: face.Ref), "point", sf =>
+        {
+            if (!sf.Sketch.Entities.OfType<Sketching.Entities.SketchPoint>().Any())
+            {
+                MessageText = "Place at least one point to locate a hole.";
+                return;
+            }
+
+            StartFeature(new HoleFeature { SketchId = sf.Id, Type = HoleType.Counterbore, Size = "M6", Diameter = 6.6, CounterboreDiameter = 11, CounterboreDepth = 6.5, EndCondition = EndCondition.ThroughAll });
+        });
+    }
 
     [RelayCommand]
-    private void ToggleDriving()
+    private void AcceptEditor()
     {
-        if (Editor.SelectedConstraints.FirstOrDefault() is DimensionConstraint d)
+        if (Editor is null)
         {
-            Editor.ToggleDriving(d);
+            return;
+        }
+
+        foreach (var n in Editor.Fields.OfType<NumberField>())
+        {
+            n.Commit();
+        }
+
+        if (Editor.IsFeature && _editorSnapshot is not null)
+        {
+            _undo.Push(_editorSnapshot);
+            _redo.Clear();
+            _dirty = true;
+            UndoCommand.NotifyCanExecuteChanged();
+        }
+
+        _editorSnapshot = null;
+        _measuring = false;
+        Editor = null;
+        SetSelection([]);
+        RebuildAndRefresh();
+    }
+
+    [RelayCommand]
+    private void CancelEditor()
+    {
+        if (Editor is null)
+        {
+            return;
+        }
+
+        var feature = Editor.Feature;
+        Editor = null;
+        _measuring = false;
+        if (feature is not null && _editorSnapshot is not null)
+        {
+            Restore(_editorSnapshot);
+        }
+
+        _editorSnapshot = null;
+        SetSelection([]);
+        RebuildAndRefresh();
+    }
+
+    // ------------------------------------------------------------- sketch mode
+
+    [RelayCommand]
+    private void NewSketch() => StartSketch(after: null);
+
+    private void StartSketch(Action<SketchFeature>? after)
+    {
+        if (Sketch is not null)
+        {
+            ExitSketch();
+        }
+
+        if (SelectedPlane() is { } plane)
+        {
+            StartSketchOn(plane, null, after);
+            return;
+        }
+
+        CancelEditor();
+        _pendingPlanePick = item => StartSketchOn(item.AsPlane()!, null, after);
+        SceneBuilder.VisiblePlanes.UnionWith(["front", "top", "right"]);
+        HintText = "Select a plane or a planar face to sketch on.";
+        RaiseScene();
+    }
+
+    private void StartSketchOn(PlaneRef plane, string? tool, Action<SketchFeature>? after)
+    {
+        CancelEditor();
+        SceneBuilder.VisiblePlanes.Clear();
+        if (ResolvePlane(plane) is null)
+        {
+            MessageText = "Sketches need a plane or a planar face.";
+            return;
+        }
+
+        Snapshot();
+        var sf = Document.Add(new SketchFeature { Plane = plane });
+        RebuildAndRefresh();
+        EnterSketch(sf, after);
+        if (tool is not null)
+        {
+            Sketch?.ActivateTool(tool);
+        }
+    }
+
+    public void EditSketch(SketchFeature sf)
+    {
+        ArgumentNullException.ThrowIfNull(sf);
+        if (Sketch is not null)
+        {
+            ExitSketch();
+        }
+
+        CancelEditor();
+        Snapshot();
+        EnterSketch(sf, null);
+    }
+
+    private void EnterSketch(SketchFeature sf, Action<SketchFeature>? after)
+    {
+        var editor = new SketchEditor();
+        editor.Load(SketchSerializer.Serialize(sf.Sketch), null);
+        EditingSketch = sf;
+        _afterSketch = after;
+        Sketch = new SketchViewModel(editor);
+        Sketch.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(SketchViewModel.StatusText))
+            {
+                RefreshStatus();
+            }
+        };
+        editor.Changed += (_, _) =>
+        {
+            UndoCommand.NotifyCanExecuteChanged();
+            RedoCommand.NotifyCanExecuteChanged();
+        };
+        SetSelection([]);
+        RefreshStatus();
+        HintText = Sketch.HintText;
+        if (ResolvePlane(sf.Plane) is { } plane)
+        {
+            NormalToAction?.Invoke(plane);
+        }
+
+        RaiseScene();
+    }
+
+    [RelayCommand]
+    private void ExitSketch()
+    {
+        if (Sketch is null || EditingSketch is null)
+        {
+            return;
+        }
+
+        var sf = EditingSketch;
+        sf.Sketch = Sketch.Editor.Sketch;
+        Sketch = null;
+        EditingSketch = null;
+        _lastSketch = sf;
+        _dirty = true;
+        RebuildAndRefresh();
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+        var after = _afterSketch;
+        _afterSketch = null;
+        if (after is not null)
+        {
+            after(sf);
+        }
+        else
+        {
+            SetSelection([SelectionItem.ForFeature(sf)]);
+        }
+    }
+
+    /// <summary>Plane of the sketch being edited.</summary>
+    public Plane3? EditingPlane => EditingSketch is null ? null : ResolvePlane(EditingSketch.Plane);
+
+    // ------------------------------------------------------------- tree actions
+
+    [RelayCommand]
+    private void EditSelected()
+    {
+        if (SelectedNode?.Feature is { } f)
+        {
+            EditFeature(f);
         }
     }
 
     [RelayCommand]
-    private void ZoomToFit() => ZoomToFitAction?.Invoke();
-
-    /// <summary>Escape: cancel what the tool is doing, or go back to Select.</summary>
-    public void Escape()
+    private void ToggleSuppress()
     {
-        if (!Editor.Tool.Cancel() && Editor.Tool is not SelectTool)
+        if (SelectedNode?.Feature is not { } f)
         {
-            ActivateTool("select");
+            return;
         }
 
-        Editor.Invalidate();
-        RefreshHint();
+        Snapshot();
+        f.IsSuppressed = !f.IsSuppressed;
+        RebuildAndRefresh();
     }
+
+    [RelayCommand]
+    private void DeleteSelected()
+    {
+        if (Sketch is not null)
+        {
+            Sketch.DeleteCommand.Execute(null);
+            return;
+        }
+
+        var feature = SelectedNode?.Feature ?? Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => Document.Find(s.FeatureId!)).LastOrDefault();
+        if (feature is null)
+        {
+            return;
+        }
+
+        Snapshot();
+        var removed = Document.Delete(feature);
+        if (removed.Count > 1)
+        {
+            MessageText = $"Deleted {feature.Name} and {removed.Count - 1} dependent feature(s).";
+        }
+
+        SelectedNode = null;
+        SetSelection([]);
+        RebuildAndRefresh();
+    }
+
+    [RelayCommand]
+    private void RollbackHere()
+    {
+        if (SelectedNode?.Feature is not { } f)
+        {
+            return;
+        }
+
+        var i = Document.Features.IndexOf(f);
+        Document.RollbackIndex = i + 1 >= Document.Features.Count ? null : i + 1;
+        RebuildAndRefresh();
+    }
+
+    [RelayCommand]
+    private void RollForward()
+    {
+        Document.RollbackIndex = null;
+        RebuildAndRefresh();
+    }
+
+    [RelayCommand]
+    private void SetMaterial(Material material)
+    {
+        Snapshot();
+        Document.Material = material;
+        RebuildAndRefresh();
+        if (_massPanel)
+        {
+            ShowMassProperties();
+        }
+    }
+
+    // ------------------------------------------------------------- evaluate
+
+    private bool _measuring;
+    private bool _massPanel;
+
+    [RelayCommand]
+    private void ShowMassProperties()
+    {
+        CancelEditor();
+        var panel = FeatureEditor.Info("Mass Properties");
+        var m = Document.MassProperties();
+        var inv = CultureInfo.InvariantCulture;
+        panel.AddInfo(new InfoField("Material", $"{Document.Material.Name} ({Document.Material.Density.ToString("0", inv)} kg/m³)"));
+        panel.AddInfo(new InfoField("Mass", $"{(m.Mass * 1000).ToString("0.###", inv)} g"));
+        panel.AddInfo(new InfoField("Volume", $"{m.Volume.ToString("0.###", inv)} mm³"));
+        panel.AddInfo(new InfoField("Surface area", $"{m.SurfaceArea.ToString("0.###", inv)} mm²"));
+        panel.AddInfo(new InfoField("Centre of mass", m.CenterOfMass.ToString()));
+        var box = Document.Bodies.Aggregate(Box3.Empty, (b, body) => b.Union(body.Shape.Bounds));
+        if (!box.IsEmpty)
+        {
+            panel.AddInfo(new InfoField("Bounding box", $"{box.Size.X.ToString("0.###", inv)} × {box.Size.Y.ToString("0.###", inv)} × {box.Size.Z.ToString("0.###", inv)} mm"));
+        }
+
+        _massPanel = true;
+        Editor = panel;
+    }
+
+    [RelayCommand]
+    private void Measure()
+    {
+        CancelEditor();
+        _measuring = true;
+        _massPanel = false;
+        Editor = FeatureEditor.Info("Measure");
+        UpdateMeasure();
+    }
+
+    private void UpdateMeasure()
+    {
+        if (Editor is not { IsInfo: true } panel)
+        {
+            return;
+        }
+
+        panel.Fields.Clear();
+        var inv = CultureInfo.InvariantCulture;
+        var shapes = new List<(string Label, Shape Shape)>();
+        foreach (var s in Selection)
+        {
+            foreach (var body in Document.Bodies)
+            {
+                if (s.Kind == SelectionKind.Face && body.HasFace(s.Ref!.Name))
+                {
+                    var i = body.ResolveFace(s.Ref, out _);
+                    var f = body.Face(i);
+                    panel.AddInfo(new InfoField(s.Label, f.Surface switch
+                    {
+                        SurfaceKind.Cylinder => $"Area {f.Area.ToString("0.###", inv)} mm², ⌀{(2 * f.Radius).ToString("0.###", inv)} mm",
+                        _ => $"Area {f.Area.ToString("0.###", inv)} mm²",
+                    }));
+                    shapes.Add((s.Label, body.Shape.Sub(TopoKind.Face, i)));
+                }
+                else if (s.Kind == SelectionKind.Edge && body.HasEdge(s.Ref!.Name))
+                {
+                    var i = body.ResolveEdge(s.Ref, out _);
+                    var e = body.Edge(i);
+                    panel.AddInfo(new InfoField(s.Label, e.Curve == CurveKind.Circle
+                        ? $"Length {e.Length.ToString("0.###", inv)} mm, ⌀{(2 * e.Radius).ToString("0.###", inv)} mm"
+                        : $"Length {e.Length.ToString("0.###", inv)} mm"));
+                    shapes.Add((s.Label, body.Shape.Sub(TopoKind.Edge, i)));
+                }
+            }
+        }
+
+        if (shapes.Count == 2)
+        {
+            try
+            {
+                var (d, p, q) = shapes[0].Shape.DistanceTo(shapes[1].Shape);
+                panel.AddInfo(new InfoField("Distance", $"{d.ToString("0.####", inv)} mm"));
+                var delta = q - p;
+                panel.AddInfo(new InfoField("dX, dY, dZ", $"{delta.X.ToString("0.###", inv)}, {delta.Y.ToString("0.###", inv)}, {delta.Z.ToString("0.###", inv)}"));
+            }
+            catch (KernelException ex)
+            {
+                panel.AddInfo(new InfoField("Distance", ex.Message));
+            }
+        }
+
+        foreach (var (_, shape) in shapes)
+        {
+            shape.Dispose();
+        }
+
+        if (panel.Fields.Count == 0)
+        {
+            panel.AddInfo(new InfoField("Measure", "Select one or two faces or edges."));
+        }
+    }
+
+    // ------------------------------------------------------------- view
+
+    [RelayCommand]
+    private void ZoomToFit()
+    {
+        if (Sketch is not null)
+        {
+            Sketch.ZoomToFitCommand.Execute(null);
+        }
+        else
+        {
+            FitAction?.Invoke();
+        }
+    }
+
+    [RelayCommand]
+    private void ShowView(string view)
+    {
+        if (view == "normal")
+        {
+            var plane = Selection.Select(s => s.AsPlane()).OfType<PlaneRef>().Select(ResolvePlane).LastOrDefault(p => p is not null);
+            if (plane is { } p)
+            {
+                NormalToAction?.Invoke(p);
+            }
+            else
+            {
+                MessageText = "Select a plane or planar face to look normal to.";
+            }
+
+            return;
+        }
+
+        ViewAction?.Invoke(Enum.Parse<StandardView>(view, ignoreCase: true));
+    }
+
+    [RelayCommand]
+    private void SetDisplayStyle(string style) => DisplayStyle = Enum.Parse<DisplayStyle>(style, ignoreCase: true);
+
+    // ------------------------------------------------------------- files
 
     [RelayCommand]
     private void New()
     {
-        Editor.New();
-        Editor.FilePath = null;
-        Refresh();
+        if (Sketch is not null)
+        {
+            Sketch = null;
+            EditingSketch = null;
+        }
+
+        Editor = null;
+        Document = new PartDocument();
+        FilePath = null;
+        _undo.Clear();
+        _redo.Clear();
+        _dirty = false;
+        _lastSketch = null;
+        SetSelection([]);
+        RebuildAndRefresh();
+        ViewAction?.Invoke(StandardView.Trimetric);
+    }
+
+    /// <summary>Opens a part (or a standalone sketch, placed on the Front plane of a new part).</summary>
+    public void LoadFile(string path, string text)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (path.EndsWith(".chsk", StringComparison.OrdinalIgnoreCase))
+        {
+            New();
+            var sf = Document.Add(new SketchFeature { Sketch = SketchSerializer.Deserialize(text) });
+            RebuildAndRefresh();
+            SetSelection([SelectionItem.ForFeature(sf)]);
+            ViewAction?.Invoke(StandardView.Front);
+            return;
+        }
+
+        var doc = PartDocument.Load(text);
+        New();
+        Document = doc;
+        FilePath = path;
+        RebuildAndRefresh();
+        FitAction?.Invoke();
     }
 
     [RelayCommand]
@@ -331,8 +1005,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
         var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
-            Title = "Open Sketch",
-            FileTypeFilter = [SketchFileType],
+            Title = "Open",
+            FileTypeFilter = [PartFileType, SketchFileType],
             AllowMultiple = false,
         });
         if (files is not [var file])
@@ -344,58 +1018,148 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             await using var stream = await file.OpenReadAsync();
             using var reader = new StreamReader(stream);
-            Editor.Load(await reader.ReadToEndAsync(), file.TryGetLocalPath() ?? file.Name);
-            ZoomToFitAction?.Invoke();
+            LoadFile(file.TryGetLocalPath() ?? file.Name, await reader.ReadToEndAsync());
         }
-        catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException or NotSupportedException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or JsonException or NotSupportedException or UnauthorizedAccessException)
         {
-            Editor.SetMessage($"Couldn't open {file.Name}: {ex.Message}");
+            MessageText = $"Couldn't open {file.Name}: {ex.Message}";
         }
     }
 
     [RelayCommand]
-    private async Task Save() => await SaveTo(Editor.FilePath is { } path && File.Exists(path) ? path : null);
+    private async Task Save() => await SaveTo(FilePath is { } path && File.Exists(path) ? path : null);
 
     [RelayCommand]
     private async Task SaveAs() => await SaveTo(null);
 
     private async Task SaveTo(string? path)
     {
+        if (Sketch is not null)
+        {
+            ExitSketch();
+        }
+
         try
         {
-            if (path is not null)
+            if (path is null)
             {
-                await File.WriteAllTextAsync(path, Editor.Save());
-                return;
+                if (StorageProvider is null)
+                {
+                    return;
+                }
+
+                var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+                {
+                    Title = "Save Part",
+                    DefaultExtension = PartDocument.FileExtension,
+                    SuggestedFileName = FilePath is null ? "Part1" : Path.GetFileNameWithoutExtension(FilePath),
+                    FileTypeChoices = [PartFileType],
+                });
+                path = file?.TryGetLocalPath();
+                if (path is null)
+                {
+                    return;
+                }
             }
 
-            if (StorageProvider is null)
-            {
-                return;
-            }
-
-            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
-            {
-                Title = "Save Sketch",
-                DefaultExtension = FileExtension,
-                SuggestedFileName = Editor.FilePath is null ? "Sketch" : Path.GetFileNameWithoutExtension(Editor.FilePath),
-                FileTypeChoices = [SketchFileType],
-            });
-            if (file is null)
-            {
-                return;
-            }
-
-            await using var stream = await file.OpenWriteAsync();
-            stream.SetLength(0);
-            await using var writer = new StreamWriter(stream);
-            await writer.WriteAsync(Editor.Save());
-            Editor.FilePath = file.TryGetLocalPath() ?? file.Name;
-            Refresh();
+            await File.WriteAllTextAsync(path, Document.Save());
+            FilePath = path;
+            _dirty = false;
+            RefreshTitle();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Editor.SetMessage($"Couldn't save: {ex.Message}");
+            MessageText = $"Couldn't save: {ex.Message}";
         }
+    }
+
+    [RelayCommand]
+    private async Task Import()
+    {
+        if (StorageProvider is null)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import",
+            FileTypeFilter = [StepFileType, IgesFileType],
+            AllowMultiple = false,
+        });
+        if (files is not [var file] || file.TryGetLocalPath() is not { } path)
+        {
+            return;
+        }
+
+        try
+        {
+            Snapshot();
+            Document.Add(ImportFeature.FromFile(path));
+            RebuildAndRefresh();
+            FitAction?.Invoke();
+        }
+        catch (Exception ex) when (ex is KernelException or NotSupportedException or IOException)
+        {
+            MessageText = $"Couldn't import {file.Name}: {ex.Message}";
+        }
+    }
+
+    [RelayCommand]
+    private async Task Export()
+    {
+        if (StorageProvider is null)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export",
+            DefaultExtension = "step",
+            SuggestedFileName = FilePath is null ? "Part1" : Path.GetFileNameWithoutExtension(FilePath),
+            FileTypeChoices = [StepFileType, IgesFileType, StlFileType],
+        });
+        if (file?.TryGetLocalPath() is not { } path)
+        {
+            return;
+        }
+
+        try
+        {
+            Document.Export(path);
+            MessageText = $"Exported {Path.GetFileName(path)}.";
+        }
+        catch (Exception ex) when (ex is KernelException or NotSupportedException or IOException or InvalidOperationException)
+        {
+            MessageText = $"Couldn't export: {ex.Message}";
+        }
+    }
+
+    /// <summary>Escape: cancel the sketch tool, the property panel, a pending pick, or clear the selection.</summary>
+    public void Escape()
+    {
+        if (Sketch is not null)
+        {
+            Sketch.Escape();
+            return;
+        }
+
+        if (_pendingPlanePick is not null)
+        {
+            _pendingPlanePick = null;
+            SceneBuilder.VisiblePlanes.Clear();
+            HintText = string.Empty;
+            RaiseScene();
+            return;
+        }
+
+        if (Editor is not null)
+        {
+            CancelEditor();
+            return;
+        }
+
+        SetSelection([]);
     }
 }

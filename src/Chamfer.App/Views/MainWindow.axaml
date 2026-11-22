@@ -1,13 +1,15 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Chamfer.App.ViewModels"
+        xmlns:part="using:Chamfer.App.Part"
+        xmlns:doc="using:Chamfer.Document"
         xmlns:c="using:Chamfer.App.Controls"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="1280" d:DesignHeight="800"
         x:Class="Chamfer.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
-        Width="1360" Height="860" MinWidth="900" MinHeight="560"
+        Width="1440" Height="900" MinWidth="960" MinHeight="600"
         WindowStartupLocation="CenterScreen"
         Title="{Binding Title}">
 
@@ -17,8 +19,8 @@
 
   <Window.Styles>
     <Style Selector="Button.tool">
-      <Setter Property="Padding" Value="10,5" />
-      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="Padding" Value="9,5" />
+      <Setter Property="Margin" Value="0,0,3,0" />
       <Setter Property="FontSize" Value="12.5" />
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="1" />
@@ -29,6 +31,18 @@
       <Setter Property="Foreground" Value="White" />
     </Style>
     <Style Selector="Button.tool.active /template/ ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.command">
+      <Setter Property="Padding" Value="8,3" />
+      <Setter Property="Margin" Value="0,0,2,0" />
+      <Setter Property="MinWidth" Value="64" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="Button.primary">
       <Setter Property="Background" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
       <Setter Property="Foreground" Value="White" />
     </Style>
@@ -59,23 +73,90 @@
     <Style Selector="TextBlock.status-over">
       <Setter Property="Foreground" Value="#EF4444" />
     </Style>
+    <Style Selector="TextBlock.error">
+      <Setter Property="Foreground" Value="#EF4444" />
+    </Style>
+    <Style Selector="TextBlock.warning">
+      <Setter Property="Foreground" Value="#F59E0B" />
+    </Style>
+    <Style Selector="Border.selection-field">
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Padding" Value="6" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    </Style>
+    <Style Selector="Border.selection-field.active">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlHighlightAccentBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
   </Window.Styles>
 
   <DockPanel>
     <!-- Command bar -->
-    <Border DockPanel.Dock="Top" Padding="8,6"
+    <Border DockPanel.Dock="Top" Padding="8,5"
             Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,0,0,1">
-      <WrapPanel Orientation="Horizontal">
-          <Button Classes="tool" Content="New" Command="{Binding NewCommand}" ToolTip.Tip="New sketch" />
-          <Button Classes="tool" Content="Open" Command="{Binding OpenCommand}" ToolTip.Tip="Open a sketch" />
-          <Button Classes="tool" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save" />
-          <Button Classes="tool" Content="Save As" Command="{Binding SaveAsCommand}" ToolTip.Tip="Save to a new file" />
+      <StackPanel Spacing="4">
+        <WrapPanel Orientation="Horizontal">
+          <Button Classes="tool" Content="New" Command="{Binding NewCommand}" ToolTip.Tip="New part (Ctrl+N)" />
+          <Button Classes="tool" Content="Open" Command="{Binding OpenCommand}" ToolTip.Tip="Open a part (Ctrl+O)" />
+          <Button Classes="tool" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save (Ctrl+S)" />
+          <Button Classes="tool" Content="Save As" Command="{Binding SaveAsCommand}" />
+          <Button Classes="tool" Content="Import" Command="{Binding ImportCommand}" ToolTip.Tip="Import a STEP or IGES file as a body" />
+          <Button Classes="tool" Content="Export" Command="{Binding ExportCommand}" ToolTip.Tip="Export STEP, IGES or STL" />
           <Border Classes="separator" />
-          <Button Classes="tool" Content="Undo" Command="{Binding UndoCommand}" ToolTip.Tip="Undo" />
-          <Button Classes="tool" Content="Redo" Command="{Binding RedoCommand}" ToolTip.Tip="Redo" />
+          <Button Classes="tool" Content="Undo" Command="{Binding UndoCommand}" ToolTip.Tip="Undo (Ctrl+Z)" />
+          <Button Classes="tool" Content="Redo" Command="{Binding RedoCommand}" ToolTip.Tip="Redo (Ctrl+Y)" />
           <Border Classes="separator" />
-          <ItemsControl ItemsSource="{Binding Tools}">
+          <Button Classes="tool" Content="Fit" Command="{Binding ZoomToFitCommand}" ToolTip.Tip="Zoom to fit (F)" />
+          <Button Classes="tool" Content="Front" Command="{Binding ShowViewCommand}" CommandParameter="front" ToolTip.Tip="Front view (Ctrl+1)" IsVisible="{Binding IsModelMode}" />
+          <Button Classes="tool" Content="Top" Command="{Binding ShowViewCommand}" CommandParameter="top" ToolTip.Tip="Top view (Ctrl+5)" IsVisible="{Binding IsModelMode}" />
+          <Button Classes="tool" Content="Right" Command="{Binding ShowViewCommand}" CommandParameter="right" ToolTip.Tip="Right view (Ctrl+4)" IsVisible="{Binding IsModelMode}" />
+          <Button Classes="tool" Content="Iso" Command="{Binding ShowViewCommand}" CommandParameter="isometric" ToolTip.Tip="Isometric view (Ctrl+7)" IsVisible="{Binding IsModelMode}" />
+          <Button Classes="tool" Content="Normal To" Command="{Binding ShowViewCommand}" CommandParameter="normal" ToolTip.Tip="Look straight at the selected plane or face (Ctrl+8)" IsVisible="{Binding IsModelMode}" />
+          <Border Classes="separator" IsVisible="{Binding IsModelMode}" />
+          <Button Classes="tool" Content="Shaded+Edges" Command="{Binding SetDisplayStyleCommand}" CommandParameter="ShadedWithEdges" IsVisible="{Binding IsModelMode}" />
+          <Button Classes="tool" Content="Shaded" Command="{Binding SetDisplayStyleCommand}" CommandParameter="Shaded" IsVisible="{Binding IsModelMode}" />
+          <Button Classes="tool" Content="Hidden Lines" Command="{Binding SetDisplayStyleCommand}" CommandParameter="HiddenLinesRemoved" IsVisible="{Binding IsModelMode}" />
+          <Button Classes="tool" Content="Wireframe" Command="{Binding SetDisplayStyleCommand}" CommandParameter="Wireframe" IsVisible="{Binding IsModelMode}" />
+        </WrapPanel>
+
+        <!-- Features -->
+        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsModelMode}">
+          <Button Classes="command" Command="{Binding NewSketchCommand}" ToolTip.Tip="Sketch on a plane or planar face">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <TextBlock Text="✎" FontWeight="SemiBold" />
+              <TextBlock Text="Sketch" />
+            </StackPanel>
+          </Button>
+          <Border Classes="separator" />
+          <ItemsControl ItemsSource="{Binding FeatureCommands}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:CommandItem">
+                <Button Classes="command" Command="{Binding Command}" ToolTip.Tip="{Binding Tooltip}">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="{Binding Glyph}" FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding Label}" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border Classes="separator" />
+          <Button Classes="command" Content="Mass Properties" Command="{Binding ShowMassPropertiesCommand}" />
+          <Button Classes="command" Content="Measure" Command="{Binding MeasureCommand}" />
+        </WrapPanel>
+
+        <!-- Sketch tools -->
+        <WrapPanel Orientation="Horizontal" IsVisible="{Binding IsSketchMode}">
+          <Button Classes="command primary" Content="Exit Sketch" Command="{Binding ExitSketchCommand}" ToolTip.Tip="Finish the sketch and rebuild" />
+          <Border Classes="separator" />
+          <ItemsControl ItemsSource="{Binding Sketch.Tools, FallbackValue={x:Null}}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <WrapPanel Orientation="Horizontal" />
@@ -91,15 +172,15 @@
           </ItemsControl>
           <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="4" Margin="4,0">
             <TextBlock Text="Sides" VerticalAlignment="Center" FontSize="12" Opacity="0.75" />
-            <NumericUpDown Value="{Binding PolygonSides}" Minimum="3" Maximum="64" Increment="1"
+            <NumericUpDown Value="{Binding Sketch.PolygonSides, FallbackValue=6}" Minimum="3" Maximum="64" Increment="1"
                            FormatString="0" Width="96" ToolTip.Tip="Number of polygon sides" />
           </StackPanel>
           <Border Classes="separator" />
-          <Button Classes="tool" Content="Construction" Command="{Binding ToggleConstructionCommand}"
+          <Button Classes="tool" Content="Construction" Command="{Binding Sketch.ToggleConstructionCommand, FallbackValue={x:Null}}"
                   ToolTip.Tip="Toggle construction geometry (X)" />
-          <Button Classes="tool" Content="Delete" Command="{Binding DeleteCommand}" ToolTip.Tip="Delete selection (Delete)" />
-          <Button Classes="tool" Content="Fit" Command="{Binding ZoomToFitCommand}" ToolTip.Tip="Zoom to fit (F)" />
-      </WrapPanel>
+          <Button Classes="tool" Content="Delete" Command="{Binding Sketch.DeleteCommand, FallbackValue={x:Null}}" ToolTip.Tip="Delete selection (Delete)" />
+        </WrapPanel>
+      </StackPanel>
     </Border>
 
     <!-- Status bar -->
@@ -110,69 +191,177 @@
         <TextBlock Grid.Column="0" Text="{Binding HintText}" FontSize="12" Opacity="0.8" VerticalAlignment="Center" />
         <TextBlock Grid.Column="1" Text="{Binding MessageText}" FontSize="12" Margin="16,0" Foreground="#F59E0B"
                    TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="2" Text="{Binding CursorText}" FontSize="12" Opacity="0.7" Margin="0,0,20,0"
-                   FontFamily="{DynamicResource ContentControlThemeFontFamily}" VerticalAlignment="Center" />
-        <TextBlock Grid.Column="3" Text="{Binding StatusText}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
-                   Classes.status-under="{Binding IsUnderDefined}"
-                   Classes.status-over="{Binding IsOverDefined}" />
+        <TextBlock Grid.Column="2" Text="{Binding Sketch.CursorText, FallbackValue=''}" FontSize="12" Opacity="0.7" Margin="0,0,20,0"
+                   VerticalAlignment="Center" />
+        <TextBlock Grid.Column="3" Text="{Binding StatusText}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
       </Grid>
     </Border>
 
-    <!-- Side panel -->
-    <Border DockPanel.Dock="Left" Width="280" Padding="12,4,12,12"
+    <!-- Left panel: feature tree, property panel, or sketch relations -->
+    <Border DockPanel.Dock="Left" Width="300" Padding="12,4,12,12"
             BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}" BorderThickness="0,0,1,0">
-      <DockPanel>
-        <StackPanel DockPanel.Dock="Top">
-          <TextBlock Classes="section" Text="SELECTION" />
-          <TextBlock Text="{Binding SelectionText}" TextWrapping="Wrap" FontSize="12.5" />
-          <Button Content="Toggle Driving / Driven" Command="{Binding ToggleDrivingCommand}"
-                  IsVisible="{Binding HasSelectedDimension}" Margin="0,8,0,0" FontSize="12" />
-
-          <TextBlock Classes="section" Text="ADD RELATION" />
-          <ItemsControl ItemsSource="{Binding Relations}">
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <WrapPanel />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-            <ItemsControl.ItemTemplate>
-              <DataTemplate x:DataType="vm:RelationItem">
-                <Button Classes="relation" Command="{Binding Apply}" IsEnabled="{Binding IsEnabled}">
-                  <StackPanel Orientation="Horizontal" Spacing="6">
-                    <TextBlock Text="{Binding Glyph}" Width="26" TextAlignment="Center" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding Label}" />
-                  </StackPanel>
-                </Button>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-          </ItemsControl>
-
-          <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
-            <TextBlock Classes="section" Text="RELATIONS &amp; DIMENSIONS" Margin="0" VerticalAlignment="Center" />
-            <CheckBox Grid.Column="1" Content="Show all" IsChecked="{Binding ShowAllRelations}" FontSize="12" />
-          </Grid>
-        </StackPanel>
-
-        <ListBox ItemsSource="{Binding ConstraintRows}" SelectedItem="{Binding SelectedRow}" Margin="0,6,0,0">
-          <ListBox.ItemTemplate>
-            <DataTemplate x:DataType="vm:ConstraintRow">
-              <Grid ColumnDefinitions="34,*" Margin="0,1">
-                <TextBlock Text="{Binding Glyph}" VerticalAlignment="Center" />
-                <StackPanel Grid.Column="1">
-                  <TextBlock Text="{Binding Text}" FontSize="12.5" Classes.redundant="{Binding IsRedundant}" />
-                  <TextBlock Text="{Binding Targets}" FontSize="11" Opacity="0.6" TextTrimming="CharacterEllipsis" />
+      <Panel>
+        <!-- Feature tree -->
+        <DockPanel IsVisible="{Binding ShowTree}">
+          <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsModelMode}">
+            <TextBlock Classes="section" Text="FEATURES" />
+          </StackPanel>
+          <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" IsVisible="{Binding IsModelMode}">
+            <Button Classes="tool" Content="Edit" Command="{Binding EditSelectedCommand}" ToolTip.Tip="Edit the selected feature (double-click)" />
+            <Button Classes="tool" Content="Suppress" Command="{Binding ToggleSuppressCommand}" ToolTip.Tip="Suppress or unsuppress" />
+            <Button Classes="tool" Content="Delete" Command="{Binding DeleteSelectedCommand}" />
+            <Button Classes="tool" Content="Roll Here" Command="{Binding RollbackHereCommand}" ToolTip.Tip="Roll back to just after this feature" />
+            <Button Classes="tool" Content="Roll Forward" Command="{Binding RollForwardCommand}" />
+            <ComboBox x:Name="MaterialBox" Margin="0,6,0,0" MinWidth="180" ItemsSource="{x:Static doc:Material.Library}" PlaceholderText="Material…"
+                      ToolTip.Tip="Part material">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="doc:Material">
+                  <TextBlock Text="{Binding Name}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </WrapPanel>
+          <Panel>
+          <ListBox x:Name="FeatureTree" ItemsSource="{Binding Tree}" SelectedItem="{Binding SelectedNode}" IsVisible="{Binding IsModelMode}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:FeatureNode">
+                <StackPanel Orientation="Horizontal" Spacing="6" Margin="{Binding Indent}" Opacity="{Binding IsDimmed, Converter={x:Static c:Converters.DimOpacity}}"
+                            ToolTip.Tip="{Binding Message}">
+                  <TextBlock Text="{Binding Glyph}" Width="16" TextAlignment="Center" />
+                  <TextBlock Text="{Binding Name}" FontSize="12.5" Classes.error="{Binding HasError}" Classes.warning="{Binding HasWarning}" />
                 </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+
+          <!-- Sketch mode: selection, relations and the relations list -->
+          <Panel IsVisible="{Binding IsSketchMode}">
+          <DockPanel DataContext="{Binding Sketch}" x:DataType="vm:SketchViewModel">
+            <StackPanel DockPanel.Dock="Top">
+              <TextBlock Classes="section" Text="SELECTION" />
+              <TextBlock Text="{Binding SelectionText}" TextWrapping="Wrap" FontSize="12.5" />
+              <Button Content="Toggle Driving / Driven" Command="{Binding ToggleDrivingCommand}"
+                      IsVisible="{Binding HasSelectedDimension}" Margin="0,8,0,0" FontSize="12" />
+
+              <TextBlock Classes="section" Text="ADD RELATION" />
+              <ItemsControl ItemsSource="{Binding Relations}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:RelationItem">
+                    <Button Classes="relation" Command="{Binding Apply}" IsEnabled="{Binding IsEnabled}">
+                      <StackPanel Orientation="Horizontal" Spacing="6">
+                        <TextBlock Text="{Binding Glyph}" Width="26" TextAlignment="Center" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Label}" />
+                      </StackPanel>
+                    </Button>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                <TextBlock Classes="section" Text="RELATIONS &amp; DIMENSIONS" Margin="0" VerticalAlignment="Center" />
+                <CheckBox Grid.Column="1" Content="Show all" IsChecked="{Binding ShowAllRelations}" FontSize="12" />
               </Grid>
-            </DataTemplate>
-          </ListBox.ItemTemplate>
-        </ListBox>
-      </DockPanel>
+            </StackPanel>
+
+            <ListBox ItemsSource="{Binding ConstraintRows}" SelectedItem="{Binding SelectedRow}" Margin="0,6,0,0">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ConstraintRow">
+                  <Grid ColumnDefinitions="34,*" Margin="0,1">
+                    <TextBlock Text="{Binding Glyph}" VerticalAlignment="Center" />
+                    <StackPanel Grid.Column="1">
+                      <TextBlock Text="{Binding Text}" FontSize="12.5" Classes.redundant="{Binding IsRedundant}" />
+                      <TextBlock Text="{Binding Targets}" FontSize="11" Opacity="0.6" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </DockPanel>
+          </Panel>
+          </Panel>
+        </DockPanel>
+
+        <!-- Property panel -->
+        <Panel IsVisible="{Binding HasEditor}">
+        <DockPanel DataContext="{Binding Editor}" x:DataType="vm:FeatureEditor">
+          <StackPanel DockPanel.Dock="Top" Margin="0,8,0,8" Spacing="8">
+            <TextBlock Text="{Binding Title, FallbackValue=''}" FontSize="16" FontWeight="SemiBold" />
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Classes="primary" Content="OK" Width="72" IsVisible="{Binding IsFeature, FallbackValue=False}"
+                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AcceptEditorCommand, FallbackValue={x:Null}}" />
+              <Button Content="Cancel" Width="72" IsVisible="{Binding IsFeature, FallbackValue=False}"
+                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).CancelEditorCommand, FallbackValue={x:Null}}" />
+              <Button Content="Close" Width="72" IsVisible="{Binding IsInfo, FallbackValue=False}"
+                      Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).AcceptEditorCommand, FallbackValue={x:Null}}" />
+            </StackPanel>
+            <TextBlock Text="{Binding Message, FallbackValue=''}" Classes="error" TextWrapping="Wrap" FontSize="12"
+                       IsVisible="{Binding Message, Converter={x:Static StringConverters.IsNotNullOrEmpty}, FallbackValue=False}" />
+          </StackPanel>
+          <ScrollViewer>
+            <ItemsControl ItemsSource="{Binding Fields, FallbackValue={x:Null}}">
+              <ItemsControl.DataTemplates>
+                <DataTemplate DataType="vm:NumberField">
+                  <Grid ColumnDefinitions="120,*,Auto" Margin="0,3" IsVisible="{Binding IsVisible}">
+                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="12.5" />
+                    <TextBox Grid.Column="1" Text="{Binding Text}" FontSize="12.5" Classes.error="{Binding HasError}">
+                      <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding CommitCommand}" />
+                      </TextBox.KeyBindings>
+                    </TextBox>
+                    <TextBlock Grid.Column="2" Text="{Binding Unit}" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" Opacity="0.7" Width="24" />
+                  </Grid>
+                </DataTemplate>
+                <DataTemplate DataType="vm:ChoiceField">
+                  <Grid ColumnDefinitions="120,*" Margin="0,3" IsVisible="{Binding IsVisible}">
+                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="12.5" />
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding Options}" SelectedIndex="{Binding Index}" HorizontalAlignment="Stretch" FontSize="12.5" />
+                  </Grid>
+                </DataTemplate>
+                <DataTemplate DataType="vm:BoolField">
+                  <CheckBox Content="{Binding Label}" IsChecked="{Binding Value}" Margin="0,2" FontSize="12.5" IsVisible="{Binding IsVisible}" />
+                </DataTemplate>
+                <DataTemplate DataType="vm:SelectionField">
+                  <Button Margin="0,6" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch" Command="{Binding ActivateCommand}" IsVisible="{Binding IsVisible}">
+                    <Border Classes="selection-field" Classes.active="{Binding IsActive}">
+                      <StackPanel Spacing="4">
+                        <TextBlock Text="{Binding Label}" FontWeight="SemiBold" FontSize="12.5" />
+                        <TextBlock Text="{Binding Prompt}" FontSize="11" Opacity="0.6" />
+                        <ItemsControl ItemsSource="{Binding Items}">
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="part:SelectionItem">
+                              <TextBlock Text="{Binding Label}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+                  </Button>
+                </DataTemplate>
+                <DataTemplate DataType="vm:InfoField">
+                  <StackPanel Margin="0,4" IsVisible="{Binding IsVisible}">
+                    <TextBlock Text="{Binding Label}" FontSize="11" Opacity="0.65" />
+                    <SelectableTextBlock Text="{Binding Text}" FontSize="12.5" TextWrapping="Wrap" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.DataTemplates>
+            </ItemsControl>
+          </ScrollViewer>
+        </DockPanel>
+        </Panel>
+      </Panel>
     </Border>
 
-    <!-- Sketch canvas with the dimension value editor floating above it -->
+    <!-- 3D view, or the sketch canvas while editing a sketch -->
     <Panel>
-      <c:SketchCanvas x:Name="Canvas" Editor="{Binding Editor}" />
-      <Canvas x:Name="Overlay">
+      <c:ModelViewport x:Name="Viewport" IsVisible="{Binding IsModelMode}" />
+      <c:SketchCanvas x:Name="Canvas" Editor="{Binding Sketch.Editor, FallbackValue={x:Null}}" IsVisible="{Binding IsSketchMode}" />
+      <Canvas x:Name="Overlay" IsVisible="{Binding IsSketchMode}">
         <TextBox x:Name="DimensionInput" IsVisible="False" Width="110" FontSize="13"
                  PlaceholderText="Value" />
       </Canvas>

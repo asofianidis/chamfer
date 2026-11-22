@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Part documents: the feature tree, rebuild engine, persistent naming and native file format.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Chamfer.Geometry\Chamfer.Geometry.csproj" />
+    <ProjectReference Include="..\Chamfer.Kernel.Occt\Chamfer.Kernel.Occt.csproj" />
+    <ProjectReference Include="..\Chamfer.Sketching\Chamfer.Sketching.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Chamfer.Document.Tests" />
+  </ItemGroup>
+</Project>

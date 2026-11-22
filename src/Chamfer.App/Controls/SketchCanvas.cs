@@ -47,6 +47,22 @@ public sealed class SketchCanvas : Control
     /// <summary>The cursor moved; carries the cursor position in sketch coordinates.</summary>
     public event EventHandler<Vec2>? CursorMoved;
 
+    /// <summary>
+    /// Draws what lies behind the sketch (the part, seen normal to the sketch
+    /// plane). Called with the canvas size, view centre and scale (pixels per mm).
+    /// </summary>
+    public Action<DrawingContext, Size, Vec2, double>? Underlay { get; set; }
+
+    /// <summary>The view centre in sketch coordinates and the scale in pixels per millimetre.</summary>
+    public (Vec2 Center, double Scale) View => (_center, _scale);
+
+    /// <summary>Sets the view centre (sketch coordinates) and scale (pixels per millimetre).</summary>
+    public void SetView(Vec2 center, double scale)
+    {
+        _center = center;
+        SetScale(scale);
+    }
+
     private SketchPalette Palette => ActualThemeVariant == ThemeVariant.Dark ? SketchPalette.Dark : SketchPalette.Light;
 
     // ------------------------------------------------------------------ View transform
@@ -264,6 +280,7 @@ public sealed class SketchCanvas : Control
     {
         var palette = Palette;
         context.FillRectangle(palette.Background, new Rect(Bounds.Size));
+        Underlay?.Invoke(context, Bounds.Size, _center, _scale);
         DrawGrid(context, palette);
         DrawOrigin(context, palette);
         if (Editor is not { } editor)

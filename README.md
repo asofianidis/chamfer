@@ -4,7 +4,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **Status:** Pre-alpha. The 2D sketcher (Phase 1) works: you can draw, constrain, dimension, and save sketches. There's no 3D modeling yet. See the [Roadmap](#roadmap).
+> **Status:** Pre-alpha. You can model real parts: sketch on planes or faces, then extrude, revolve, cut, fillet, chamfer, shell, draft, add Hole Wizard holes, pattern and mirror features, measure, check mass properties, and exchange STEP/IGES/STL. The 3D view supports picking, display styles and standard views. See the [Roadmap](#roadmap).
+
+![A filleted block with a through hole in the Chamfer part modeler, with mass properties in the side panel](docs/images/part-light.png)
 
 ![The Chamfer sketcher: a fully defined, dimensioned rectangle (white) alongside under-defined geometry (blue), with the relations panel on the left](docs/images/sketcher-dark.png)
 
@@ -53,7 +55,7 @@
 | Language | **C# 14 / .NET 10 (LTS)** | Move to the next LTS when it ships. Nullable reference types on, warnings as errors. |
 | UI framework | **Avalonia UI** (latest stable) | MVVM with **CommunityToolkit.Mvvm**. Docking via **Dock.Avalonia**. |
 | Geometry kernel | **Open CASCADE Technology (OCCT)** | Industrial B-rep/NURBS kernel (LGPL-2.1 with exception). Reached through a thin C ABI shim (`Chamfer.Kernel.Native`) and P/Invoke, because C++/CLI is Windows-only. |
-| 3D rendering | **Silk.NET** on Avalonia `OpenGlControlBase` | OpenGL ES 3 / GL 4.1 core to start (ANGLE on Windows, native GL on macOS). A **Vulkan + MoltenVK** or **Metal** backend comes later behind an `IRenderBackend` abstraction. |
+| 3D rendering | **Portable software rasterizer** (`Chamfer.Viewport`) | Multithreaded z-buffer renderer with face and overlay ID buffers for pixel-exact picking; runs on every platform and headless ([ADR 2](docs/adr/0002-software-renderer-first.md)). A GPU backend (GL/Metal/Vulkan) will consume the same backend-neutral `Scene`. |
 | Sketch constraint solver | **Custom C# solver** | Newton/Dog-Leg/Levenberg-Marquardt over a sparse Jacobian. FreeCAD's PlaneGCS serves as a reference design. |
 | Math | **System.Numerics** + **MathNet.Numerics** | Double-precision types of our own for geometry. Never `float` in model space. |
 | Serialization | **System.Text.Json** + ZIP container | See [Native File Format](#native-file-format). |
@@ -64,7 +66,7 @@
 
 ### Why OCCT instead of writing a kernel?
 
-A production B-rep kernel (booleans, fillets, offsets, shelling, sewing, healing) takes decades of engineering. Parasolid and ACIS are commercial and expensive. OCCT is the only mature open-source option, and FreeCAD, KiCad's 3D viewer, and many commercial tools are built on it. We isolate it behind `Chamfer.Geometry` interfaces so we can replace or supplement it later, for example with a commercial kernel for the hardest fillets.
+A production B-rep kernel (booleans, fillets, offsets, shelling, sewing, healing) takes decades of engineering. Parasolid and ACIS are commercial and expensive. OCCT is the only mature open-source option, and FreeCAD, KiCad's 3D viewer, and many commercial tools are built on it. We isolate it behind a small C ABI ([ADR 1](docs/adr/0001-geometry-kernel.md)) so we can replace or supplement it later, for example with a commercial kernel for the hardest fillets.
 
 ### Why not use WPF or WinUI?
 
@@ -132,27 +134,27 @@ chamfer/
 ├── src/
 │   ├── Chamfer.App/              # Avalonia desktop app (entry point) ✅
 │   ├── Chamfer.UI/               # Reusable controls, themes, icons, ribbon
-│   ├── Chamfer.Viewport/         # 3D viewport, camera, picking, render backends
+│   ├── Chamfer.Viewport/         # Camera, scene, software renderer, picking ✅
 │   ├── Chamfer.Commands/         # Interactive tools & undoable commands
-│   ├── Chamfer.Document/         # Document model, feature tree, rebuild engine
+│   ├── Chamfer.Document/         # Part document, features, rebuild engine, naming ✅
 │   ├── Chamfer.Sketching/        # 2D sketch entities + constraint solver ✅
-│   ├── Chamfer.Features/         # Part features (extrude, revolve, fillet, ...)
 │   ├── Chamfer.Assembly/         # Components, mates, assembly solver
 │   ├── Chamfer.Drawing/          # 2D drawings, views, annotations
-│   ├── Chamfer.Geometry/         # Kernel-agnostic geometry abstractions
-│   ├── Chamfer.Kernel.Occt/      # C# bindings to the native shim
-│   ├── Chamfer.Kernel.Native/    # C++ shim over OCCT (CMake)
+│   ├── Chamfer.Geometry/         # Kernel-agnostic math and mesh types ✅
+│   ├── Chamfer.Kernel.Occt/      # C# bindings to the native shim ✅
+│   ├── Chamfer.Kernel.Native/    # C++ shim over OCCT (CMake) ✅
 │   ├── Chamfer.IO/               # STEP, IGES, STL, 3MF, DXF, PDF, native format
 │   └── Chamfer.Api/              # Public plugin / scripting API
 ├── tests/
 │   ├── Chamfer.Sketching.Tests/   ✅
-│   ├── Chamfer.Features.Tests/
-│   ├── Chamfer.Document.Tests/
+│   ├── Chamfer.Kernel.Tests/      ✅
+│   ├── Chamfer.Document.Tests/    ✅
+│   ├── Chamfer.Viewport.Tests/    ✅
 │   ├── Chamfer.IO.Tests/
 │   └── Chamfer.App.Tests/        # Avalonia.Headless UI tests ✅
 ├── samples/                      # Example parts, assemblies, drawings
-├── docs/                         # Architecture decision records, specs, images
-├── build/                        # Packaging scripts (MSIX, DMG, notarization)
+├── docs/                         # Architecture decision records, specs, images ✅
+├── build/                        # OCCT + native shim build scripts ✅; packaging later
 ├── .github/workflows/            # CI for Windows + macOS ✅
 └── Chamfer.slnx
 ```
@@ -168,15 +170,22 @@ chamfer/
 | .NET SDK | 10.0+ | 10.0+ |
 | IDE (suggested) | Rider, Visual Studio, or VS Code + C# Dev Kit | Rider or VS Code + C# Dev Kit |
 
-The 3D phases will also need a C++ toolchain, CMake 3.27+, and OCCT 7.8+ for the native kernel shim. Nothing native is needed yet.
+| C++ toolchain | Visual Studio 2022+ with the C++ workload | Xcode command-line tools |
+| CMake | 3.24+ (bundled with Visual Studio) | 3.24+ (`brew install cmake`) |
 
 ### Build & run
+
+The geometry kernel is native code. Build it once (the first build compiles OCCT 7.9.3 from source, which takes 10–40 minutes), then use `dotnet` as usual:
 
 ```bash
 git clone https://github.com/asofianidis/chamfer.git
 cd chamfer
+# rid: win-x64, osx-arm64 or osx-x64. The second argument is where OCCT gets installed.
+build/native/build-native.sh win-x64 artifacts/occt/win-x64     # use Git Bash on Windows
 dotnet run --project src/Chamfer.App
 ```
+
+The script stages `chamfer_kernel` and the OCCT libraries in `artifacts/native/<rid>/`, and the build copies them next to the app. Set `CMAKE` if `cmake` isn't on your `PATH`.
 
 ### Run tests
 
@@ -184,7 +193,22 @@ dotnet run --project src/Chamfer.App
 dotnet test
 ```
 
-The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opted in via `global.json`). `Chamfer.App.Tests` renders the main window headlessly. Set `CHAMFER_SCREENSHOT_DIR` to a folder to save PNG screenshots of it.
+The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opted in via `global.json`). `Chamfer.App.Tests` renders the main window headlessly and drives a sketch → extrude → fillet workflow. Set `CHAMFER_SCREENSHOT_DIR` to a folder to save PNG screenshots of the window and of the 3D renderer.
+
+### Modelling a part
+
+| Action | How |
+|---|---|
+| Sketch | Select a plane (in the tree or the view) or a planar face, then **Sketch**. With nothing selected, Chamfer asks you to pick one. **Exit Sketch** returns to 3D. Double-click a sketch to edit it. |
+| Extrude / revolve | With a sketch selected (or just after exiting one), click **Extruded Boss**, **Extruded Cut**, **Revolved Boss** or **Revolved Cut**. Revolves use the sketch's first centerline as the axis. |
+| Dress-up features | Select edges or faces, then **Fillet** or **Chamfer**. Select faces to remove, then **Shell**. **Draft** takes a neutral plane and faces. |
+| Holes | Select a planar face and click **Hole Wizard**. Place points for the hole centres, exit the sketch, then pick the type and ISO size. |
+| Patterns and mirror | Select features in the tree, then **Linear Pattern**, **Circular Pattern** or **Mirror**, and pick a direction, axis or plane in the view. |
+| Property panel | Changes preview live. Type values or expressions (`25.4*2`, `1in`) and press Enter. Click a selection box to make it active, then pick in the view; Ctrl/⌘-click or Shift-click adds and removes. **OK** (Enter) or **Cancel** (Esc). |
+| Feature tree | Double-click to edit. **Suppress**, **Delete** (with dependents), **Roll Here** and **Roll Forward** act on the selected feature. Errors are red, warnings amber. |
+| View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
+| Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
+| Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES or STL. |
 
 ### Using the sketcher
 
@@ -204,7 +228,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 
 ## Native File Format
 
-Chamfer documents are ZIP containers, similar to `.docx` and `.3mf`:
+Today a part is a single JSON document (`.chprt`): format version, material, rollback position and the ordered feature list, with each sketch embedded in its own JSON format and imported bodies stored as OCCT BRep text. The ZIP container below is the planned layout once drawings, assemblies and caches arrive:
 
 | Extension | Type |
 |---|---|
@@ -238,19 +262,19 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 - [x] Solution scaffolding, `Directory.Build.props`, central package management, `.editorconfig`, analyzers
 - [x] CI on GitHub Actions: build and test on Windows and macOS
-- [ ] Native shim (`Chamfer.Kernel.Native`) with CMake, building OCCT bindings for win-x64, win-arm64, osx-arm64, and osx-x64
-- [ ] P/Invoke layer with `SafeHandle` lifetime management; smoke test that makes a box and reads its volume
-- [~] Avalonia shell: main window, docking layout, ribbon placeholder, dark/light themes *(main window, toolbar, side panel and themes done; docking not yet)*
-- [ ] 3D viewport: GL context in Avalonia, camera (orbit, pan, zoom, zoom-to-fit), grid, view cube, standard views
-- [ ] Tessellation pipeline: B-rep → mesh → GPU buffers; shaded, shaded-with-edges, wireframe, and hidden-lines-removed modes
-- [ ] Picking: GPU ID buffer for faces, edges, and vertices; hover highlight; selection set
-- [~] Undo/redo transaction framework *(snapshot-based undo for sketches)*
-- [ ] Architecture decision records (ADRs) for the kernel, renderer, and topological naming
+- [x] Native shim (`Chamfer.Kernel.Native`) with CMake over OCCT 7.9.3 *(win-x64 and osx-arm64 in CI; win-arm64 and osx-x64 build with the same script)*
+- [x] P/Invoke layer with `SafeHandle` lifetime management; kernel tests cover primitives, booleans, fillets, shells, sweeps, lofts and file exchange
+- [~] Avalonia shell: main window, docking layout, ribbon placeholder, dark/light themes *(command bar, feature tree, property panel and themes done; docking not yet)*
+- [x] 3D viewport: camera (orbit about the cursor, pan, zoom at the cursor, zoom-to-fit), axis triad, standard views, perspective *(view cube not yet)*
+- [x] Tessellation pipeline: B-rep → mesh with per-face triangles and edge polylines; shaded, shaded-with-edges, wireframe, and hidden-lines-removed modes
+- [x] Picking: ID buffers for faces, edges, sketches and planes; hover highlight; selection set
+- [x] Undo/redo transaction framework *(snapshot-based, for parts and sketches)*
+- [x] Architecture decision records ([kernel](docs/adr/0001-geometry-kernel.md), [renderer](docs/adr/0002-software-renderer-first.md), [topological naming](docs/adr/0003-persistent-naming.md))
 
 ### Phase 1: Sketcher (MVP)
 *Goal: fully constrained 2D sketches on a plane, at the level of the SolidWorks sketcher.*
 
-- [ ] Sketch on standard planes and on planar faces *(needs the Phase 0 3D viewport; sketches are edited in a 2D view for now)*
+- [x] Sketch on standard planes, reference planes and planar faces *(edited normal to the plane with the part drawn behind)*
 - [~] Entities: line, centerline, rectangle (corner, center, 3-point), circle, arc (center, tangent, 3-point), polygon, slot, ellipse, spline, point *(all done except tangent arc, ellipse, and spline)*
 - [x] Constraint solver: coincident, horizontal, vertical, parallel, perpendicular, tangent, concentric, equal, midpoint, symmetric, fix, collinear, coradial
 - [x] Smart Dimension: linear, angular, radial, diameter, driven/driving
@@ -267,22 +291,22 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 2: Core Part Modeling
 *Goal: model the typical machined part end to end.*
 
-- [ ] Feature tree panel with rollback bar, suppress/unsuppress, reorder, rename, and folders
-- [ ] Property panel framework for every feature, with live preview
-- [ ] **Extruded Boss/Base** and **Extruded Cut**: blind, through all, up to vertex, surface, or offset, mid-plane, two-direction, draft, thin feature
-- [ ] **Revolved Boss** and **Revolved Cut**
-- [ ] **Fillet**: constant radius, variable radius, face fillet, full round
-- [ ] **Chamfer**: distance-distance, distance-angle, vertex
-- [ ] **Shell**, **Draft**, **Rib**
-- [ ] **Hole Wizard**: counterbore, countersink, tapped, and pipe tap, with ANSI and ISO standards tables
-- [ ] **Linear Pattern**, **Circular Pattern**, **Mirror**
-- [ ] Reference geometry: planes, axes, coordinate systems, points
-- [ ] Persistent topological naming that survives parameter edits
-- [ ] Rebuild engine with error and warning reporting ("What's Wrong")
-- [ ] Materials and mass properties: mass, volume, center of mass, moments of inertia
-- [ ] Measure tool
-- [ ] Native file save/open (`.chprt`)
-- [ ] STEP, IGES, and STL export; STEP and IGES import as dumb solids
+- [~] Feature tree panel with rollback bar, suppress/unsuppress, reorder, rename, and folders *(rollback, suppress, delete with dependents, absorbed sketches, error/warning status; reorder, rename and folders not yet)*
+- [x] Property panel framework for every feature, with live preview
+- [~] **Extruded Boss/Base** and **Extruded Cut**: blind, through all, up to vertex, surface, or offset, mid-plane, two-direction, draft, thin feature *(blind, through all, mid-plane, two-direction, start offset, merge; up-to, draft and thin not yet)*
+- [x] **Revolved Boss** and **Revolved Cut** *(one direction and mid-plane)*
+- [~] **Fillet**: constant radius, variable radius, face fillet, full round *(constant radius on edges and faces)*
+- [~] **Chamfer**: distance-distance, distance-angle, vertex *(equal distance, distance-distance, distance-angle)*
+- [~] **Shell**, **Draft**, **Rib** *(shell inward or outward, neutral-plane draft; rib not yet)*
+- [~] **Hole Wizard**: counterbore, countersink, tapped, and pipe tap, with ANSI and ISO standards tables *(simple, counterbore, countersink and tapped, with ISO metric sizes; ANSI and pipe taps not yet)*
+- [x] **Linear Pattern**, **Circular Pattern**, **Mirror** *(of boss, cut, hole and pattern features)*
+- [~] Reference geometry: planes, axes, coordinate systems, points *(offset planes)*
+- [x] Persistent topological naming that survives parameter edits *(history-based names with geometric fallback)*
+- [x] Rebuild engine with error and warning reporting ("What's Wrong") *(incremental: unchanged prefixes are reused)*
+- [~] Materials and mass properties: mass, volume, center of mass, moments of inertia *(material library, mass, volume, area and centre of mass; inertia is computed by the kernel but not shown yet)*
+- [x] Measure tool *(sizes, radii, minimum distance)*
+- [x] Native file save/open (`.chprt`)
+- [x] STEP, IGES, and STL export; STEP and IGES import as dumb solids
 
 ### Phase 3: Advanced Part Modeling
 - [ ] **Swept** Boss and Cut (with guide curves, twist)
@@ -404,7 +428,7 @@ A high-level tracker against SolidWorks capability areas.
 | Area | SolidWorks capability | Chamfer phase | Status |
 |---|---|---|---|
 | Sketching | 2D/3D sketch, relations, dimensions | 1, 3 | 🟨 2D sketcher core done |
-| Part features | Extrude, revolve, fillet, chamfer, shell, hole wizard, patterns | 2 | ⬜ |
+| Part features | Extrude, revolve, fillet, chamfer, shell, hole wizard, patterns | 2 | 🟨 Core features working |
 | Advanced part | Sweep, loft, boundary, multibody, curves | 3 | ⬜ |
 | Parametrics | Equations, global variables, configurations, design tables | 3 | ⬜ |
 | Assemblies | Standard, advanced, and mechanical mates; exploded views | 4 | ⬜ |
@@ -414,7 +438,7 @@ A high-level tracker against SolidWorks capability areas.
 | Sheet metal | Flanges, bends, flat pattern | 7 | ⬜ |
 | Weldments | Structural members, cut lists | 7 | ⬜ |
 | Mold tools | Parting line/surface, core/cavity | 7 | ⬜ |
-| Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | ⬜ |
+| Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | 🟨 STEP/IGES in and out, STL out |
 | Simulation | SimulationXpress-level FEA, frequency, thermal | 9 | ⬜ |
 | Motion | Motion studies, animation | 9 | ⬜ |
 | Rendering | Visualize-style photoreal rendering | 10 | ⬜ |
