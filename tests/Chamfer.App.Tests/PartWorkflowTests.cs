@@ -429,4 +429,45 @@ public class PartWorkflowTests
         vm.AcceptEditorCommand.Execute(null);
         Assert.Equal(start, screw.Transform);
     }
+
+    [Fact]
+    public void CustomPropertiesAndPackAndGoFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+        vm.NewSketchCommand.Execute(null);
+        var editor = vm.Sketch!.Editor;
+        editor.BeginChange();
+        editor.Sketch.AddCornerRectangle(new Vec2(0, 0), new Vec2(30, 20));
+        editor.EndChange(solve: true);
+        vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+
+        vm.ShowPropertiesCommand.Execute(null);
+        var entry = vm.Editor!.Fields.OfType<TextField>().Single();
+        entry.Text = "Description = Block in {Material}";
+        entry.Commit();
+        Assert.Contains(vm.Editor!.Fields.OfType<InfoField>(), f => f.Label == "Description" && f.Text.StartsWith("Block in Plain Carbon Steel", StringComparison.Ordinal));
+        vm.UndoCommand.Execute(null);
+        Assert.Empty(vm.Document.Properties);
+        vm.RedoCommand.Execute(null);
+        Assert.Single(vm.Document.Properties);
+
+        // Pack and Go an assembly holding a toolbox screw.
+        vm.NewAssemblyCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var folder = Path.Combine(Path.GetTempPath(), $"chamfer-pg-{Guid.NewGuid():N}");
+        try
+        {
+            var result = vm.PackAndGoTo(folder, suffix: "-rev2");
+            Assert.NotNull(result);
+            Assert.EndsWith("Assembly1-rev2.chasm", result.AssemblyPath, StringComparison.Ordinal);
+            Assert.StartsWith("Pack and Go saved 1 files", vm.MessageText, StringComparison.Ordinal);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
 }

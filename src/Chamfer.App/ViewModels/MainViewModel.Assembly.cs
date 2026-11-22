@@ -57,6 +57,7 @@ public sealed partial class MainViewModel
         new("Interference", "Find overlapping components", new RelayCommand(ShowInterference), "⧉"),
         new("Motion Study", "Drive a component with a motor and animate the mechanism", new RelayCommand(StartMotionStudy), "▶"),
         new("Bill of Materials", "List parts and quantities", new RelayCommand(ShowBom), "☰"),
+        new("Pack and Go", "Copy the assembly and all its parts to one folder", new RelayCommand(StartPackAndGo), "⇪"),
         new("Explode", "Spread the components apart (toggle)", new RelayCommand(() => Exploded = !Exploded), "✳"),
         new("Open Part", "Edit the selected component's part", new RelayCommand(OpenSelectedPart), "↗"),
     ];
@@ -464,6 +465,7 @@ public sealed partial class MainViewModel
             total += line.MassEach * line.Quantity;
             var config = line.Configuration is null ? string.Empty : $" [{line.Configuration}]";
             panel.AddInfo(new InfoField($"{line.Item}. {line.PartName}{config}",
+                (line.Description.Length > 0 ? line.Description + "\n" : string.Empty) +
                 $"Qty {line.Quantity} · {line.Material} · {(line.MassEach * 1000).ToString("0.##", CultureInfo.InvariantCulture)} g each"));
         }
 
