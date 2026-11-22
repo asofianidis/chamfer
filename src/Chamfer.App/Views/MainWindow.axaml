@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:Chamfer.App.ViewModels"
+        xmlns:app="using:Chamfer.App"
         xmlns:part="using:Chamfer.App.Part"
         xmlns:doc="using:Chamfer.Document"
         xmlns:c="using:Chamfer.App.Controls"
@@ -107,6 +108,7 @@
           <Button Classes="tool" Content="Save As" Command="{Binding SaveAsCommand}" />
           <Button Classes="tool" Content="Vault" Command="{Binding ShowVaultCommand}" ToolTip.Tip="Check out, check in, revisions and where-used" />
           <Button Classes="tool" Content="Updates" Command="{Binding CheckForUpdatesCommand}" ToolTip.Tip="Check GitHub for a newer release" />
+          <Button Classes="tool" Content="Language" Command="{Binding ShowLanguageCommand}" ToolTip.Tip="Display language for commands" />
           <Button Classes="tool" Content="Import" Command="{Binding ImportCommand}" ToolTip.Tip="Import a STEP or IGES file as a body" />
           <Button Classes="tool" Content="Export" Command="{Binding ExportCommand}" ToolTip.Tip="Export STEP, IGES or STL" />
           <Border Classes="separator" />
@@ -145,7 +147,7 @@
                 <Button Classes="command" Command="{Binding Command}" ToolTip.Tip="{Binding Tooltip}">
                   <StackPanel Orientation="Horizontal" Spacing="5">
                     <TextBlock Text="{Binding Glyph}" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding Label}" />
+                    <TextBlock Text="{Binding Label, Converter={x:Static app:Localizer.Converter}}" />
                   </StackPanel>
                 </Button>
               </DataTemplate>
@@ -166,7 +168,7 @@
                 <Button Classes="command" Command="{Binding Command}" ToolTip.Tip="{Binding Tooltip}">
                   <StackPanel Orientation="Horizontal" Spacing="5">
                     <TextBlock Text="{Binding Glyph}" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding Label}" />
+                    <TextBlock Text="{Binding Label, Converter={x:Static app:Localizer.Converter}}" />
                   </StackPanel>
                 </Button>
               </DataTemplate>
@@ -192,7 +194,7 @@
             </ItemsControl.ItemsPanel>
             <ItemsControl.ItemTemplate>
               <DataTemplate x:DataType="x:String">
-                <Button Classes="tool" Content="{Binding}" FontWeight="SemiBold"
+                <Button Classes="tool" Content="{Binding Converter={x:Static app:Localizer.Converter}}" FontWeight="SemiBold"
                         Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectTabCommand}" CommandParameter="{Binding}" />
               </DataTemplate>
             </ItemsControl.ItemTemplate>
@@ -209,7 +211,7 @@
                 <Button Classes="command" Command="{Binding Command}" ToolTip.Tip="{Binding Tooltip}">
                   <StackPanel Orientation="Horizontal" Spacing="5">
                     <TextBlock Text="{Binding Glyph}" FontWeight="SemiBold" />
-                    <TextBlock Text="{Binding Label}" />
+                    <TextBlock Text="{Binding Label, Converter={x:Static app:Localizer.Converter}}" />
                   </StackPanel>
                 </Button>
               </DataTemplate>
@@ -354,7 +356,7 @@
                     <Button Classes="relation" Command="{Binding Apply}" IsEnabled="{Binding IsEnabled}">
                       <StackPanel Orientation="Horizontal" Spacing="6">
                         <TextBlock Text="{Binding Glyph}" Width="26" TextAlignment="Center" FontWeight="SemiBold" />
-                        <TextBlock Text="{Binding Label}" />
+                        <TextBlock Text="{Binding Label, Converter={x:Static app:Localizer.Converter}}" />
                       </StackPanel>
                     </Button>
                   </DataTemplate>
