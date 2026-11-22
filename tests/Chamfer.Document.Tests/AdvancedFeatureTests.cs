@@ -670,6 +670,50 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void ReplaceFaceGrowsOrTrimsToTheSurface()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 20));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var top = body.FaceRef(Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99));
+
+        // Up to a plane 15 above: the block grows to 15 tall.
+        var high = doc.Add(new ReferencePlaneFeature { Base = PlaneRef.Front, Offset = 15 });
+        var replace = doc.Add(new ReplaceFaceFeature { Face = top, Plane = new PlaneRef(high.Id) });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(40 * 20 * 15, Volume(doc), 1e-3);
+
+        // Down to a plane 6 above: trimmed to 6 tall.
+        high.Offset = 6;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(40 * 20 * 6, Volume(doc), 1e-3);
+
+        // A tilted plane through the middle of the top: half grows, half trims; the same volume overall.
+        var tilted = new PartDocument();
+        var ts = new Sketch();
+        ts.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 20));
+        var tsf = tilted.Add(new SketchFeature { Sketch = ts });
+        tilted.Add(new ExtrudeFeature { SketchId = tsf.Id, Depth = 10 });
+        var pa = tilted.Add(new ReferencePointFeature { X = 20, Y = 0, Z = 10 });
+        var pb = tilted.Add(new ReferencePointFeature { X = 20, Y = 20, Z = 10 });
+        var hinge = tilted.Add(new ReferenceAxisFeature { Kind = AxisKind.TwoPoints, PointA = pa.Id, PointB = pb.Id });
+        var slope = tilted.Add(new ReferencePlaneFeature { Base = PlaneRef.Front, Offset = 10, AngleAxis = new AxisRef(AxisId: hinge.Id), Angle = 5 });
+        tilted.Rebuild();
+        var tb = tilted.Bodies[0];
+        tilted.Add(new ReplaceFaceFeature { Face = tb.FaceRef(Enumerable.Range(1, tb.FaceCount).Single(i => tb.Face(i).Normal.Z > 0.99)), Plane = new PlaneRef(slope.Id) });
+        tilted.Rebuild();
+        AssertOk(tilted);
+        Assert.Equal(40 * 20 * 10, Volume(tilted), 1);
+        Assert.True(tilted.Bodies[0].Shape.Bounds.Max.Z > 10.5);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

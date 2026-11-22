@@ -416,7 +416,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Planar, offset, ruled, and filled surfaces
 - [x] Knit (sew), trim, untrim, extend, and delete face *(knit and form solids; trim by a plane; untrim; extend flat surfaces; delete face)*
 - [x] Thicken, and thickened cut
-- [~] Replace face, cut with surface *(cut with surface or plane)*
+- [x] Replace face, cut with surface
 - [x] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection
 - [~] Freeform *(flat faces reshaped through a grid of up to 5 x 5 control points pulled in or out, staying on their edges)*
 
