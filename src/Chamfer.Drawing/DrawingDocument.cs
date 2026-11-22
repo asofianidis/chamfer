@@ -28,6 +28,21 @@ public enum ViewKind
     Isometric,
     Section,
     Detail,
+
+    /// <summary>Projected from a parent view to one side (third-angle).</summary>
+    Projected,
+
+    /// <summary>Looking square to an edge of a parent view (true size of an inclined face).</summary>
+    Auxiliary,
+}
+
+/// <summary>Which side of its parent a projected view is placed (third-angle projection).</summary>
+public enum ViewSide
+{
+    Right,
+    Left,
+    Above,
+    Below,
 }
 
 /// <summary>Where a dimension end attaches: an edge end, midpoint or centre (follows the model), or a fixed model point.</summary>
@@ -143,6 +158,18 @@ public sealed class DrawingView
 
     /// <summary>Section or detail label ("A", "B", ...).</summary>
     public string Label { get; set; } = string.Empty;
+
+    /// <summary>For projected views: the side of the parent.</summary>
+    public ViewSide Side { get; set; }
+
+    /// <summary>Crop rectangle in view coordinates (min x, min y, max x, max y); null shows the whole view.</summary>
+    public double[]? Crop { get; set; }
+
+    /// <summary>Break: the band from Break[0] to Break[1] (view coordinates) is left out and the rest closed up.</summary>
+    public double[]? Break { get; set; }
+
+    /// <summary>The break band runs across Y (a vertical part shortened) instead of across X.</summary>
+    public bool BreakAlongY { get; set; }
 }
 
 /// <summary>A bill of materials table on a sheet (assembly drawings).</summary>
@@ -433,6 +460,33 @@ public sealed class DrawingDocument
         view.ParentId = parent.Id;
         view.Name = $"Section {label}-{label}";
         view.Label = label;
+        (view.Ax, view.Ay, view.Bx, view.By) = (a.X, a.Y, b.X, b.Y);
+        return view;
+    }
+
+    /// <summary>A view projected from <paramref name="parent"/> to one side, aligned with it.</summary>
+    public DrawingView AddProjected(Sheet sheet, DrawingView parent, ViewSide side, double x, double y)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(parent);
+        var view = Add(sheet, ViewKind.Projected, x, y);
+        view.ParentId = parent.Id;
+        view.Side = side;
+        view.Scale = parent.Scale;
+        return view;
+    }
+
+    /// <summary>An auxiliary view looking square to the edge from <paramref name="a"/> to <paramref name="b"/> (parent view coordinates).</summary>
+    public DrawingView AddAuxiliary(Sheet sheet, DrawingView parent, Point2 a, Point2 b, double x, double y)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(parent);
+        var label = ((char)('A' + sheet.Views.Count(v => v.Kind is ViewKind.Section or ViewKind.Detail or ViewKind.Auxiliary))).ToString();
+        var view = Add(sheet, ViewKind.Auxiliary, x, y);
+        view.ParentId = parent.Id;
+        view.Name = $"View {label}";
+        view.Label = label;
+        view.Scale = parent.Scale;
         (view.Ax, view.Ay, view.Bx, view.By) = (a.X, a.Y, b.X, b.Y);
         return view;
     }

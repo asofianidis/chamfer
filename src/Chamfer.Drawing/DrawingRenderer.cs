@@ -20,7 +20,20 @@ public sealed class ViewGeometry
     /// <summary>The view-coordinate point placed at the view's sheet position.</summary>
     public required Point2 Center { get; init; }
 
-    public Point2 ToView(Vec3 p) => new(Vec3.Dot(p, XAxis), Vec3.Dot(p, YAxis));
+    /// <summary>Moves view points as a break closes the view up (null when there's no break).</summary>
+    public Func<Point2, Point2>? Map { get; init; }
+
+    /// <summary>Whether a view point is shown (not cropped away or in a break); null shows all.</summary>
+    public Func<Point2, bool>? Shows { get; init; }
+
+    public Point2 ToView(Vec3 p)
+    {
+        var uv = new Point2(Vec3.Dot(p, XAxis), Vec3.Dot(p, YAxis));
+        return Map is null ? uv : Map(uv);
+    }
+
+    /// <summary>Whether a model point falls in the shown part of the view.</summary>
+    public bool IsShown(Vec3 p) => Shows?.Invoke(new Point2(Vec3.Dot(p, XAxis), Vec3.Dot(p, YAxis))) != false;
 
     public Point2 ToSheet(Point2 uv) => new(View.X + ((uv.X - Center.X) * Scale), View.Y + ((uv.Y - Center.Y) * Scale));
 
@@ -76,7 +89,8 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         }
 
         var scale = view.Scale ?? sheet.Scale;
-        var key = $"{view.Id}|{view.Kind}|{view.ParentId}|{view.Ax},{view.Ay},{view.Bx},{view.By},{view.Radius}|{scale}";
+        var key = $"{view.Id}|{view.Kind}|{view.ParentId}|{view.Ax},{view.Ay},{view.Bx},{view.By},{view.Radius}|{scale}|{view.Side}|" +
+            $"{string.Join(',', view.Crop ?? [])}|{string.Join(',', view.Break ?? [])}|{view.BreakAlongY}";
         if (_cache.TryGetValue(key, out var cached))
         {
             // The view's position is read live, so moving a view doesn't need a new projection.
@@ -87,10 +101,192 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         {
             ViewKind.Section => Section(sheet, view, scale),
             ViewKind.Detail => Detail(sheet, view, scale),
+            ViewKind.Projected => Projected(sheet, view, scale),
+            ViewKind.Auxiliary => Auxiliary(sheet, view, scale),
             _ => Standard(view, scale),
         };
+        geometry = CropAndBreak(geometry);
         _cache[key] = geometry;
         return geometry;
+    }
+
+    /// <summary>The orientation of a view projected to one side of a parent with the given axes (third-angle).</summary>
+    public static (Vec3 Toward, Vec3 X) ProjectedAxes(Vec3 toward, Vec3 x, ViewSide side)
+    {
+        var y = Vec3.Cross(toward, x);
+        return side switch
+        {
+            ViewSide.Right => (x, toward * -1),
+            ViewSide.Left => (x * -1, toward),
+            ViewSide.Above => (y, x),
+            _ => (y * -1, x),
+        };
+    }
+
+    private ViewGeometry Projected(Sheet sheet, DrawingView view, double scale)
+    {
+        var parent = sheet.Views.Find(v => v.Id == view.ParentId) ?? throw new InvalidOperationException("The projected view's parent is missing.");
+        var pg = Geometry(sheet, parent);
+        var (toward, x) = ProjectedAxes(pg.Toward, pg.XAxis, view.Side);
+        return Oriented(view, toward, x, scale);
+    }
+
+    private ViewGeometry Auxiliary(Sheet sheet, DrawingView view, double scale)
+    {
+        var parent = sheet.Views.Find(v => v.Id == view.ParentId) ?? throw new InvalidOperationException("The auxiliary view's parent is missing.");
+        var pg = Geometry(sheet, parent);
+        var edge = (pg.XAxis * (view.Bx - view.Ax)) + (pg.YAxis * (view.By - view.Ay));
+        if (edge.LengthSquared < 1e-18)
+        {
+            throw new InvalidOperationException("The auxiliary view's reference edge has no length.");
+        }
+
+        edge = edge.Normalized();
+        return Oriented(view, Vec3.Cross(edge, pg.Toward).Normalized(), edge, scale);
+    }
+
+    private ViewGeometry Oriented(DrawingView view, Vec3 toward, Vec3 x, double scale)
+    {
+        var shape = Compound();
+        var lines = shape is null ? [] : shape.Project(Vec3.Zero, toward, x, 0.005);
+        return new ViewGeometry { View = view, Toward = toward, XAxis = x, Lines = lines, Scale = scale, Center = Middle(lines) };
+    }
+
+    /// <summary>Applies a view's crop rectangle and break, if it has them.</summary>
+    private static ViewGeometry CropAndBreak(ViewGeometry g)
+    {
+        var view = g.View;
+        var lines = g.Lines;
+        var hatch = g.Hatch;
+        Func<Point2, bool>? shows = null;
+        Func<Point2, Point2>? map = null;
+        if (view.Crop is [var x0, var y0, var x1, var y1])
+        {
+            var (min, max) = (new Point2(Math.Min(x0, x1), Math.Min(y0, y1)), new Point2(Math.Max(x0, x1), Math.Max(y0, y1)));
+            lines = [.. lines.SelectMany(l => ClipToBox(l.Points, min, max).Select(r => new ProjectedLine(l.Kind, r)))];
+            hatch = [.. hatch.SelectMany(h => ClipToBox([h.A, h.B], min, max)).Where(r => r.Count == 2).Select(r => (r[0], r[1]))];
+            shows = p => p.X >= min.X && p.X <= max.X && p.Y >= min.Y && p.Y <= max.Y;
+        }
+
+        if (view.Break is [var b0, var b1] && Math.Abs(b1 - b0) > 1e-9)
+        {
+            var (from, to) = (Math.Min(b0, b1), Math.Max(b0, b1));
+            var alongY = view.BreakAlongY;
+            var gap = 4 / g.Scale; // the break shows as a 4 mm gap on the sheet
+            var shift = to - from - gap;
+            double Axis(Point2 p) => alongY ? p.Y : p.X;
+            Point2 Shift(Point2 p) => Axis(p) > to - 1e-9 ? (alongY ? new Point2(p.X, p.Y - shift) : new Point2(p.X - shift, p.Y)) : p;
+            var big = 1e7;
+            var (lowMin, lowMax) = alongY ? (new Point2(-big, -big), new Point2(big, from)) : (new Point2(-big, -big), new Point2(from, big));
+            var (highMin, highMax) = alongY ? (new Point2(-big, to), new Point2(big, big)) : (new Point2(to, -big), new Point2(big, big));
+            IEnumerable<IReadOnlyList<Point2>> Keep(IReadOnlyList<Point2> pts) =>
+                ClipToBox(pts, lowMin, lowMax).Concat(ClipToBox(pts, highMin, highMax).Select(r => (IReadOnlyList<Point2>)[.. r.Select(Shift)]));
+            var extent = lines.SelectMany(l => l.Points).ToList();
+            lines = [.. lines.SelectMany(l => Keep(l.Points).Select(r => new ProjectedLine(l.Kind, r)))];
+            hatch = [.. hatch.SelectMany(h => Keep([h.A, h.B])).Where(r => r.Count == 2).Select(r => (r[0], r[1]))];
+
+            // Zigzag break lines at both edges of the gap, across the part.
+            if (extent.Count > 0)
+            {
+                var lo = alongY ? extent.Min(p => p.X) : extent.Min(p => p.Y);
+                var hi = alongY ? extent.Max(p => p.X) : extent.Max(p => p.Y);
+                var zig = new List<ProjectedLine>(lines);
+                foreach (var at in new[] { from, from + gap })
+                {
+                    var pts = new List<Point2>();
+                    const int Steps = 8;
+                    for (var k = 0; k <= Steps; k++)
+                    {
+                        var across = lo - (2 / g.Scale) + ((hi - lo + (4 / g.Scale)) * k / Steps);
+                        var wobble = (k % 2 == 0 ? -1 : 1) * 1 / g.Scale;
+                        pts.Add(alongY ? new Point2(across, at + wobble) : new Point2(at + wobble, across));
+                    }
+
+                    zig.Add(new ProjectedLine(LineKind.VisibleTangent, pts));
+                }
+
+                lines = zig;
+            }
+
+            var previous = shows;
+            shows = p => (Axis(p) <= from || Axis(p) >= to) && previous?.Invoke(p) != false;
+            map = Shift;
+        }
+
+        return ReferenceEquals(lines, g.Lines)
+            ? g
+            : new ViewGeometry { View = view, Toward = g.Toward, XAxis = g.XAxis, Lines = lines, Hatch = hatch, Scale = g.Scale, Center = Middle(lines), Map = map, Shows = shows };
+    }
+
+    /// <summary>Parts of a polyline inside an axis-aligned box (Liang–Barsky per segment).</summary>
+    public static IEnumerable<IReadOnlyList<Point2>> ClipToBox(IReadOnlyList<Point2> pts, Point2 min, Point2 max)
+    {
+        var run = new List<Point2>();
+        for (var i = 0; i + 1 < pts.Count; i++)
+        {
+            var (p, q) = (pts[i], pts[i + 1]);
+            var d = q - p;
+            double t0 = 0, t1 = 1;
+            var inside = true;
+            foreach (var (pp, qq) in new[] { (-d.X, p.X - min.X), (d.X, max.X - p.X), (-d.Y, p.Y - min.Y), (d.Y, max.Y - p.Y) })
+            {
+                if (Math.Abs(pp) < 1e-15)
+                {
+                    if (qq < 0)
+                    {
+                        inside = false;
+                        break;
+                    }
+
+                    continue;
+                }
+
+                var t = qq / pp;
+                if (pp < 0)
+                {
+                    t0 = Math.Max(t0, t);
+                }
+                else
+                {
+                    t1 = Math.Min(t1, t);
+                }
+            }
+
+            if (!inside || t0 > t1)
+            {
+                if (run.Count > 1)
+                {
+                    yield return run;
+                }
+
+                run = [];
+                continue;
+            }
+
+            var a = p + (d * t0);
+            var b = p + (d * t1);
+            if (run.Count == 0 || Point2.Distance(run[^1], a) > 1e-9)
+            {
+                if (run.Count > 1)
+                {
+                    yield return run;
+                }
+
+                run = [a];
+            }
+
+            run.Add(b);
+            if (t1 < 1)
+            {
+                yield return run;
+                run = [];
+            }
+        }
+
+        if (run.Count > 1)
+        {
+            yield return run;
+        }
     }
 
     private Shape? Compound()
@@ -466,6 +662,22 @@ public sealed class DrawingRenderer(DrawingDocument doc)
                 }
 
                 break;
+            case ViewKind.Auxiliary:
+                g.Text(new Point2(view.X, min.Y - 8), $"VIEW {view.Label}", 4, TextAnchor.Center, owner: view.Id);
+                if (sheet.Views.Find(v => v.Id == view.ParentId) is { } ap)
+                {
+                    // An arrow in the parent showing the viewing direction, square to the edge.
+                    var pg = Geometry(sheet, ap);
+                    var mid = pg.ToSheet(new Point2((view.Ax + view.Bx) / 2, (view.Ay + view.By) / 2));
+                    var look = vg.Toward * -1;
+                    var arrow = new Point2(Vec3.Dot(look, pg.XAxis), Vec3.Dot(look, pg.YAxis)).Normalized();
+                    var tail = mid - (arrow * 18);
+                    g.Line(Pen.Thin, tail, mid - (arrow * 4), ap.Id);
+                    g.Arrow(mid - (arrow * 4), arrow, 3, ap.Id);
+                    g.Text(tail - (arrow * 4) - new Point2(0, 2), view.Label, 5, TextAnchor.Center, owner: ap.Id);
+                }
+
+                break;
             case ViewKind.Detail:
                 g.Text(new Point2(view.X, min.Y - 8), $"DETAIL {view.Label}", 4, TextAnchor.Center, owner: view.Id);
                 g.Text(new Point2(view.X, min.Y - 13), $"SCALE {Scales.Format(scale)}", 3, TextAnchor.Center, owner: view.Id);
@@ -498,6 +710,11 @@ public sealed class DrawingRenderer(DrawingDocument doc)
 
                 var axis = body.Shape.FacesOfEdge(i).Select(f => body.Face(f)).FirstOrDefault(f => f.Surface is SurfaceKind.Cylinder or SurfaceKind.Cone)?.AxisDirection;
                 if (axis is not { } ax || Math.Abs(Math.Abs(Vec3.Dot(ax.Normalized(), vg.Toward)) - 1) > 1e-6)
+                {
+                    continue;
+                }
+
+                if (!vg.IsShown(e.CenterOrDirection))
                 {
                     continue;
                 }
