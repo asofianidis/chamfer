@@ -471,7 +471,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Performance budgets: rebuild time, open time, frame time on reference assemblies *(budgets for a 2000-component frame and a 100-hole pattern rebuild)*
 - [~] Large-model test suite (10k+ components) *(2000 instanced components build, cull and render under budget)*
 - [x] Fuzzing for file importers *(mutated part, sketch, assembly, drawing and DXF files must load or be rejected cleanly)*
-- [ ] Signed releases, notarization, reproducible builds
+- [~] Signed releases, notarization, reproducible builds *(tag-triggered release packages with SHA-256 checksums, signing and notarisation when certificates are configured, deterministic CI builds)*
 
 ---
 
