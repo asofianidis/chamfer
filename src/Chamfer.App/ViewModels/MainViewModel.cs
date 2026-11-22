@@ -17,8 +17,10 @@ using CommunityToolkit.Mvvm.Input;
 namespace Chamfer.App.ViewModels;
 
 /// <summary>A button in the command bar.</summary>
-public sealed class CommandItem(string label, string tooltip, IRelayCommand command, string glyph = "")
+public sealed class CommandItem(string label, string tooltip, IRelayCommand command, string glyph = "", string tab = "Features")
 {
+    public string Tab { get; } = tab;
+
     public string Label { get; } = label;
     public string Tooltip { get; } = tooltip;
     public IRelayCommand Command { get; } = command;
@@ -37,6 +39,8 @@ public sealed partial class MainViewModel : ViewModelBase
     private static readonly FilePickerFileType StepFileType = new("STEP") { Patterns = ["*.step", "*.stp"] };
     private static readonly FilePickerFileType IgesFileType = new("IGES") { Patterns = ["*.iges", "*.igs"] };
     private static readonly FilePickerFileType StlFileType = new("STL") { Patterns = ["*.stl"] };
+    private static readonly FilePickerFileType ThreeMfFileType = new("3MF") { Patterns = ["*.3mf"] };
+    private static readonly FilePickerFileType ObjFileType = new("OBJ") { Patterns = ["*.obj"] };
     private static readonly FilePickerFileType CsvFileType = new("Design table (CSV)") { Patterns = ["*.csv"] };
 
     private readonly Stack<string> _undo = new();
@@ -69,7 +73,23 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Circular Pattern", "Repeat features around an axis", new RelayCommand(() => StartFeature(new CircularPatternFeature { Count = 6 })), "⟳"),
             new("Mirror", "Mirror features about a plane", new RelayCommand(() => StartFeature(new MirrorFeature())), "⇋"),
             new("Plane", "Reference plane", new RelayCommand(() => StartFeature(new ReferencePlaneFeature { Base = SelectedPlane() ?? PlaneRef.Front })), "▱"),
+
+            new("Extruded Surface", "Extrude sketch curves into a surface", new RelayCommand(() => StartSketchFeature(sf => new SurfaceExtrudeFeature { SketchId = sf.Id })), "▤", "Surfaces"),
+            new("Revolved Surface", "Revolve sketch curves about a centerline", new RelayCommand(() => StartSketchFeature(sf => new SurfaceRevolveFeature { SketchId = sf.Id })), "◐", "Surfaces"),
+            new("Planar Surface", "Flat surface from closed sketch regions", new RelayCommand(() => StartSketchFeature(sf => new PlanarSurfaceFeature { SketchId = sf.Id })), "▭", "Surfaces"),
+            new("Filled Surface", "Smooth patch inside a closed sketch boundary", new RelayCommand(() => StartSketchFeature(sf => new FilledSurfaceFeature { SketchId = sf.Id })), "◍", "Surfaces"),
+            new("Swept Surface", "Sweep a profile sketch's curves along a path", new RelayCommand(() => StartFeature(NewSweep(cut: false, surface: true))), "⤳", "Surfaces"),
+            new("Offset Surface", "Copy faces offset along their normals", new RelayCommand(() => StartFeature(new OffsetSurfaceFeature { Distance = 2 })), "⧈", "Surfaces"),
+            new("Knit", "Sew surfaces together (closed ones become solids)", new RelayCommand(() => StartFeature(new KnitFeature { Bodies = SelectedBodyNames() })), "⨝", "Surfaces"),
+            new("Thicken", "Give a surface thickness", new RelayCommand(() => StartFeature(new ThickenFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Thickness = 1 })), "▥", "Surfaces"),
+
+            new("Combine", "Add, subtract or intersect bodies", new RelayCommand(StartCombine), "⊕", "Bodies"),
+            new("Split", "Cut bodies in two with a plane", new RelayCommand(() => StartFeature(new SplitBodyFeature { Plane = SelectedPlane() ?? PlaneRef.Right })), "⫽", "Bodies"),
+            new("Move/Copy Body", "Move, rotate or copy bodies", new RelayCommand(() => StartFeature(new MoveCopyBodyFeature { Bodies = SelectedBodyNames() })), "✥", "Bodies"),
+            new("Delete/Keep Body", "Remove bodies, or keep only some", new RelayCommand(() => StartFeature(new DeleteBodyFeature { Bodies = SelectedBodyNames() })), "✕", "Bodies"),
+            new("Appearance", "Colour bodies", new RelayCommand(() => StartFeature(new AppearanceFeature { Bodies = SelectedBodyNames() })), "◆", "Bodies"),
         ];
+        VisibleFeatureCommands = [.. FeatureCommands.Where(c => c.Tab == "Features")];
         RebuildAndRefresh();
     }
 
@@ -116,6 +136,33 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     public IReadOnlyList<CommandItem> FeatureCommands { get; }
+
+    public IReadOnlyList<string> CommandTabs { get; } = ["Features", "Surfaces", "Bodies"];
+
+    [ObservableProperty]
+    public partial string CommandTab { get; set; } = "Features";
+
+    [ObservableProperty]
+    public partial IReadOnlyList<CommandItem> VisibleFeatureCommands { get; set; }
+
+    partial void OnCommandTabChanged(string value) => VisibleFeatureCommands = [.. FeatureCommands.Where(c => c.Tab == value)];
+
+    [RelayCommand]
+    private void SelectTab(string tab) => CommandTab = tab;
+
+    /// <summary>Names of the bodies owning the selected faces and edges.</summary>
+    private List<string> SelectedBodyNames() =>
+        [.. Selection.Where(s => s.Ref is not null).Select(s => Document.Bodies.FirstOrDefault(b => b.HasFace(s.Ref!.Name) || b.HasEdge(s.Ref!.Name))?.Name).OfType<string>().Distinct()];
+
+    private void StartCombine()
+    {
+        var bodies = SelectedBodyNames();
+        StartFeature(new CombineFeature
+        {
+            MainBody = bodies.Count > 0 ? bodies[0] : Document.Bodies.Count > 0 ? Document.Bodies[0].Name : string.Empty,
+            ToolBodies = [.. bodies.Skip(1)],
+        });
+    }
 
     public List<SelectionItem> Selection { get; } = [];
 
@@ -556,11 +603,35 @@ public sealed partial class MainViewModel : ViewModelBase
         CancelEditor();
         _editorSnapshot = Document.Save();
         Document.Add(feature);
+        RollBackFor(feature);
         Editor = FeatureEditor.Create(Document, feature, isNew: true, Selection, RebuildAndRefresh);
         Editor.ActiveSelectionChanged += (_, _) => LoadActiveField();
         LoadActiveField();
         HintText = Editor.ActiveSelection?.Prompt ?? "Set the parameters, then click OK.";
         RebuildAndRefresh();
+    }
+
+    private int? _rollbackBeforeEdit;
+    private bool _rolledBackForEdit;
+
+    /// <summary>For features that consume bodies, shows the model as it was before them while editing.</summary>
+    private void RollBackFor(Feature feature)
+    {
+        _rolledBackForEdit = FeatureEditor.EditRolledBack(feature);
+        if (_rolledBackForEdit)
+        {
+            _rollbackBeforeEdit = Document.RollbackIndex;
+            Document.RollbackIndex = Document.Features.IndexOf(feature);
+        }
+    }
+
+    private void RestoreRollback()
+    {
+        if (_rolledBackForEdit)
+        {
+            Document.RollbackIndex = _rollbackBeforeEdit;
+            _rolledBackForEdit = false;
+        }
     }
 
     /// <summary>Makes the viewport selection show what the active selection field holds.</summary>
@@ -591,6 +662,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
         CancelEditor();
         _editorSnapshot = Document.Save();
+        RollBackFor(feature);
         Editor = FeatureEditor.Create(Document, feature, isNew: false, Selection, RebuildAndRefresh);
         Editor.ActiveSelectionChanged += (_, _) => LoadActiveField();
         LoadActiveField();
@@ -624,12 +696,13 @@ public sealed partial class MainViewModel : ViewModelBase
     private List<SketchFeature> SelectedSketches() =>
         [.. Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => Document.Find(s.FeatureId!)).OfType<SketchFeature>()];
 
-    private SweepFeature NewSweep(bool cut)
+    private SweepFeature NewSweep(bool cut, bool surface = false)
     {
         var sketches = SelectedSketches();
         return new SweepFeature
         {
             IsCut = cut,
+            IsSurface = surface,
             ProfileSketchId = sketches.Count > 0 ? sketches[0].Id : string.Empty,
             PathSketchId = sketches.Count > 1 ? sketches[1].Id : string.Empty,
         };
@@ -671,6 +744,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
 
         Editor.OnAccept?.Invoke();
+        RestoreRollback();
         if (Editor.IsFeature && _editorSnapshot is not null)
         {
             _undo.Push(_editorSnapshot);
@@ -696,6 +770,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
         var feature = Editor.Feature;
         var onCancel = Editor.OnCancel;
+        RestoreRollback();
         Editor = null;
         _measuring = false;
         onCancel?.Invoke();
@@ -1576,7 +1651,7 @@ public sealed partial class MainViewModel : ViewModelBase
             Title = "Export",
             DefaultExtension = "step",
             SuggestedFileName = FilePath is null ? "Part1" : Path.GetFileNameWithoutExtension(FilePath),
-            FileTypeChoices = [StepFileType, IgesFileType, StlFileType],
+            FileTypeChoices = [StepFileType, IgesFileType, StlFileType, ThreeMfFileType, ObjFileType],
         });
         if (file?.TryGetLocalPath() is not { } path)
         {

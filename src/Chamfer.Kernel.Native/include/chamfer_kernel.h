@@ -186,6 +186,10 @@ CHF_API chf_op* chf_loft(int count, chf_shape* const* sections, int solid, int r
 CHF_API chf_op* chf_rib(chf_shape* base, chf_shape* wire, const double* plane6, double thickness1, double thickness2);
 /* Offset a face/shell into a solid of given thickness. */
 CHF_API chf_op* chf_thicken(chf_shape* s, double thickness);
+/* Offsets a face, shell or solid's surfaces by a distance (positive = along the normals). */
+CHF_API chf_op* chf_offset_shape(chf_shape* s, double offset);
+/* A smooth patch filling a closed wire (n-sided boundary surface). */
+CHF_API chf_shape* chf_fill(chf_shape* wire);
 /* Sew faces/shells into a shell or solid. */
 CHF_API chf_op* chf_sew(int count, chf_shape* const* shapes, double tolerance);
 /* Split a shape by a tool shape (e.g. a plane face). */

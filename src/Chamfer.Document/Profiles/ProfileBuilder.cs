@@ -304,76 +304,89 @@ public static class ProfileBuilder
     /// </summary>
     public static (IReadOnlyList<LoopSegment> Segments, bool Closed)? Chain(Sketch sketch)
     {
+        var chains = Chains(sketch);
+        return chains is [var only] ? only : null;
+    }
+
+    /// <summary>
+    /// All of a sketch's curves grouped into ordered chains (open or closed),
+    /// for surfaces. Returns null if a chain branches.
+    /// </summary>
+    public static IReadOnlyList<(IReadOnlyList<LoopSegment> Segments, bool Closed)>? Chains(Sketch sketch)
+    {
         ArgumentNullException.ThrowIfNull(sketch);
         var curves = sketch.Entities.Where(e => !e.IsConstruction && e is SketchLine or SketchArc or SketchCircle).ToList();
-        if (curves.Count == 1 && curves[0] is SketchCircle c)
+        var result = new List<(IReadOnlyList<LoopSegment>, bool)>();
+        foreach (var c in curves.OfType<SketchCircle>())
         {
-            return ([new LoopSegment(c.Id, EntityKind.Circle, c.Center.Position, c.Center.Position, c.Center.Position, c.Radius, true, false)], true);
-        }
-
-        if (curves.Count == 0 || curves.Any(e => e is SketchCircle))
-        {
-            return null;
+            result.Add(([new LoopSegment(c.Id, EntityKind.Circle, c.Center.Position, c.Center.Position, c.Center.Position, c.Radius, true, false)], true));
         }
 
         const double tol = 1e-6;
-        var left = curves.Select(e => ToSegment(e, false)).ToList();
-        var chain = new List<LoopSegment> { left[0] };
-        left.RemoveAt(0);
+        var left = curves.Where(e => e is not SketchCircle).Select(e => ToSegment(e, false)).ToList();
         bool Near(Vec2 a, Vec2 b) => Vec2.Distance(a, b) < tol;
-        for (var grew = true; grew && left.Count > 0;)
+        while (left.Count > 0)
         {
-            grew = false;
-            for (var i = 0; i < left.Count; i++)
+            var chain = new List<LoopSegment> { left[0] };
+            left.RemoveAt(0);
+            for (var grew = true; grew && left.Count > 0;)
             {
-                var s = left[i];
-                LoopSegment? add = null;
-                var atEnd = true;
-                if (Near(s.Start, chain[^1].End))
+                grew = false;
+                for (var i = 0; i < left.Count; i++)
                 {
-                    add = s;
-                }
-                else if (Near(s.End, chain[^1].End))
-                {
-                    add = Flip(s);
-                }
-                else if (Near(s.End, chain[0].Start))
-                {
-                    add = s;
-                    atEnd = false;
-                }
-                else if (Near(s.Start, chain[0].Start))
-                {
-                    add = Flip(s);
-                    atEnd = false;
-                }
+                    var s = left[i];
+                    LoopSegment? add = null;
+                    var atEnd = true;
+                    if (Near(s.Start, chain[^1].End))
+                    {
+                        add = s;
+                    }
+                    else if (Near(s.End, chain[^1].End))
+                    {
+                        add = Flip(s);
+                    }
+                    else if (Near(s.End, chain[0].Start))
+                    {
+                        add = s;
+                        atEnd = false;
+                    }
+                    else if (Near(s.Start, chain[0].Start))
+                    {
+                        add = Flip(s);
+                        atEnd = false;
+                    }
 
-                if (add is null)
-                {
-                    continue;
-                }
+                    if (add is null)
+                    {
+                        continue;
+                    }
 
-                if (atEnd)
-                {
-                    chain.Add(add);
-                }
-                else
-                {
-                    chain.Insert(0, add);
-                }
+                    if (atEnd)
+                    {
+                        chain.Add(add);
+                    }
+                    else
+                    {
+                        chain.Insert(0, add);
+                    }
 
-                left.RemoveAt(i);
-                grew = true;
-                break;
+                    left.RemoveAt(i);
+                    grew = true;
+                    break;
+                }
             }
+
+            // A remaining segment touching this chain means a branch.
+            var ends = chain.SelectMany(x => new[] { x.Start, x.End }).ToList();
+            if (left.Any(s => ends.Any(e => Near(e, s.Start) || Near(e, s.End))))
+            {
+                return null;
+            }
+
+            result.Add((chain, chain.Count > 1 && Near(chain[^1].End, chain[0].Start)));
         }
 
-        if (left.Count > 0)
-        {
-            return null;
-        }
-
-        return (chain, chain.Count > 1 && Near(chain[^1].End, chain[0].Start));
+        return result;
     }
 
     /// <summary>The same chain traversed the other way.</summary>

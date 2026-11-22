@@ -56,7 +56,8 @@ public sealed class PartScene : IPickSource
 
         foreach (var body in doc.Bodies)
         {
-            var item = new MeshItem { Mesh = body.Mesh, Color = palette.Body, EdgeColor = palette.Edge };
+            var baseColor = body.Color is { } c ? Rgba.FromHex(c) : palette.Body;
+            var item = new MeshItem { Mesh = body.Mesh, Color = baseColor, EdgeColor = palette.Edge };
             item.FacePickBase = _targets.Count + 1;
             for (var f = 1; f <= body.FaceCount; f++)
             {
@@ -79,7 +80,7 @@ public sealed class PartScene : IPickSource
                 var color = IsSelected(s) ? palette.Selected : palette.Hover;
                 if (s.Kind == SelectionKind.Face && body.HasFace(s.Ref.Name))
                 {
-                    item.FaceColors[body.ResolveFace(s.Ref, out _)] = Rgba.Lerp(palette.Body, color, 0.75);
+                    item.FaceColors[body.ResolveFace(s.Ref, out _)] = Rgba.Lerp(baseColor, color, 0.75);
                 }
                 else if (s.Kind == SelectionKind.Edge && body.HasEdge(s.Ref.Name))
                 {

@@ -23,8 +23,9 @@ public sealed class Body
     private FaceInfo?[]? _faces;
     private EdgeInfo?[]? _edges;
 
-    public Body(Shape shape, string[] faceNames, string? name = null)
+    public Body(Shape shape, string[] faceNames, string? name = null, uint? color = null)
     {
+        Color = color;
         ArgumentNullException.ThrowIfNull(shape);
         ArgumentNullException.ThrowIfNull(faceNames);
         Shape = shape;
@@ -36,6 +37,15 @@ public sealed class Body
     }
 
     public Shape Shape { get; }
+
+    /// <summary>Display colour as 0xRRGGBB, or null for the default.</summary>
+    public uint? Color { get; }
+
+    /// <summary>True for surface bodies (no enclosed volume).</summary>
+    public bool IsSurface => Shape.SolidCount == 0;
+
+    /// <summary>The same body with another colour.</summary>
+    public Body WithColor(uint? color) => new(Shape, FaceNames, Name, color);
 
     /// <summary>Name of face i+1.</summary>
     public string[] FaceNames { get; }

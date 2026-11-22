@@ -52,6 +52,18 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(SweepFeature), "sweep")]
 [JsonDerivedType(typeof(LoftFeature), "loft")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
+[JsonDerivedType(typeof(CombineFeature), "combine")]
+[JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]
+[JsonDerivedType(typeof(DeleteBodyFeature), "deleteBody")]
+[JsonDerivedType(typeof(MoveCopyBodyFeature), "moveBody")]
+[JsonDerivedType(typeof(AppearanceFeature), "appearance")]
+[JsonDerivedType(typeof(SurfaceExtrudeFeature), "surfaceExtrude")]
+[JsonDerivedType(typeof(SurfaceRevolveFeature), "surfaceRevolve")]
+[JsonDerivedType(typeof(PlanarSurfaceFeature), "planarSurface")]
+[JsonDerivedType(typeof(FilledSurfaceFeature), "fillSurface")]
+[JsonDerivedType(typeof(OffsetSurfaceFeature), "offsetSurface")]
+[JsonDerivedType(typeof(KnitFeature), "knit")]
+[JsonDerivedType(typeof(ThickenFeature), "thicken")]
 public abstract class Feature
 {
     /// <summary>Stable identifier used by references and persistent names. Never shown to users.</summary>

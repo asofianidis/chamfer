@@ -208,6 +208,79 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Flip side", rib.FlipSide, v => Set(() => rib.FlipSide = v)));
                 break;
 
+            case SurfaceExtrudeFeature se:
+                ed.Add(Num("Depth", "mm", se, nameof(se.Depth), 1e-6));
+                ed.Add(new BoolField("Mid plane", se.MidPlane, v => Set(() => se.MidPlane = v)));
+                ed.Add(new BoolField("Reverse direction", se.Reverse, v => Set(() => se.Reverse = v)));
+                break;
+
+            case SurfaceRevolveFeature sr:
+                ed.Add(Num("Angle", "°", sr, nameof(sr.Angle), 1e-3));
+                ed.Add(new InfoField("Axis", "The sketch's first centerline is the axis."));
+                break;
+
+            case PlanarSurfaceFeature or FilledSurfaceFeature:
+                ed.Add(new InfoField("Boundary", "The sketch's closed curves bound the surface."));
+                break;
+
+            case OffsetSurfaceFeature os:
+                ed.Add(Num("Distance", "mm", os, nameof(os.Distance)));
+                ed.Add(new SelectionField("Faces", Faces, isNew ? Pre(Faces) : Refs(os.Faces, SelectionKind.Face),
+                    items => Set(() => os.Faces = [.. items.Select(i => i.Ref!)])));
+                if (isNew)
+                {
+                    os.Faces = [.. Pre(Faces).Select(i => i.Ref!)];
+                }
+
+                break;
+
+            case KnitFeature kn:
+                ed.Add(BodyField(doc, feature, "Surfaces to knit", kn.Bodies, names => Set(() => kn.Bodies = names)));
+                ed.Add(Num("Gap tolerance", "mm", kn, nameof(kn.Tolerance), 1e-6));
+                break;
+
+            case ThickenFeature th:
+                ed.Add(BodyField(doc, feature, "Surface", th.Body.Length > 0 ? [th.Body] : [], names => Set(() => th.Body = names.FirstOrDefault() ?? string.Empty), 1));
+                ed.Add(Num("Thickness", "mm", th, nameof(th.Thickness), 1e-6));
+                ed.Add(new BoolField("Reverse side", th.Reverse, v => Set(() => th.Reverse = v)));
+                ed.Add(new BoolField("Merge result", th.Merge, v => Set(() => th.Merge = v)));
+                break;
+
+            case CombineFeature co:
+                ed.Add(new ChoiceField("Operation", ["Add", "Subtract", "Common"], (int)co.Operation, i => Set(() => co.Operation = (CombineOperation)i)));
+                ed.Add(BodyField(doc, feature, "Main body", co.MainBody.Length > 0 ? [co.MainBody] : [], names => Set(() => co.MainBody = names.FirstOrDefault() ?? string.Empty), 1));
+                ed.Add(BodyField(doc, feature, "Bodies to combine", co.ToolBodies, names => Set(() => co.ToolBodies = names)));
+                break;
+
+            case SplitBodyFeature sp:
+                ed.Add(new SelectionField("Splitting plane", Planes, [PlaneItem(doc, sp.Plane)], items => Set(() => sp.Plane = Last(items)?.AsPlane() ?? PlaneRef.Right), max: 1));
+                ed.Add(BodyField(doc, feature, "Bodies (empty = all)", sp.Bodies, names => Set(() => sp.Bodies = names)));
+                break;
+
+            case MoveCopyBodyFeature mv:
+                ed.Add(BodyField(doc, feature, "Bodies", mv.Bodies, names => Set(() => mv.Bodies = names)));
+                ed.Add(Num("Move X", "mm", mv, nameof(mv.Dx)));
+                ed.Add(Num("Move Y", "mm", mv, nameof(mv.Dy)));
+                ed.Add(Num("Move Z", "mm", mv, nameof(mv.Dz)));
+                ed.Add(Num("Rotate X", "°", mv, nameof(mv.Rx)));
+                ed.Add(Num("Rotate Y", "°", mv, nameof(mv.Ry)));
+                ed.Add(Num("Rotate Z", "°", mv, nameof(mv.Rz)));
+                ed.Add(new BoolField("Copy", mv.Copy, v => Set(() => mv.Copy = v)));
+                ed.Add(Num("Copies", string.Empty, mv, nameof(mv.Copies), 1, wholeNumber: true));
+                break;
+
+            case DeleteBodyFeature db:
+                ed.Add(BodyField(doc, feature, "Bodies", db.Bodies, names => Set(() => db.Bodies = names)));
+                ed.Add(new BoolField("Keep these, delete the rest", db.Keep, v => Set(() => db.Keep = v)));
+                break;
+
+            case AppearanceFeature ap:
+                ed.Add(BodyField(doc, feature, "Bodies (empty = all)", ap.Bodies, names => Set(() => ap.Bodies = names)));
+                var swatches = Swatches.Select(x => x.Name).ToList();
+                var current = Swatches.FindIndex(x => x.Color == ap.Color);
+                ed.Add(new ChoiceField("Colour", swatches, Math.Max(0, current), i => Set(() => ap.Color = Swatches[i].Color)));
+                break;
+
             case FilletFeature fil:
                 ed.Add(Num("Radius", "mm", fil, nameof(fil.Radius), 1e-6));
                 ed.Add(new SelectionField("Edges and faces", Edges,
@@ -330,6 +403,31 @@ public sealed partial class FeatureEditor : ObservableObject
 
         return ed;
     }
+
+    /// <summary>Named colours offered by Appearance.</summary>
+    public static readonly List<(string Name, uint Color)> Swatches =
+    [
+        ("Blue", 0x3B82F6), ("Red", 0xDC2626), ("Orange", 0xF97316), ("Yellow", 0xEAB308), ("Green", 0x16A34A),
+        ("Teal", 0x0D9488), ("Purple", 0x9333EA), ("Pink", 0xDB2777), ("Steel", 0x94A3B8), ("Graphite", 0x334155),
+        ("Brass", 0xC8A85A), ("Copper", 0xB87333), ("White", 0xF1F5F9), ("Black", 0x1E1E1E),
+    ];
+
+    /// <summary>
+    /// A field that picks whole bodies: click any face of a body. Shown as the body's name.
+    /// Bodies are looked up in the state just before the feature, so ones the feature consumes still count.
+    /// </summary>
+    private static SelectionField BodyField(PartDocument doc, Feature feature, string label, IReadOnlyList<string> initial, Action<List<string>> apply, int max = int.MaxValue)
+    {
+        var bodies = doc.StateBefore(feature).Bodies;
+        IEnumerable<SelectionItem> items = initial.Select(n => bodies.FirstOrDefault(b => b.Name == n)).OfType<Body>()
+            .Select(b => new SelectionItem(SelectionKind.Face, b.FaceRef(1), Label: b.Name));
+        return new SelectionField(label, Faces, items, selected => apply([.. selected
+            .Select(s => bodies.FirstOrDefault(b => s.Ref is { } r && (b.HasFace(r.Name) || b.HasEdge(r.Name)))?.Name)
+            .OfType<string>().Distinct()]), max);
+    }
+
+    /// <summary>Features that consume bodies are edited with the model rolled back to just before them.</summary>
+    public static bool EditRolledBack(Feature f) => f is CombineFeature or KnitFeature or ThickenFeature or DeleteBodyFeature;
 
     private static IEnumerable<SelectionItem> SketchItems(PartDocument doc, IEnumerable<string> ids) =>
         ids.Select(doc.Find).OfType<SketchFeature>().Select(SelectionItem.ForFeature);

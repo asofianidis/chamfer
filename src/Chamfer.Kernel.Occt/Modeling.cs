@@ -213,6 +213,20 @@ public static unsafe class Modeling
         return new Operation(Native.chf_thicken(s.Handle, thickness), "thicken");
     }
 
+    /// <summary>Offsets surfaces by a distance along their normals.</summary>
+    public static Operation OffsetShape(Shape s, double offset)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        return new Operation(Native.chf_offset_shape(s.Handle, offset), "offset surface");
+    }
+
+    /// <summary>A smooth surface patch bounded by a closed wire.</summary>
+    public static Shape Fill(Shape wire)
+    {
+        ArgumentNullException.ThrowIfNull(wire);
+        return Shape.Wrap(Native.chf_fill(wire.Handle), "fill");
+    }
+
     public static Operation Sew(IReadOnlyList<Shape> shapes, double tolerance = 1e-4)
     {
         ArgumentNullException.ThrowIfNull(shapes);
