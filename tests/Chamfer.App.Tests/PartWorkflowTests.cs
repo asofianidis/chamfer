@@ -793,7 +793,7 @@ public class PartWorkflowTests
             vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
             vm.AcceptEditorCommand.Execute(null);
             vm.ShowDesignLibraryCommand.Execute(null);
-            var add = vm.Editor!.Fields.OfType<TextField>().Single();
+            var add = vm.Editor!.Fields.OfType<TextField>().Single(f => f.Label == "Add this part to the library as");
             add.Text = "Spacer";
             add.Commit();
             Assert.Single(vm.LibraryParts());
