@@ -252,4 +252,52 @@ public class DrawingTests
         Assert.Contains("2", texts); // washer quantity
         Assert.Contains("MATERIAL: See BOM", texts);
     }
+
+    [Fact]
+    public void GeometricTolerancesDatumsAndFinishes()
+    {
+        var (part, _) = Part();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        drawing.AddStandardViews(sheet);
+        var t = new GeometricTolerance
+        {
+            Id = drawing.NextId("gdt"), Characteristic = GeometricCharacteristic.Position, Tolerance = "0.05", Diameter = true,
+            Condition = MaterialCondition.Maximum, Datums = ["A", "B"], X = 100, Y = 200, LeaderX = 90, LeaderY = 180,
+        };
+        sheet.Tolerances.Add(t);
+        sheet.Datums.Add(new DatumFeature { Id = drawing.NextId("datum"), Label = "A", X = 60, Y = 150, AnchorX = 60, AnchorY = 165 });
+        sheet.Finishes.Add(new SurfaceFinish { Id = drawing.NextId("sf"), Roughness = "Ra 1.6", X = 150, Y = 180 });
+
+        // Frame: symbol cell, tolerance cell, one cell per datum.
+        var (cells, width) = AnnotationGraphics.Layout(t);
+        Assert.Equal(5, cells.Length);
+        Assert.True(width > 4 * AnnotationGraphics.FrameHeight);
+        Assert.Equal("Position | Ø0.05 (M) | A | B", AnnotationGraphics.Describe(t));
+
+        var g = new DrawingRenderer(drawing).Render(sheet);
+        foreach (var id in new[] { t.Id, sheet.Datums[0].Id, sheet.Finishes[0].Id })
+        {
+            Assert.Contains(g.Owners.Values, o => o == id);
+        }
+
+        Assert.Contains(g.Items.OfType<TextPrimitive>(), x => x.Text == "0.05");
+        Assert.Contains(g.Items.OfType<TextPrimitive>(), x => x.Text == "Ra 1.6");
+        Assert.Contains("0.05", Exporters.Svg(g), StringComparison.Ordinal);
+
+        // Every characteristic draws something.
+        foreach (var kind in Enum.GetValues<GeometricCharacteristic>())
+        {
+            var sg = new SheetGraphics(100, 100);
+            AnnotationGraphics.Symbol(sg, kind, new Point2(50, 50), 4);
+            Assert.NotEmpty(sg.Items);
+        }
+
+        var loaded = DrawingDocument.Load(drawing.Save());
+        var lt = Assert.Single(loaded.Sheets[0].Tolerances);
+        Assert.Equal(["A", "B"], lt.Datums);
+        Assert.Equal(MaterialCondition.Maximum, lt.Condition);
+        Assert.Equal("A", Assert.Single(loaded.Sheets[0].Datums).Label);
+        Assert.Equal("Ra 1.6", Assert.Single(loaded.Sheets[0].Finishes).Roughness);
+    }
 }

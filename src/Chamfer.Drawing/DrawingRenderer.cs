@@ -373,6 +373,21 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             BomAndBalloons(g, sheet);
         }
 
+        foreach (var t in sheet.Tolerances)
+        {
+            AnnotationGraphics.Draw(g, t);
+        }
+
+        foreach (var d in sheet.Datums)
+        {
+            AnnotationGraphics.Draw(g, d);
+        }
+
+        foreach (var f in sheet.Finishes)
+        {
+            AnnotationGraphics.Draw(g, f);
+        }
+
         foreach (var n in sheet.Notes)
         {
             var lines = n.Text.Split('\n');
