@@ -351,3 +351,83 @@ public sealed class SlotTool : ClickTool
         RelateClicks(points, [clicks[0], clicks[1]]);
     }
 }
+
+/// <summary>Spline: click points along the curve; double-click (or Enter) to finish.</summary>
+public sealed class SplineTool : SketchTool
+{
+    private readonly List<Vec2> _points = [];
+    private Vec2 _cursor;
+
+    public override string Id => "spline";
+
+    public override string Hint => _points.Count == 0 ? "Click the first point." : "Click more points; double-click to finish.";
+
+    public override IEnumerable<PreviewItem> Preview
+    {
+        get
+        {
+            if (_points.Count == 0)
+            {
+                return [];
+            }
+
+            var pts = Chamfer.Sketching.Entities.SketchSpline.BezierPieces([.. _points, _cursor])
+                .SelectMany(b => Enumerable.Range(0, 12).Select(k => Chamfer.Sketching.Entities.SketchSpline.Bezier(b, k / 12.0)))
+                .Append(_cursor).ToList();
+            return pts.Count < 2 ? [] : [.. pts.Zip(pts.Skip(1), (a, b) => (PreviewItem)new PreviewLine(a, b))];
+        }
+    }
+
+    public override void Reset() => _points.Clear();
+
+    public override void PointerMove(ToolPointer p)
+    {
+        _cursor = p.Snap.Position;
+        Editor.Hover = p.Snap.Target;
+        Editor.Invalidate();
+    }
+
+    public override void PointerDown(ToolPointer p)
+    {
+        PointerMove(p);
+        if (p.ClickCount >= 2)
+        {
+            Finish();
+            return;
+        }
+
+        if (_points.Count == 0 || Vec2.Distance(_points[^1], _cursor) > 1e-9)
+        {
+            _points.Add(_cursor);
+        }
+
+        Editor.Invalidate();
+    }
+
+    public override bool Cancel()
+    {
+        // Escape finishes a spline that has enough points, otherwise drops it.
+        var busy = _points.Count > 0;
+        if (_points.Count >= 2)
+        {
+            Finish();
+        }
+
+        Reset();
+        Editor.Invalidate();
+        return busy;
+    }
+
+    public override void Finish()
+    {
+        if (_points.Count >= 2)
+        {
+            Editor.BeginChange();
+            Editor.Sketch.AddSpline([.. _points]);
+            Editor.EndChange(solve: true);
+        }
+
+        Reset();
+        Editor.Invalidate();
+    }
+}

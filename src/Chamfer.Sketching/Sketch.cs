@@ -87,6 +87,9 @@ public sealed class Sketch
     public SketchCircle AddCircle(Vec2 center, double radius, bool construction = false) =>
         Add(new SketchCircle(center, radius) { IsConstruction = construction });
 
+    public SketchSpline AddSpline(IEnumerable<Vec2> through, bool construction = false) =>
+        Add(new SketchSpline(through) { IsConstruction = construction });
+
     public SketchEllipse AddEllipse(Vec2 center, Vec2 majorEnd, double minorRadius, bool construction = false) =>
         Add(new SketchEllipse(center, majorEnd, minorRadius) { IsConstruction = construction });
 

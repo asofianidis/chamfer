@@ -16,7 +16,7 @@ internal static class Surfaces
             throw new FeatureException("The sketch has no curves.");
         }
 
-        return [.. chains.Select(c => Modeling.Wire(sketch.Plane, [.. c.Segments.Select(ProfileShapes.ToKernel)]))];
+        return [.. chains.Select(c => Modeling.Wire(sketch.Plane, [.. c.Segments.SelectMany(ProfileShapes.ToKernelAll)]))];
     }
 
     /// <summary>Adds a new surface body with positional face names.</summary>

@@ -96,14 +96,21 @@ public enum SegmentKind
     Arc = 1,
     Circle = 2,
     Ellipse = 3,
+
+    /// <summary>Cubic Bézier: four control points.</summary>
+    Bezier = 4,
 }
 
 /// <summary>
 /// One segment of a planar profile in plane coordinates. The meaning of the
 /// eight values depends on <see cref="Kind"/>; use the factory methods.
 /// </summary>
-public readonly record struct ProfileSegment(SegmentKind Kind, double A, double B, double C, double D, double E, double F, double G)
+public readonly record struct ProfileSegment(SegmentKind Kind, double A, double B, double C, double D, double E, double F, double G, double H = 0)
 {
+    /// <summary>A cubic Bézier piece from (x0, y0) to (x3, y3) with control points (x1, y1) and (x2, y2).</summary>
+    public static ProfileSegment Bezier(double x0, double y0, double x1, double y1, double x2, double y2, double x3, double y3) =>
+        new(SegmentKind.Bezier, x0, y0, x1, y1, x2, y2, x3, y3);
+
     public static ProfileSegment Line(double x0, double y0, double x1, double y1) =>
         new(SegmentKind.Line, x0, y0, x1, y1, 0, 0, 0);
 

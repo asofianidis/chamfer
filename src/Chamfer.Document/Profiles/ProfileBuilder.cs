@@ -7,7 +7,7 @@ namespace Chamfer.Document.Profiles;
 /// <param name="EntityId">The sketch entity this segment came from.</param>
 /// <param name="Reversed">True when the loop runs against the entity's own direction.</param>
 public sealed record LoopSegment(int EntityId, EntityKind Kind, Vec2 Start, Vec2 End, Vec2 Center, double Radius, bool Ccw, bool Reversed,
-    double Minor = 0, double Angle = 0)
+    double Minor = 0, double Angle = 0, IReadOnlyList<Vec2>? Through = null)
 {
     /// <summary>Points along the segment, excluding its end point.</summary>
     public IEnumerable<Vec2> Sample(int arcSteps = 24)
@@ -21,6 +21,16 @@ public sealed record LoopSegment(int EntityId, EntityKind Kind, Vec2 Start, Vec2
                 for (var i = 0; i < arcSteps * 2; i++)
                 {
                     yield return Center + Vec2.FromAngle((Ccw ? 1 : -1) * i * Math.PI / arcSteps, Radius);
+                }
+
+                break;
+            case EntityKind.Spline:
+                foreach (var piece in SketchSpline.BezierPieces(Through ?? [Start, End]))
+                {
+                    for (var k = 0; k < arcSteps / 2; k++)
+                    {
+                        yield return SketchSpline.Bezier(piece, (double)k / (arcSteps / 2));
+                    }
                 }
 
                 break;
@@ -152,7 +162,7 @@ public static class ProfileBuilder
     public static ProfileResult Build(Sketch sketch)
     {
         ArgumentNullException.ThrowIfNull(sketch);
-        var curves = sketch.Entities.Where(e => !e.IsConstruction && e is SketchLine or SketchArc or SketchCircle or SketchEllipse).ToList();
+        var curves = sketch.Entities.Where(e => !e.IsConstruction && e is SketchLine or SketchArc or SketchCircle or SketchEllipse or SketchSpline).ToList();
         var extent = curves.Count == 0 ? 1 : curves.SelectMany(Endpoints).Select(p => Math.Max(Math.Abs(p.X), Math.Abs(p.Y))).DefaultIfEmpty(1).Max();
         var tol = Math.Max(1e-7, extent * 1e-8) * 100;
 
@@ -189,14 +199,19 @@ public static class ProfileBuilder
                 case SketchArc a when a.Radius > tol:
                     edges.Add(new Edge { Entity = a, From = NodeAt(a.Start.Position), To = NodeAt(a.End.Position) });
                     break;
+                case SketchSpline sp:
+                    edges.Add(new Edge { Entity = sp, From = NodeAt(sp.Start.Position), To = NodeAt(sp.End.Position) });
+                    break;
             }
         }
 
-        // A full-circle arc (start == end) is a loop on its own.
+        // A full-circle arc, or a spline that closes on itself, is a loop on its own.
         foreach (var e in edges.Where(e => e.From == e.To))
         {
-            var a = (SketchArc)e.Entity;
-            outlines.Add(new ProfileLoop([new LoopSegment(a.Id, EntityKind.Circle, a.Center.Position, a.Center.Position, a.Center.Position, a.Radius, true, false)]));
+            var loop = e.Entity is SketchArc a
+                ? new ProfileLoop([new LoopSegment(a.Id, EntityKind.Circle, a.Center.Position, a.Center.Position, a.Center.Position, a.Radius, true, false)])
+                : new ProfileLoop([ToSegment(e.Entity, false)]);
+            outlines.Add(loop.SignedArea < 0 ? loop.Reversed() : loop);
             e.Removed = true;
         }
 
@@ -410,7 +425,8 @@ public static class ProfileBuilder
         return [.. chain.Reverse().Select(Flip)];
     }
 
-    private static LoopSegment Flip(LoopSegment s) => s with { Start = s.End, End = s.Start, Ccw = !s.Ccw, Reversed = !s.Reversed };
+    private static LoopSegment Flip(LoopSegment s) =>
+        s with { Start = s.End, End = s.Start, Ccw = !s.Ccw, Reversed = !s.Reversed, Through = s.Through is { } t ? [.. t.Reverse()] : null };
 
     /// <summary>Is <paramref name="inner"/> inside <paramref name="outer"/>? Tested with a point of inner's boundary.</summary>
     private static bool Inside(ProfileLoop inner, ProfileLoop outer) =>
@@ -423,6 +439,7 @@ public static class ProfileBuilder
         SketchArc a => [a.Start.Position, a.End.Position, a.Center.Position],
         SketchCircle c => [c.Center.Position + new Vec2(c.Radius, c.Radius)],
         SketchEllipse el => [el.Center.Position + new Vec2(el.MajorRadius, el.MajorRadius)],
+        SketchSpline sp => [.. sp.Points.Select(p => p.Position)],
         _ => [],
     };
 
@@ -439,6 +456,9 @@ public static class ProfileBuilder
         SketchArc a => reverse
             ? new LoopSegment(a.Id, EntityKind.Arc, a.End.Position, a.Start.Position, a.Center.Position, a.Radius, false, true)
             : new LoopSegment(a.Id, EntityKind.Arc, a.Start.Position, a.End.Position, a.Center.Position, a.Radius, true, false),
+        SketchSpline sp => reverse
+            ? new LoopSegment(sp.Id, EntityKind.Spline, sp.End.Position, sp.Start.Position, default, 0, true, true, Through: [.. sp.Points.Select(p => p.Position).Reverse()])
+            : new LoopSegment(sp.Id, EntityKind.Spline, sp.Start.Position, sp.End.Position, default, 0, true, false, Through: [.. sp.Points.Select(p => p.Position)]),
         _ => throw new InvalidOperationException($"Unexpected profile entity {e}"),
     };
 
@@ -456,6 +476,10 @@ public static class ProfileBuilder
                 var t = Math.Min(0.02, 0.25) * sweep;
                 var angle = reverse ? a.EndAngle - t : a.StartAngle + t;
                 probe = a.Center.Position + Vec2.FromAngle(angle, a.Radius);
+                break;
+            case SketchSpline sp:
+                var pieces = sp.Pieces();
+                probe = reverse ? SketchSpline.Bezier(pieces[^1], 0.98) : SketchSpline.Bezier(pieces[0], 0.02);
                 break;
             default:
                 throw new InvalidOperationException();

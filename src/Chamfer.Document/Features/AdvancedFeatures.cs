@@ -175,7 +175,7 @@ public sealed class RibFeature : Feature
         var bestAdded = double.PositiveInfinity;
         foreach (var segments in new[] { chain.Segments, ProfileBuilder.Reverse(chain.Segments) })
         {
-            using var wire = Modeling.Wire(sketch.Plane, [.. segments.Select(ProfileShapes.ToKernel)]);
+            using var wire = Modeling.Wire(sketch.Plane, [.. segments.SelectMany(ProfileShapes.ToKernelAll)]);
             try
             {
                 var candidate = Modeling.Rib(body.Shape, wire, sketch.Plane.Origin, sketch.Plane.Normal, t1, t2);
@@ -207,7 +207,7 @@ internal static class AdvancedShapes
     public static Shape Wire(PlacedSketch sketch, string message)
     {
         var chain = ProfileBuilder.Chain(sketch.Sketch) ?? throw new FeatureException(message);
-        return Modeling.Wire(sketch.Plane, [.. chain.Segments.Select(ProfileShapes.ToKernel)]);
+        return Modeling.Wire(sketch.Plane, [.. chain.Segments.SelectMany(ProfileShapes.ToKernelAll)]);
     }
 
     /// <summary>Adds or removes the combined tool, and records it for patterns.</summary>

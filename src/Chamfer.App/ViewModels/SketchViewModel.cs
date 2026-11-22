@@ -91,6 +91,7 @@ public sealed partial class SketchViewModel : ViewModelBase
             MakeTool("rect-3pt", "3-Pt Rect", "", "Angled rectangle from three points", () => new ThreePointRectangleTool()),
             MakeTool("circle", "Circle", "C", "Circle from center and radius", () => new CircleTool()),
             MakeTool("ellipse", "Ellipse", "E", "Ellipse from center, major axis end and minor size", () => new EllipseTool()),
+            MakeTool("spline", "Spline", "S", "Smooth curve through points: click points, double-click to finish", () => new SplineTool()),
             MakeTool("arc-3pt", "3-Pt Arc", "A", "Arc through start, end and a third point", () => new ThreePointArcTool()),
             MakeTool("arc-center", "Center Arc", "", "Arc from center, start and end", () => new CenterArcTool()),
             MakeTool("polygon", "Polygon", "G", "Regular polygon", () => new PolygonTool(() => PolygonSides)),

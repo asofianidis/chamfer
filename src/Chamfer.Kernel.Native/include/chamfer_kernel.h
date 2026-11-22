@@ -48,7 +48,8 @@ enum chf_segment {
   CHF_SEG_LINE = 0,   /* x0 y0 x1 y1                                   */
   CHF_SEG_ARC = 1,    /* cx cy x0 y0 x1 y1 ccw(1|0)  (start -> end)     */
   CHF_SEG_CIRCLE = 2, /* cx cy r                                        */
-  CHF_SEG_ELLIPSE = 3 /* cx cy major minor angle                         */
+  CHF_SEG_ELLIPSE = 3, /* cx cy major minor angle                        */
+  CHF_SEG_BEZIER = 4   /* x0 y0 x1 y1 x2 y2 x3 y3 (cubic, 4 control points) */
 };
 
 enum chf_boolean { CHF_FUSE = 0, CHF_CUT = 1, CHF_COMMON = 2 };
