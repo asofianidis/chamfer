@@ -74,9 +74,22 @@ public sealed class ModelViewport : Control
         set
         {
             _scene = value;
+            _still = null;
             InvalidateVisual();
         }
     }
+
+    private (uint[] Pixels, int Width, int Height)? _still;
+
+    /// <summary>Shows a finished image (a photorealistic render) until the view or model changes.</summary>
+    public void ShowStill(uint[] pixels, int width, int height)
+    {
+        _still = (pixels, width, height);
+        InvalidateVisual();
+    }
+
+    /// <summary>The viewport's size in device pixels, for renders that should fill it.</summary>
+    public (int Width, int Height) PixelSize => (PixelWidth, PixelHeight);
 
     /// <summary>Raised when the pick id under the cursor changes.</summary>
     public event EventHandler<int>? HoverChanged;
@@ -95,6 +108,7 @@ public sealed class ModelViewport : Control
 
     public void ZoomToFit()
     {
+        _still = null;
         var box = _scene.Bounds;
         if (box.IsEmpty)
         {
@@ -107,6 +121,7 @@ public sealed class ModelViewport : Control
 
     public void SetView(StandardView view, bool fit = true)
     {
+        _still = null;
         Camera.SetView(view);
         if (fit)
         {
@@ -127,6 +142,7 @@ public sealed class ModelViewport : Control
     /// <summary>Rotates the view by fixed steps (arrow keys).</summary>
     public void Rotate(double yawDegrees, double pitchDegrees)
     {
+        _still = null;
         var rad = Math.PI / 180;
         Camera.Orbit(yawDegrees * rad / 0.008, pitchDegrees * rad / 0.008);
         Changed();
@@ -145,6 +161,7 @@ public sealed class ModelViewport : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         base.OnPointerPressed(e);
+        _still = null;
         Focus();
         var point = e.GetCurrentPoint(this);
         var props = point.Properties;
@@ -248,6 +265,7 @@ public sealed class ModelViewport : Control
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
+        _still = null;
         e.Handled = true;
         if (OperatingSystem.IsMacOS() && !CommandKey(e.KeyModifiers))
         {
@@ -305,29 +323,40 @@ public sealed class ModelViewport : Control
             return;
         }
 
-        var r = RenderFrame();
-        if (_bitmap is null || _bitmap.PixelSize.Width != r.Width || _bitmap.PixelSize.Height != r.Height)
+        uint[] pixels;
+        int width, height;
+        if (_still is { } still)
+        {
+            (pixels, width, height) = still;
+        }
+        else
+        {
+            var r = RenderFrame();
+            (pixels, width, height) = (r.Pixels, r.Width, r.Height);
+        }
+
+        if (_bitmap is null || _bitmap.PixelSize.Width != width || _bitmap.PixelSize.Height != height)
         {
             _bitmap?.Dispose();
-            _bitmap = new WriteableBitmap(new PixelSize(r.Width, r.Height), new Vector(96 * PixelScale, 96 * PixelScale), PixelFormat.Bgra8888, AlphaFormat.Premul);
+            _bitmap = new WriteableBitmap(new PixelSize(width, height), new Vector(96 * PixelScale, 96 * PixelScale), PixelFormat.Bgra8888, AlphaFormat.Premul);
         }
 
         using (var fb = _bitmap.Lock())
         {
             unsafe
             {
-                fixed (uint* src = r.Pixels)
+                fixed (uint* src = pixels)
                 {
-                    var rowBytes = r.Width * 4;
-                    for (var y = 0; y < r.Height; y++)
+                    var rowBytes = width * 4;
+                    for (var y = 0; y < height; y++)
                     {
-                        Buffer.MemoryCopy(src + (y * r.Width), (byte*)fb.Address + (y * fb.RowBytes), fb.RowBytes, rowBytes);
+                        Buffer.MemoryCopy(src + (y * width), (byte*)fb.Address + (y * fb.RowBytes), fb.RowBytes, rowBytes);
                     }
                 }
             }
         }
 
-        context.DrawImage(_bitmap, new Rect(0, 0, r.Width, r.Height), new Rect(Bounds.Size));
+        context.DrawImage(_bitmap, new Rect(0, 0, width, height), new Rect(Bounds.Size));
         DrawTriad(context);
     }
 

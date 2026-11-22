@@ -229,6 +229,39 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task PhotoRenderShowsAndSaves()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            var plate = PlateWithHole();
+            plate.Material = Material.Abs;
+            plate.Add(new AppearanceFeature { Color = 0x2563EB });
+            vm.LoadFile("plate.chprt", plate.Save());
+            window.FindControl<Controls.ModelViewport>("Viewport")!.SetView(StandardView.Isometric);
+            vm.StartRenderCommand.Execute(null);
+            vm.RenderOptions.Samples = 16;
+            var task = vm.RenderPhotoAsync();
+            while (!task.IsCompleted)
+            {
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(10);
+            }
+
+            Assert.True(task.IsCompletedSuccessfully);
+            var (pixels, w, h) = vm.LastRender!.Value;
+            Assert.Equal(w * h, pixels.Length);
+            Assert.Contains(pixels, p => (p & 0xFF) > ((p >> 16) & 0xFF) + 60); // the blue plate
+            var file = Path.Combine(Path.GetTempPath(), $"chamfer-render-{Guid.NewGuid():N}.png");
+            vm.SaveRenderTo(file);
+            Assert.True(new FileInfo(file).Length > 1000);
+            File.Delete(file);
+            Capture(window, "render");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static PartDocument PlateWithHole()
     {
         var doc = new PartDocument();
