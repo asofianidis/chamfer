@@ -33,6 +33,7 @@ public sealed partial class MainViewModel
         new("Pressure", "Apply a pressure to the selected faces", new RelayCommand(() => StartLoad(LoadKind.Pressure)), "⇊", "Simulation"),
         new("Run Study", "Solve for stress and displacement", new AsyncRelayCommand(RunStudy), "▶", "Simulation"),
         new("Frequency", "Natural frequencies and mode shapes (uses the fixtures)", new AsyncRelayCommand(RunFrequencyStudy), "∿", "Simulation"),
+        new("Buckling", "Load factors at which the loads would buckle the part", new AsyncRelayCommand(RunBucklingStudy), "⌇", "Simulation"),
         new("Temperature", "Hold the selected faces at a temperature", new RelayCommand(() => StartThermalLoad(ThermalLoadKind.Temperature)), "🌡", "Simulation"),
         new("Heat Power", "Heat put in through the selected faces", new RelayCommand(() => StartThermalLoad(ThermalLoadKind.HeatPower)), "♨", "Simulation"),
         new("Convection", "Selected faces exchange heat with the air", new RelayCommand(() => StartThermalLoad(ThermalLoadKind.Convection)), "≋", "Simulation"),
@@ -208,12 +209,78 @@ public sealed partial class MainViewModel
         Editor = panel;
     }
 
+    /// <summary>The last buckling result.</summary>
+    public BucklingResult? BucklingResult { get; private set; }
+
+    private async Task RunBucklingStudy()
+    {
+        if (AssemblyDoc is not null || DrawingDoc is not null)
+        {
+            return;
+        }
+
+        IsSolving = true;
+        MessageText = "Finding buckling loads...";
+        try
+        {
+            var part = Document;
+            var study = Study;
+            BucklingResult = await Task.Run(() => BucklingSolver.Solve(part, study, 2));
+            if (BucklingResult.Modes.Count == 0)
+            {
+                MessageText = "These loads don't buckle the part (no compressive instability found).";
+                return;
+            }
+
+            StudyResult = BucklingResult.Modes[0].Shape;
+            ShowResults = true;
+            ShowBucklingPanel();
+            MessageText = string.Empty;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Chamfer.Kernel.Occt.KernelException)
+        {
+            MessageText = $"The study couldn't run: {ex.Message}";
+        }
+        finally
+        {
+            IsSolving = false;
+        }
+    }
+
+    private void ShowBucklingPanel()
+    {
+        if (BucklingResult is not { Modes.Count: > 0 } r)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var inv = CultureInfo.InvariantCulture;
+        var panel = FeatureEditor.Info("Buckling Study");
+        foreach (var m in r.Modes)
+        {
+            panel.AddInfo(new InfoField($"Mode {m.Number}", $"Load factor {m.LoadFactor.ToString("0.###", inv)}" +
+                (m.LoadFactor < 1 ? "  (buckles under the applied loads)" : string.Empty)));
+        }
+
+        panel.AddInfo(new ChoiceField("Show mode", [.. r.Modes.Select(m => $"Mode {m.Number} (x{m.LoadFactor.ToString("0.##", inv)})")], 0, i =>
+        {
+            StudyResult = r.Modes[i].Shape;
+            ShowResults = true;
+            RaiseScene();
+        }));
+        panel.AddInfo(new InfoField("Meaning", "The part buckles when the loads reach this many times their applied size. Below 1 means it buckles as loaded."));
+        panel.AddInfo(new InfoField("Mesh", $"{r.Modes[0].Shape.Grid.CellCount} voxels, {r.Iterations} solver iterations, {r.Elapsed.TotalSeconds.ToString("0.0", inv)} s"));
+        Editor = panel;
+    }
+
     private void ClearStudy()
     {
         Study.Fixtures.Clear();
         Study.Loads.Clear();
         StudyResult = null;
         FrequencyResult = null;
+        BucklingResult = null;
         ShowResults = false;
         MessageText = string.Empty;
         RaiseScene();

@@ -41,6 +41,9 @@ public sealed class StudyResult
     /// <summary>Von Mises stress per active cell (MPa).</summary>
     public required double[] CellStress { get; init; }
 
+    /// <summary>Stress tensor per cell, six values each (xx, yy, zz, xy, yz, zx), MPa; empty for non-stress plots.</summary>
+    public double[] CellStressTensors { get; init; } = [];
+
     public double MaxStress { get; init; }
 
     /// <summary>Lower end of the colour scale (0 for stress; the coolest temperature for thermal plots).</summary>
@@ -282,6 +285,7 @@ public static class StaticSolver
         var d = Hex8.Elasticity(mat.YoungModulus, mat.PoissonRatio);
         var b0 = Hex8.B(0, 0, 0);
         var stress = new double[grid.CellCount];
+        var tensors = new double[grid.CellCount * 6];
         Parallel.For(0, grid.CellCount, c =>
         {
             var nodes = grid.CellNodes[c];
@@ -306,6 +310,7 @@ public static class StaticSolver
                 }
             }
 
+            Array.Copy(sig, 0, tensors, c * 6, 6);
             stress[c] = Math.Sqrt((0.5 * (Math.Pow(sig[0] - sig[1], 2) + Math.Pow(sig[1] - sig[2], 2) + Math.Pow(sig[2] - sig[0], 2))) +
                 (3 * ((sig[3] * sig[3]) + (sig[4] * sig[4]) + (sig[5] * sig[5]))));
         });
@@ -321,6 +326,7 @@ public static class StaticSolver
             Grid = grid,
             Displacements = disp,
             CellStress = stress,
+            CellStressTensors = tensors,
             MaxStress = stress.Max(),
             MaxDisplacement = disp.Max(v => v.Length),
             YieldStrength = mat.YieldStrength,
