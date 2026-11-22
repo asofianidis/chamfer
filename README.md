@@ -238,6 +238,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Mate | Select a face or edge on each of two components, then **Mate**. The panel suggests a type (coincident, concentric, distance, angle, parallel, perpendicular, tangent, lock) and alignment, and previews live. Advanced types: **Symmetric** (third entity is the symmetry plane), **Width** (tab faces first, slot faces third and fourth), **Limit Distance/Angle** (minimum and maximum), **Gear** (ratio), **Rack Pinion** (mm per radian) and **Screw** (pitch). The status bar shows the remaining degrees of freedom. |
 | Patterns | Select a component, then **Linear Pattern** (direction, spacing, instances) or **Circular Pattern** (axis, instances). Copies are locked to the seed. |
 | Move | **Move** translates or rotates the selected component; **Fix / Float** toggles whether it can move. |
+| Motion | **Motion Study**: pick a face or edge on the component to drive, choose a rotary (rpm) or linear (mm/s) motor and a duration, then **Calculate**. Scrub with **Time** or **Play** the animation; **Detect collisions** reports the first new contact. |
 | Evaluate | **Interference** lists overlapping components and volumes; **Bill of Materials** lists parts, quantities and masses; **Explode** spreads the components apart. |
 | Edit parts | **Open Part** edits the selected component's part; **Back to Assembly** returns. |
 | Toolbox | **Toolbox** inserts ISO socket head cap screws, hex bolts, nuts and washers (M3 to M20, standard lengths). They're generated parts, and the BOM lists them by standard. |
@@ -434,8 +435,8 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Linear static FEA: tetrahedral meshing via OCCT/Netgen or Gmsh, a solver (CalculiX integration or our own), results plots *(our own solver on a voxel mesh: incompatible-mode hexahedra, matrix-free conjugate gradient, fixtures, forces and pressures, von Mises plots on the deformed shape, factor of safety)*
 - [ ] Frequency and buckling studies
 - [ ] Thermal studies
-- [ ] Motion study: animation timeline, motors, springs, gravity
-- [ ] Basic kinematics and interference over time
+- [~] Motion study: animation timeline, motors, springs, gravity *(rotary and linear motors, kinematic frames, scrubbing and playback)*
+- [x] Basic kinematics and interference over time
 - [~] Draft-angle and wall-thickness checks for manufacturability *(draft analysis)*
 
 ### Phase 10: Productivity, Extensibility & Ecosystem

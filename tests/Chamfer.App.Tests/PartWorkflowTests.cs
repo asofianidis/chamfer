@@ -398,4 +398,35 @@ public class PartWorkflowTests
             File.Delete(file);
         }
     }
+
+    [Fact]
+    public void MotionStudyFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var asm = vm.AssemblyDoc!;
+        var screw = Assert.Single(asm.Components);
+        screw.Fixed = false;
+        var start = screw.Transform;
+        var body = asm.PartOf(screw).Bodies[0];
+        var shank = Enumerable.Range(1, body.FaceCount).First(i => body.Face(i).Surface == Kernel.Occt.SurfaceKind.Cylinder);
+        vm.SetSelection([new SelectionItem(SelectionKind.Face, body.FaceRef(shank), Label: "shank", ComponentId: screw.Id)]);
+        vm.AssemblyCommands.Single(c => c.Label == "Motion Study").Command.Execute(null);
+        var panel = vm.Editor!;
+        panel.Fields.OfType<ButtonField>().Single(f => f.Label == "Calculate").Command.Execute(null);
+        Assert.NotNull(vm.MotionResult);
+        Assert.Equal(49, vm.MotionResult.Frames.Count); // 2 s at 24 fps, plus the start
+        Assert.StartsWith("49 frames", panel.Fields.OfType<InfoField>().Single(f => f.Label == "Result").Text, StringComparison.Ordinal);
+
+        // Scrub to half a second: 30 rpm is a quarter turn.
+        var timeField = panel.Fields.OfType<NumberField>().Single(f => f.Label == "Time");
+        timeField.Text = "0.5";
+        timeField.Commit();
+        Assert.NotEqual(start, screw.Transform);
+
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(start, screw.Transform);
+    }
 }

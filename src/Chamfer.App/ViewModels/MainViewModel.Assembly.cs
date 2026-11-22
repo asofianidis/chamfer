@@ -55,6 +55,7 @@ public sealed partial class MainViewModel
         new("Move", "Move or rotate the selected component", new RelayCommand(StartMove), "✥"),
         new("Fix / Float", "Fix the selected component in place, or let it move", new RelayCommand(ToggleFixed), "⚓"),
         new("Interference", "Find overlapping components", new RelayCommand(ShowInterference), "⧉"),
+        new("Motion Study", "Drive a component with a motor and animate the mechanism", new RelayCommand(StartMotionStudy), "▶"),
         new("Bill of Materials", "List parts and quantities", new RelayCommand(ShowBom), "☰"),
         new("Explode", "Spread the components apart (toggle)", new RelayCommand(() => Exploded = !Exploded), "✳"),
         new("Open Part", "Edit the selected component's part", new RelayCommand(OpenSelectedPart), "↗"),
@@ -193,7 +194,7 @@ public sealed partial class MainViewModel
         var before = asm.Save();
         var picks = Selection.Where(s => ToMateRef(s) is not null).ToList();
         var mate = new Mate { Id = "pending", Type = MateType.Coincident };
-        var types = Enum.GetValues<MateType>();
+        var types = Enum.GetValues<MateType>().Where(t => t != MateType.Drive).ToArray();
         FeatureEditor? panel = null;
 
         void Preview()

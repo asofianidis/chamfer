@@ -65,6 +65,12 @@ public enum MateType
 
     /// <summary>B advances Value mm along axis A per revolution about it.</summary>
     Screw,
+
+    /// <summary>
+    /// Internal (motion studies): B turns Value radians about its axis A (or, when Aligned,
+    /// moves Value mm along it) from InitialB. Not offered as a user mate.
+    /// </summary>
+    Drive,
 }
 
 /// <summary>Geometry on a component a mate refers to: a face, an edge, or a reference plane of the part.</summary>

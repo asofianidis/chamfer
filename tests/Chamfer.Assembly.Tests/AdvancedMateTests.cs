@@ -190,4 +190,82 @@ public class AdvancedMateTests
         Assert.Equal(10, asm.Components.Count);
         Assert.Equal(-50, ring[2].Transform.Ty, 1e-6); // half-way round
     }
+
+    [Fact]
+    public void MotorDrivesAGearPair()
+    {
+        var asm = new AssemblyDocument();
+        var plate = new PartDocument();
+        var ps = new Sketch();
+        ps.AddCornerRectangle(new Vec2(0, 0), new Vec2(100, 60));
+        ps.AddCircle(new Vec2(30, 30), 4);
+        ps.AddCircle(new Vec2(60, 30), 4);
+        var psf = plate.Add(new SketchFeature { Sketch = ps });
+        plate.Add(new ExtrudeFeature { SketchId = psf.Id, Depth = 10 });
+        plate.Rebuild();
+        var pin = Pin(4, 20);
+        asm.RegisterPart("plate.chprt", plate);
+        asm.RegisterPart("pin.chprt", pin);
+        var p = asm.AddComponent("plate.chprt");
+        var a = asm.AddComponent("pin.chprt", Transform3.Translation(new Vec3(30, 30, 0)));
+        var b = asm.AddComponent("pin.chprt", Transform3.Translation(new Vec3(60, 30, 0)));
+        var body = plate.Bodies[0];
+        var holes = Enumerable.Range(1, body.FaceCount).Where(i => body.Face(i).Surface == SurfaceKind.Cylinder)
+            .OrderBy(i => body.Face(i).AxisOrigin.X).Select(body.FaceRef).ToList();
+        var side = Face(pin, f => f.Surface == SurfaceKind.Cylinder);
+        foreach (var (c, hole) in new[] { (a, holes[0]), (b, holes[1]) })
+        {
+            asm.AddMate(MateType.Concentric, new MateRef(p.Id, hole), new MateRef(c.Id, side));
+            asm.AddMate(MateType.Coincident, new MateRef(p.Id, Face(plate, f => f.Normal.Z < -0.99)), new MateRef(c.Id, Face(pin, f => f.Normal.Z < -0.99)), aligned: true);
+        }
+
+        asm.AddMate(MateType.Gear, new MateRef(a.Id, side), new MateRef(b.Id, side), 2);
+        var start = a.Transform;
+        var study = new MotionStudy { Duration = 0.25, FramesPerSecond = 24 };
+        study.Motors.Add(new Motor { Reference = new MateRef(a.Id, side), Speed = 60 });
+        var result = study.Run(asm, TestContext.Current.CancellationToken);
+        Assert.Equal(7, result.Frames.Count);
+        Assert.True(result.AllSolved);
+        Assert.Equal(start, a.Transform); // the assembly is put back
+        Assert.DoesNotContain(asm.Mates, m => m.Type == MateType.Drive);
+
+        MotionStudy.Apply(asm, result.Frames[^1]);
+        Assert.Equal(Math.PI / 2, Math.Abs(TurnZ(a)), 1e-6);
+        Assert.Equal(0, TurnZ(a) + (2 * TurnZ(b)), 1e-6);
+        Assert.Equal(30, a.Transform.Apply(Vec3.Zero).X, 1e-6); // still in its hole
+    }
+
+    [Fact]
+    public void MotorWindsANutAlongAScrewAndCollisionsAreFound()
+    {
+        var asm = new AssemblyDocument();
+        var bolt = Pin(5, 60);
+        var nut = Pin(8, 6);
+        asm.RegisterPart("bolt.chprt", bolt);
+        asm.RegisterPart("nut.chprt", nut);
+        var b = asm.AddComponent("bolt.chprt");
+        var n = asm.AddComponent("nut.chprt", Transform3.Translation(new Vec3(0, 0, 20)));
+        var boltSide = Face(bolt, f => f.Surface == SurfaceKind.Cylinder);
+        var nutSide = Face(nut, f => f.Surface == SurfaceKind.Cylinder);
+        asm.AddMate(MateType.Concentric, new MateRef(b.Id, boltSide), new MateRef(n.Id, nutSide));
+        asm.AddMate(MateType.Screw, new MateRef(b.Id, boltSide), new MateRef(n.Id, nutSide), 1.5);
+        var study = new MotionStudy { Duration = 1, FramesPerSecond = 12 };
+        study.Motors.Add(new Motor { Reference = new MateRef(n.Id, nutSide), Speed = 120 }); // two turns
+        var result = study.Run(asm, TestContext.Current.CancellationToken);
+        Assert.True(result.AllSolved);
+        Assert.Equal(3, Math.Abs(result.Frames[^1].Placements[n.Id].Tz - 20), 1e-6); // two turns of 1.5 mm pitch
+
+        // A block sitting in the path of a linear motor: the collision is reported.
+        var block = Block(20, 20, 10);
+        asm.RegisterPart("block.chprt", block);
+        var stop = asm.AddComponent("block.chprt", Transform3.Translation(new Vec3(30, 40, 0)));
+        stop.Fixed = true;
+        var slider = asm.AddComponent("block.chprt", Transform3.Translation(new Vec3(-30, 40, 0)));
+        var run = new MotionStudy { Duration = 1, FramesPerSecond = 10, DetectCollisions = true };
+        run.Motors.Add(new Motor { Kind = MotorKind.Linear, Reference = new MateRef(slider.Id, Face(block, f => f.Normal.X > 0.99)), Speed = 50 });
+        var hit = run.Run(asm, TestContext.Current.CancellationToken);
+        Assert.NotNull(hit.FirstCollisionTime);
+        Assert.InRange(hit.FirstCollisionTime!.Value, 0.7, 0.9); // 40 mm gap at 50 mm/s
+        Assert.Contains(stop.Name, hit.CollidingPair!, StringComparison.Ordinal);
+    }
 }

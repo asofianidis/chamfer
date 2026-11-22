@@ -149,7 +149,7 @@ public static class MateSolver
 
     private static void Residuals(Mate m, MateEntity a, MateEntity b, Transform3 ta, Transform3 tb, List<double> r, MateEntity? c = null, MateEntity? d = null)
     {
-        var mechanical = m.Type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.Symmetric or MateType.Width;
+        var mechanical = m.Type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.Symmetric or MateType.Width or MateType.Drive;
         var s = m.Aligned ? -1.0 : 1.0; // anti-aligned: dA = -dB  →  dA + dB = 0
         void Vec(Vec3 v)
         {
@@ -319,6 +319,19 @@ public static class MateSolver
                 var turn = TurnAbout(tb, m.InitialB, b.Direction);
                 var perRadian = m.Value > 0 ? m.Value : b.Radius;
                 r.Add(travel - ((m.Aligned ? -1 : 1) * perRadian * turn));
+                break;
+
+            case MateType.Drive:
+                if (m.Aligned)
+                {
+                    var moved = m.InitialB is { } d0 ? Vec3.Dot(new Vec3(tb.Tx - d0.Tx, tb.Ty - d0.Ty, tb.Tz - d0.Tz), b.Direction) : 0;
+                    r.Add(moved - m.Value);
+                }
+                else
+                {
+                    r.Add((TurnAbout(tb, m.InitialB, b.Direction) - m.Value) * Math.Max(b.Radius, 10));
+                }
+
                 break;
 
             case MateType.Screw:
@@ -506,6 +519,17 @@ public static class MateSolver
                 {
                     failed.Add(mates[owner[k]]);
                 }
+            }
+        }
+
+        // Mechanical mates measure turns from a reference placement, and angles wrap at half a turn.
+        // Once they're satisfied, move the reference up to now so motion can run on for many turns.
+        if (converged)
+        {
+            foreach (var m in mates.Where(m => m.Type is MateType.Gear or MateType.RackPinion or MateType.Screw))
+            {
+                m.InitialA = asm.Find(m.A.ComponentId)?.Transform;
+                m.InitialB = asm.Find(m.B.ComponentId)?.Transform;
             }
         }
 
