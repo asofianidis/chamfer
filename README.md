@@ -334,7 +334,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Constraint solver: coincident, horizontal, vertical, parallel, perpendicular, tangent, concentric, equal, midpoint, symmetric, fix, collinear, coradial
 - [x] Smart Dimension: linear, angular, radial, diameter, driven/driving
 - [x] Degrees-of-freedom display: under-, fully, and over-defined coloring
-- [~] Inference lines and automatic relations while drawing *(snap relations and horizontal/vertical inference done; dotted alignment inference lines not yet)*
+- [x] Inference lines and automatic relations while drawing *(snap relations, horizontal/vertical inference, and dotted inference lines to points the cursor lines up with)*
 - [x] Trim, extend, offset, mirror, fillet, chamfer, linear and circular sketch patterns
 - [x] Convert entities, intersection curves *(model edges, face outlines, and where the sketch plane cuts the model, as fixed geometry)*
 - [x] Construction geometry

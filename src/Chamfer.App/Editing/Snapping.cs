@@ -26,6 +26,12 @@ public readonly record struct Snap(SnapKind Kind, Vec2 Position, SketchEntity? T
 {
     public static Snap None(Vec2 position) => new(SnapKind.None, position, null);
 
+    /// <summary>A point the cursor lines up with vertically (an inference line is drawn from it).</summary>
+    public Vec2? AlignX { get; init; }
+
+    /// <summary>A point the cursor lines up with horizontally.</summary>
+    public Vec2? AlignY { get; init; }
+
     /// <summary>The relation a new point placed at this snap should get, if any.</summary>
     public SketchConstraint? RelationFor(SketchPoint newPoint) => Kind switch
     {

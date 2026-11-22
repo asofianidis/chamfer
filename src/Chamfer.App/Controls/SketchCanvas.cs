@@ -162,8 +162,12 @@ public sealed class SketchCanvas : Control
         var world = ToWorld(e.GetPosition(this));
         var tool = Editor!.Tool;
         var snap = tool.UsesSnapping ? Editor.FindSnap(world) : Snap.None(world);
+        _lastSnap = snap;
         return new ToolPointer(world, snap, IsToggleModifier(e.KeyModifiers), clickCount);
     }
+
+    /// <summary>The snap under the cursor, for drawing inference lines.</summary>
+    private Snap? _lastSnap;
 
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
@@ -344,6 +348,19 @@ public sealed class SketchCanvas : Control
         foreach (var item in editor.Tool.Preview)
         {
             DrawPreview(context, item, palette);
+        }
+
+        // Dotted inference lines to the points the cursor lines up with.
+        if (_lastSnap is { } snap && editor.Tool.UsesSnapping)
+        {
+            var guide = MakePen(palette.Preview, 1, dashed: true);
+            foreach (var from in new[] { snap.AlignX, snap.AlignY })
+            {
+                if (from is { } f)
+                {
+                    context.DrawLine(guide, ToScreen(f), ToScreen(snap.Position));
+                }
+            }
         }
     }
 
