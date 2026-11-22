@@ -281,6 +281,22 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new ChoiceField("Colour", swatches, Math.Max(0, current), i => Set(() => ap.Color = Swatches[i].Color)));
                 break;
 
+            case BaseFlangeFeature bf:
+                ed.Add(Num("Thickness", "mm", bf, nameof(bf.Thickness), 1e-6));
+                ed.Add(Num("Bend radius", "mm", bf, nameof(bf.BendRadius), 0));
+                ed.Add(Num("K-factor", string.Empty, bf, nameof(bf.KFactor), 0));
+                ed.Add(Num("Depth (open profiles)", "mm", bf, nameof(bf.Depth), 1e-6));
+                ed.Add(new BoolField("Reverse direction", bf.Reverse, v => Set(() => bf.Reverse = v)));
+                break;
+
+            case EdgeFlangeFeature ef:
+                ed.Add(new SelectionField("Edges", [SelectionKind.Edge], isNew ? Pre([SelectionKind.Edge]) : Refs(ef.Edges, SelectionKind.Edge),
+                    items => Set(() => ef.Edges = [.. items.Select(i => i.Ref!)])));
+                ed.Add(Num("Flange length", "mm", ef, nameof(ef.Length), 1e-6));
+                ed.Add(Num("Angle", "°", ef, nameof(ef.Angle), 1e-3));
+                ed.Add(new BoolField("Bend the other way", ef.Reverse, v => Set(() => ef.Reverse = v)));
+                break;
+
             case FilletFeature fil:
                 ed.Add(Num("Radius", "mm", fil, nameof(fil.Radius), 1e-6));
                 ed.Add(new SelectionField("Edges and faces", Edges,

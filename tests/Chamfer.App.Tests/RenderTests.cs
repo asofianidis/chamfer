@@ -104,6 +104,46 @@ public sealed class RenderTests
         window.Close();
     }
 
+    [Fact]
+    public async Task SheetMetalWorkflowRenders()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            vm.SetSelection([SelectionItem.Plane("top", "Top Plane")]);
+            vm.NewSketchCommand.Execute(null);
+            var editor = vm.Sketch!.Editor;
+            editor.BeginChange();
+            editor.Sketch.AddCornerRectangle(new Vec2(0, 0), new Vec2(120, 60));
+            editor.Sketch.AddCircle(new Vec2(30, 30), 8);
+            editor.EndChange(solve: true);
+            vm.SelectTabCommand.Execute("Sheet Metal");
+            vm.VisibleFeatureCommands.Single(c => c.Label == "Base Flange").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.NotNull(vm.Document.State.SheetMetal);
+
+            // Flanges on two opposite long edges of the face away from the sketch plane.
+            var body = vm.Document.Bodies[0];
+            var edges = Enumerable.Range(1, body.EdgeCount)
+                .Where(i => body.Edge(i).Curve == Kernel.Occt.CurveKind.Line && Math.Abs(body.Edge(i).Length - 120) < 1e-6 && body.Edge(i).Midpoint.Y > 0.5)
+                .Select(i => SelectionItem.Edge(body, i)).ToList();
+            Assert.Equal(2, edges.Count);
+            vm.SetSelection(edges);
+            vm.VisibleFeatureCommands.Single(c => c.Label == "Edge Flange").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.All(vm.Document.Results.Values, r => Assert.Equal(FeatureStatus.Ok, r.Status));
+
+            var viewport = window.FindControl<Controls.ModelViewport>("Viewport")!;
+            viewport.SetView(StandardView.Isometric);
+            Capture(window, "sheetmetal-folded");
+            vm.VisibleFeatureCommands.Single(c => c.Label == "Flatten").Command.Execute(null);
+            Assert.True(vm.ShowFlat);
+            viewport.SetView(StandardView.Top);
+            Capture(window, "sheetmetal-flat");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static PartDocument PlateWithHole()
     {
         var doc = new PartDocument();

@@ -1,0 +1,118 @@
+using Chamfer.Document.Features;
+using Chamfer.Geometry;
+using Chamfer.Kernel.Occt;
+using Chamfer.Sketching;
+
+namespace Chamfer.Document.Tests;
+
+public class SheetMetalTests
+{
+    private static void AssertOk(PartDocument doc)
+    {
+        foreach (var f in doc.Features)
+        {
+            var r = doc.Results[f.Id];
+            Assert.True(r.Status is FeatureStatus.Ok, $"{f.Name}: {r.Status} {r.Message}");
+        }
+    }
+
+    [Fact]
+    public void PlateWithEdgeFlangeFoldsAndFlattens()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(100, 50));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new BaseFlangeFeature { SketchId = sf.Id, Thickness = 2, BendRadius = 1, KFactor = 0.5 });
+        doc.Rebuild();
+        AssertOk(doc);
+        var body = doc.Bodies[0];
+
+        // The long top edge (y = 50) on the face at z = 2.
+        var edge = Enumerable.Range(1, body.EdgeCount).Single(i => Vec3.Distance(body.Edge(i).Midpoint, new Vec3(50, 50, 2)) < 1e-6);
+        doc.Add(new EdgeFlangeFeature { Edges = [body.EdgeRef(edge)], Length = 20 });
+        doc.Rebuild();
+        AssertOk(doc);
+        var folded = Assert.Single(doc.Bodies).Shape;
+        var bendVolume = 100 * (Math.PI / 4) * ((3 * 3) - (1 * 1));
+        Assert.Equal(10000 + bendVolume + 4000, folded.MassProperties.Volume, 1e-3);
+
+        // The flange rises above the plate: inner radius 1 from z = 2, leg 20 long.
+        Assert.Equal(2 + 1 + 20, folded.Bounds.Max.Z, 1e-6);
+        Assert.Equal(50 + 1 + 2, folded.Bounds.Max.Y, 1e-6);
+
+        // Flat: 50 + bend allowance (π/2 × (1 + 0.5 × 2) = π) + 20 by 100.
+        var (w, h) = FlatPattern.Size(doc);
+        Assert.Equal(100, w, 1e-6);
+        Assert.Equal(50 + Math.PI + 20, h, 1e-6);
+        using var flat = FlatPattern.Solid(doc);
+        Assert.Equal(folded.MassProperties.Volume, flat.MassProperties.Volume, 1e-3); // K = 0.5 preserves volume
+        Assert.Single(doc.State.SheetMetal!.BendLines);
+    }
+
+    [Fact]
+    public void ReverseFlangeBendsDown()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(60, 40));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new BaseFlangeFeature { SketchId = sf.Id, Thickness = 1, BendRadius = 2 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var edge = Enumerable.Range(1, body.EdgeCount).Single(i => Vec3.Distance(body.Edge(i).Midpoint, new Vec3(60, 20, 1)) < 1e-6);
+        doc.Add(new EdgeFlangeFeature { Edges = [body.EdgeRef(edge)], Length = 15, Reverse = true });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(-(2 + 15), doc.Bodies[0].Shape.Bounds.Min.Z, 1e-6);
+    }
+
+    [Fact]
+    public void BentLBracketFromOpenProfile()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddPolyline([new Vec2(0, 30), new Vec2(0, 0), new Vec2(40, 0)]);
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new BaseFlangeFeature { SketchId = sf.Id, Thickness = 1, BendRadius = 2, KFactor = 0.5, Depth = 20 });
+        doc.Rebuild();
+        AssertOk(doc);
+        var body = Assert.Single(doc.Bodies);
+        var bbox = body.Shape.Bounds;
+        Assert.Equal(40, bbox.Size.X, 1e-6);
+        Assert.Equal(30, bbox.Size.Y, 1e-6);
+        Assert.Equal(20, bbox.Size.Z, 1e-6);
+        Assert.Contains(Enumerable.Range(1, body.FaceCount), i => body.Face(i).Surface == SurfaceKind.Cylinder && Math.Abs(body.Face(i).Radius - 2) < 1e-6);
+
+        // Flat length: (30 - 3) + (40 - 3) + π/2 × (2 + 0.5) for the outside dimensions given.
+        var (w, h) = FlatPattern.Size(doc);
+        Assert.Equal(27 + 37 + (Math.PI / 2 * 2.5), w, 1e-6);
+        Assert.Equal(20, h, 1e-6);
+        using var flat = FlatPattern.Solid(doc);
+        Assert.Equal(body.Shape.MassProperties.Volume, flat.MassProperties.Volume, 1e-3);
+    }
+
+    [Fact]
+    public void CutsInTheBaseAppearInTheFlatPattern()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(60, 40));
+        s.AddCircle(new Vec2(20, 20), 4);
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new BaseFlangeFeature { SketchId = sf.Id, Thickness = 1.5, BendRadius = 1 });
+        var c = new Sketch();
+        c.AddCircle(new Vec2(45, 20), 5);
+        var cf = doc.Add(new SketchFeature { Sketch = c });
+        doc.Add(new ExtrudeFeature { SketchId = cf.Id, IsCut = true, EndCondition = EndCondition.ThroughAll, HasDirection2 = true, EndCondition2 = EndCondition.ThroughAll });
+        doc.Rebuild();
+        AssertOk(doc);
+        using var flat = FlatPattern.Solid(doc);
+        Assert.Equal(((60 * 40) - (Math.PI * 16) - (Math.PI * 25)) * 1.5, flat.MassProperties.Volume, 1e-3);
+
+        // Round trip.
+        var loaded = PartDocument.Load(doc.Save());
+        loaded.Rebuild();
+        Assert.NotNull(loaded.State.SheetMetal);
+    }
+}

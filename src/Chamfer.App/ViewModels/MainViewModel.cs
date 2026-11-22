@@ -83,6 +83,11 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Knit", "Sew surfaces together (closed ones become solids)", new RelayCommand(() => StartFeature(new KnitFeature { Bodies = SelectedBodyNames() })), "⨝", "Surfaces"),
             new("Thicken", "Give a surface thickness", new RelayCommand(() => StartFeature(new ThickenFeature { Body = SelectedBodyNames().FirstOrDefault() ?? string.Empty, Thickness = 1 })), "▥", "Surfaces"),
 
+            new("Base Flange", "Sheet metal from a sketch: closed makes a plate, open makes a bent sheet", new RelayCommand(() => StartSketchFeature(sf => new BaseFlangeFeature { SketchId = sf.Id })), "▬", "Sheet Metal"),
+            new("Edge Flange", "Bend a flange up from straight edges", new RelayCommand(() => StartFeature(new EdgeFlangeFeature { Edges = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => s.Ref!)] })), "⌐", "Sheet Metal"),
+            new("Flatten", "Show the flat pattern (toggle)", new RelayCommand(ToggleFlat), "▭", "Sheet Metal"),
+            new("Export Flat DXF", "Save the flat pattern for cutting", new AsyncRelayCommand(ExportFlatDxf), "⇩", "Sheet Metal"),
+
             new("Combine", "Add, subtract or intersect bodies", new RelayCommand(StartCombine), "⊕", "Bodies"),
             new("Split", "Cut bodies in two with a plane", new RelayCommand(() => StartFeature(new SplitBodyFeature { Plane = SelectedPlane() ?? PlaneRef.Right })), "⫽", "Bodies"),
             new("Move/Copy Body", "Move, rotate or copy bodies", new RelayCommand(() => StartFeature(new MoveCopyBodyFeature { Bodies = SelectedBodyNames() })), "✥", "Bodies"),
@@ -137,7 +142,86 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public IReadOnlyList<CommandItem> FeatureCommands { get; }
 
-    public IReadOnlyList<string> CommandTabs { get; } = ["Features", "Surfaces", "Bodies"];
+    public IReadOnlyList<string> CommandTabs { get; } = ["Features", "Surfaces", "Sheet Metal", "Bodies"];
+
+    /// <summary>Showing the sheet metal flat pattern instead of the folded part.</summary>
+    [ObservableProperty]
+    public partial bool ShowFlat { get; set; }
+
+    partial void OnShowFlatChanged(bool value)
+    {
+        RaiseScene();
+        FitAction?.Invoke();
+    }
+
+    private void ToggleFlat()
+    {
+        if (Document.State.SheetMetal is null)
+        {
+            MessageText = "This part has no sheet metal. Start with a Base Flange.";
+            return;
+        }
+
+        ShowFlat = !ShowFlat;
+    }
+
+    private (RebuildState State, Chamfer.Kernel.Occt.Shape Flat)? _flatCache;
+
+    private Chamfer.Kernel.Occt.Shape? FlatShape()
+    {
+        if (Document.State.SheetMetal is null)
+        {
+            return null;
+        }
+
+        if (_flatCache is { } c && ReferenceEquals(c.State, Document.State))
+        {
+            return c.Flat;
+        }
+
+        try
+        {
+            var flat = FlatPattern.Solid(Document);
+            _flatCache = (Document.State, flat);
+            return flat;
+        }
+        catch (Exception ex) when (ex is Chamfer.Kernel.Occt.KernelException or InvalidOperationException)
+        {
+            MessageText = $"The flat pattern couldn't be built: {ex.Message}";
+            return null;
+        }
+    }
+
+    private async Task ExportFlatDxf()
+    {
+        if (StorageProvider is null || Document.State.SheetMetal is null)
+        {
+            MessageText = "This part has no sheet metal to flatten.";
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export Flat Pattern",
+            DefaultExtension = "dxf",
+            SuggestedFileName = (FilePath is null ? "Part1" : Path.GetFileNameWithoutExtension(FilePath)) + "-flat",
+            FileTypeChoices = [new FilePickerFileType("DXF") { Patterns = ["*.dxf"] }],
+        });
+        if (file?.TryGetLocalPath() is not { } path)
+        {
+            return;
+        }
+
+        try
+        {
+            await File.WriteAllTextAsync(path, Chamfer.Drawing.Exporters.Dxf(Chamfer.Drawing.FlatPatternExport.Graphics(Document)));
+            MessageText = $"Exported {Path.GetFileName(path)}.";
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or Chamfer.Kernel.Occt.KernelException)
+        {
+            MessageText = $"Couldn't export the flat pattern: {ex.Message}";
+        }
+    }
 
     [ObservableProperty]
     public partial string CommandTab { get; set; } = "Features";
@@ -362,9 +446,34 @@ public sealed partial class MainViewModel : ViewModelBase
     private void RaiseScene() => SceneChanged?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Builds the 3D scene for the current state.</summary>
-    public Scene BuildScene() => AssemblyDoc is { } asm
-        ? AssemblyBuilder.Build(asm, Selection, Hover, Palette, DisplayStyle, Exploded)
-        : SceneBuilder.Build(Document, Selection, Hover, Palette, DisplayStyle, EditingSketch?.Id);
+    public Scene BuildScene()
+    {
+        if (AssemblyDoc is { } asm)
+        {
+            return AssemblyBuilder.Build(asm, Selection, Hover, Palette, DisplayStyle, Exploded);
+        }
+
+        if (ShowFlat && FlatShape() is { } flat && Document.State.SheetMetal is { } sm)
+        {
+            var scene = new Scene { Style = DisplayStyle, BackgroundTop = Palette.Top, BackgroundBottom = Palette.Bottom };
+            scene.Meshes.Add(new MeshItem { Mesh = flat.Tessellate(0.02, 0.25), Color = Palette.Body, EdgeColor = Palette.Edge });
+            var lift = sm.FlatExtrusion.Normalized() * -0.01;
+            foreach (var (a, b) in sm.BendLines)
+            {
+                scene.Lines.Add(new LineItem
+                {
+                    Points = [sm.FlatPlane.ToWorld(a.X, a.Y) + lift, sm.FlatPlane.ToWorld(b.X, b.Y) + lift],
+                    Color = Palette.Sketch,
+                    Dashed = true,
+                    OnTop = true,
+                });
+            }
+
+            return scene;
+        }
+
+        return SceneBuilder.Build(Document, Selection, Hover, Palette, DisplayStyle, EditingSketch?.Id);
+    }
 
     // ------------------------------------------------------------- undo
 

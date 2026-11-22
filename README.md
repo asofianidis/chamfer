@@ -220,6 +220,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Equations | **Equations** defines global variables (`Width = 40`, `Wall = Width / 20`). Type `=Width/2` in any number box or sketch dimension to link it. |
 | Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
 | Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids) and **Thicken**. |
+| Sheet metal | The **Sheet Metal** tab: **Base Flange** from a sketch (closed makes a plate, open lines make a bent sheet with the bend radius), **Edge Flange** on straight edges (length, angle, either direction), **Flatten** to see the blank with bend lines, and **Export Flat DXF**. |
 | Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
 
 ### Assemblies
@@ -398,9 +399,9 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ### Phase 7: Specialized Toolsets
 **Sheet Metal**
-- [ ] Base flange, edge flange, miter flange, sketched bend, hem, jog
-- [ ] Bend tables, K-factor, bend allowance and deduction
-- [ ] Flat pattern and flat-pattern DXF export
+- [~] Base flange, edge flange, miter flange, sketched bend, hem, jog *(base flange from closed or open profiles, edge flanges at any angle either way)*
+- [~] Bend tables, K-factor, bend allowance and deduction *(K-factor bend allowance)*
+- [x] Flat pattern and flat-pattern DXF export
 - [ ] Lofted bends, convert to sheet metal, forming tools
 
 **Weldments**
@@ -466,7 +467,7 @@ A high-level tracker against SolidWorks capability areas.
 | Large assemblies | Lightweight, Large Design Review | 4, 11 | ⬜ |
 | Drawings | Views, dimensions, GD&T, BOM, tables | 5 | 🟨 Views, sections, details, dimensions, export |
 | Surfacing | Surface features, knit, trim, analysis | 6 | 🟨 Core surfaces, knit, thicken |
-| Sheet metal | Flanges, bends, flat pattern | 7 | ⬜ |
+| Sheet metal | Flanges, bends, flat pattern | 7 | 🟨 Base and edge flanges, flat pattern, DXF |
 | Weldments | Structural members, cut lists | 7 | ⬜ |
 | Mold tools | Parting line/surface, core/cavity | 7 | ⬜ |
 | Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | 🟨 STEP/IGES in and out; STL, 3MF, OBJ out; drawing DXF |
