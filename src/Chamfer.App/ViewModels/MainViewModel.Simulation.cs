@@ -9,7 +9,7 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace Chamfer.App.ViewModels;
 
-/// <summary>Simulation: a linear static study with fixtures and loads on faces, and stress results.</summary>
+/// <summary>Simulation: linear static and natural-frequency studies with fixtures and loads on faces.</summary>
 public sealed partial class MainViewModel
 {
     public StaticStudy Study { get; } = new();
@@ -32,6 +32,7 @@ public sealed partial class MainViewModel
         new("Force", "Apply a force to the selected faces", new RelayCommand(() => StartLoad(LoadKind.NormalForce)), "↓", "Simulation"),
         new("Pressure", "Apply a pressure to the selected faces", new RelayCommand(() => StartLoad(LoadKind.Pressure)), "⇊", "Simulation"),
         new("Run Study", "Solve for stress and displacement", new AsyncRelayCommand(RunStudy), "▶", "Simulation"),
+        new("Frequency", "Natural frequencies and mode shapes (uses the fixtures)", new AsyncRelayCommand(RunFrequencyStudy), "∿", "Simulation"),
         new("Results", "Show or hide the stress plot", new RelayCommand(() => ShowResults = !ShowResults && StudyResult is not null), "◑", "Simulation"),
         new("Clear Study", "Remove fixtures, loads and results", new RelayCommand(ClearStudy), "✕", "Simulation"),
     ];
@@ -144,11 +145,71 @@ public sealed partial class MainViewModel
         Editor = panel;
     }
 
+    /// <summary>The last natural-frequency result.</summary>
+    public FrequencyResult? FrequencyResult { get; private set; }
+
+    private async Task RunFrequencyStudy()
+    {
+        if (AssemblyDoc is not null || DrawingDoc is not null)
+        {
+            return;
+        }
+
+        IsSolving = true;
+        MessageText = "Finding natural frequencies...";
+        try
+        {
+            var part = Document;
+            var study = new FrequencyStudy { Resolution = Study.Resolution, Modes = 4 };
+            study.Fixtures.AddRange(Study.Fixtures);
+            FrequencyResult = await Task.Run(() => FrequencySolver.Solve(part, study));
+            StudyResult = FrequencyResult.Modes[0].Shape;
+            ShowResults = true;
+            ShowFrequencyPanel();
+            MessageText = string.Empty;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Chamfer.Kernel.Occt.KernelException)
+        {
+            MessageText = $"The study couldn't run: {ex.Message}";
+        }
+        finally
+        {
+            IsSolving = false;
+        }
+    }
+
+    private void ShowFrequencyPanel()
+    {
+        if (FrequencyResult is not { } r)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var inv = CultureInfo.InvariantCulture;
+        var panel = FeatureEditor.Info("Frequency Study");
+        foreach (var m in r.Modes)
+        {
+            panel.AddInfo(new InfoField($"Mode {m.Number}", $"{m.Frequency.ToString("0.#", inv)} Hz"));
+        }
+
+        panel.AddInfo(new ChoiceField("Show mode", [.. r.Modes.Select(m => $"Mode {m.Number} ({m.Frequency.ToString("0.#", inv)} Hz)")], 0, i =>
+        {
+            StudyResult = r.Modes[i].Shape;
+            ShowResults = true;
+            RaiseScene();
+        }));
+        panel.AddInfo(new InfoField("Plot", "The shape is the mode, exaggerated; red moves most, blue least. Amplitudes are relative."));
+        panel.AddInfo(new InfoField("Mesh", $"{r.Modes[0].Shape.Grid.CellCount} voxels, {r.Iterations} solver iterations, {r.Elapsed.TotalSeconds.ToString("0.0", inv)} s"));
+        Editor = panel;
+    }
+
     private void ClearStudy()
     {
         Study.Fixtures.Clear();
         Study.Loads.Clear();
         StudyResult = null;
+        FrequencyResult = null;
         ShowResults = false;
         MessageText = string.Empty;
         RaiseScene();

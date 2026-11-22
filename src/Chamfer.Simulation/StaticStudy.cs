@@ -231,36 +231,12 @@ public static class StaticSolver
         ArgumentNullException.ThrowIfNull(part);
         ArgumentNullException.ThrowIfNull(study);
         var timer = Stopwatch.StartNew();
-        var bodies = part.Bodies.Where(b => !b.IsSurface).ToList();
-        if (bodies.Count == 0)
-        {
-            throw new InvalidOperationException("There is no solid to analyse.");
-        }
-
-        if (study.Fixtures.Count == 0)
-        {
-            throw new InvalidOperationException("Add at least one fixture, or the part would fly away.");
-        }
-
-        using var compound = bodies.Count == 1 ? null : Modeling.Compound([.. bodies.Select(b => b.Shape)]);
-        var solid = compound ?? bodies[0].Shape;
-        var grid = VoxelGrid.Build(solid, study.Resolution);
+        var system = VoxelSystem.Build(part, study.Fixtures, study.Resolution);
+        var grid = system.Grid;
         var h = grid.Size;
         var mat = part.Material;
-        var ke = Hex8.Stiffness(mat.YoungModulus, mat.PoissonRatio);
-        var n = grid.NodeCount * 3;
-
-        // Boundary conditions.
-        var fixedDof = new bool[n];
-        foreach (var node in NodesOnFaces(part, study.Fixtures, grid))
-        {
-            fixedDof[3 * node] = fixedDof[(3 * node) + 1] = fixedDof[(3 * node) + 2] = true;
-        }
-
-        if (!fixedDof.Contains(true))
-        {
-            throw new InvalidOperationException("No mesh nodes lie on the fixed faces; raise the resolution.");
-        }
+        var n = system.N;
+        var fixedDof = system.Fixed;
 
         var f = new double[n];
         foreach (var load in study.Loads)
@@ -296,108 +272,8 @@ public static class StaticSolver
             }
         }
 
-        // Cells coloured so that cells of one colour share no nodes: scatter in parallel per colour.
-        var colours = Enumerable.Range(0, 8).Select(c => grid.CellCoords
-            .Select((ijk, idx) => (ijk, idx))
-            .Where(x => ((x.ijk.I & 1) | ((x.ijk.J & 1) << 1) | ((x.ijk.K & 1) << 2)) == c)
-            .Select(x => x.idx).ToArray()).ToArray();
-
-        void Multiply(double[] x, double[] y)
-        {
-            Array.Clear(y);
-            foreach (var colour in colours)
-            {
-                Parallel.ForEach(System.Collections.Concurrent.Partitioner.Create(0, colour.Length), range =>
-                {
-                    var ue = new double[24];
-                    for (var e = range.Item1; e < range.Item2; e++)
-                    {
-                        var nodes = grid.CellNodes[colour[e]];
-                        for (var a = 0; a < 8; a++)
-                        {
-                            ue[3 * a] = x[3 * nodes[a]];
-                            ue[(3 * a) + 1] = x[(3 * nodes[a]) + 1];
-                            ue[(3 * a) + 2] = x[(3 * nodes[a]) + 2];
-                        }
-
-                        for (var r = 0; r < 24; r++)
-                        {
-                            double s = 0;
-                            for (var c = 0; c < 24; c++)
-                            {
-                                s += ke[r, c] * ue[c];
-                            }
-
-                            y[(3 * nodes[r / 3]) + (r % 3)] += s * h;
-                        }
-                    }
-                });
-            }
-
-            for (var i = 0; i < n; i++)
-            {
-                if (fixedDof[i])
-                {
-                    y[i] = 0;
-                }
-            }
-        }
-
-        // Jacobi preconditioner from the assembled diagonal.
-        var diag = new double[n];
-        foreach (var nodes in grid.CellNodes)
-        {
-            for (var r = 0; r < 24; r++)
-            {
-                diag[(3 * nodes[r / 3]) + (r % 3)] += ke[r, r] * h;
-            }
-        }
-
         var u = new double[n];
-        var res = (double[])f.Clone();
-        var z = new double[n];
-        for (var i = 0; i < n; i++)
-        {
-            z[i] = fixedDof[i] ? 0 : res[i] / diag[i];
-        }
-
-        var p = (double[])z.Clone();
-        var q = new double[n];
-        var rz = Dot(res, z);
-        var fNorm = Math.Sqrt(Dot(f, f));
-        var iterations = 0;
-        if (fNorm > 0)
-        {
-            for (; iterations < 20000; iterations++)
-            {
-                cancel.ThrowIfCancellationRequested();
-                Multiply(p, q);
-                var alpha = rz / Dot(p, q);
-                for (var i = 0; i < n; i++)
-                {
-                    u[i] += alpha * p[i];
-                    res[i] -= alpha * q[i];
-                }
-
-                if (Math.Sqrt(Dot(res, res)) < 1e-8 * fNorm)
-                {
-                    break;
-                }
-
-                for (var i = 0; i < n; i++)
-                {
-                    z[i] = fixedDof[i] ? 0 : res[i] / diag[i];
-                }
-
-                var rzNew = Dot(res, z);
-                var beta = rzNew / rz;
-                rz = rzNew;
-                for (var i = 0; i < n; i++)
-                {
-                    p[i] = z[i] + (beta * p[i]);
-                }
-            }
-        }
+        var iterations = system.Solve(f, u, 1e-8, cancel);
 
         // Stress at each cell centre.
         var d = Hex8.Elasticity(mat.YoungModulus, mat.PoissonRatio);
@@ -450,17 +326,6 @@ public static class StaticSolver
         };
     }
 
-    private static double Dot(double[] a, double[] b)
-    {
-        double s = 0;
-        for (var i = 0; i < a.Length; i++)
-        {
-            s += a[i] * b[i];
-        }
-
-        return s;
-    }
-
     private static (Body Body, int Index) Resolve(PartDocument part, TopoRef face)
     {
         foreach (var b in part.Bodies)
@@ -476,7 +341,7 @@ public static class StaticSolver
     }
 
     /// <summary>Grid nodes lying on (within about one voxel of) the given faces.</summary>
-    private static HashSet<int> NodesOnFaces(PartDocument part, IEnumerable<TopoRef> faces, VoxelGrid grid)
+    internal static HashSet<int> NodesOnFaces(PartDocument part, IEnumerable<TopoRef> faces, VoxelGrid grid)
     {
         var result = new HashSet<int>();
         var tol = grid.Size * 0.87;
