@@ -320,6 +320,9 @@ public sealed partial class MainViewModel
         CancelEditor();
         var before = asm.Save();
         var original = c.Transform;
+        var lastClear = original;
+        var stopAtCollisions = false;
+        FeatureEditor? panel = null;
         double dx = 0, dy = 0, dz = 0, rx = 0, ry = 0, rz = 0;
         void Apply()
         {
@@ -328,10 +331,29 @@ public sealed partial class MainViewModel
                     Transform3.Rotation(center, Vec3.UnitY, ry * Math.PI / 180) *
                     Transform3.Rotation(center, Vec3.UnitZ, rz * Math.PI / 180);
             c.Transform = Transform3.Translation(new Vec3(dx, dy, dz)) * r * original;
+            if (panel is not null)
+            {
+                panel.Message = null;
+            }
+
+            if (stopAtCollisions && AssemblyTools.CollisionsWith(asm, c) is { Count: > 0 } hits)
+            {
+                // Refuse the move: back to the last position that was clear.
+                c.Transform = lastClear;
+                if (panel is not null)
+                {
+                    panel.Message = $"Stopped: {c.Name} would collide with {string.Join(", ", hits.Select(h => h.B.Name))}.";
+                }
+            }
+            else
+            {
+                lastClear = c.Transform;
+            }
+
             RebuildAndRefresh();
         }
 
-        var panel = FeatureEditor.Command($"Move {c.Name}", Apply,
+        panel = FeatureEditor.Command($"Move {c.Name}", Apply,
             accept: () =>
             {
                 _undo.Push("asm:" + before);
@@ -346,6 +368,7 @@ public sealed partial class MainViewModel
         panel.AddField(new NumberField("Rotate X", "°", () => rx, v => { rx = v; Apply(); }));
         panel.AddField(new NumberField("Rotate Y", "°", () => ry, v => { ry = v; Apply(); }));
         panel.AddField(new NumberField("Rotate Z", "°", () => rz, v => { rz = v; Apply(); }));
+        panel.AddField(new BoolField("Stop at collisions", false, v => { stopAtCollisions = v; Apply(); }));
         if (c.Fixed)
         {
             panel.Message = "This component is fixed; float it first to move it.";

@@ -71,6 +71,12 @@ public class AssemblyTests
         b.Transform = Transform3.Translation(new Vec3(0, 0, 5));
         var hit = Assert.Single(AssemblyTools.FindInterferences(asm));
         Assert.Equal(20 * 20 * 5, hit.Volume, 1e-6);
+
+        // Collision checks for the moving component alone; touching faces don't collide.
+        var collision = Assert.Single(AssemblyTools.CollisionsWith(asm, b));
+        Assert.Same(a, collision.B);
+        b.Transform = Transform3.Translation(new Vec3(0, 0, 10));
+        Assert.Empty(AssemblyTools.CollisionsWith(asm, b));
     }
 
     [Fact]

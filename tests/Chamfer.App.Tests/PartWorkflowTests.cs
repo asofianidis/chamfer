@@ -1041,4 +1041,38 @@ public class PartWorkflowTests
             File.Delete(file);
         }
     }
+
+    [Fact]
+    public void MoveStopsAtCollisions()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        for (var i = 0; i < 2; i++)
+        {
+            vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+        }
+
+        var moving = vm.AssemblyDoc!.Components[^1];
+        vm.SetSelection([new SelectionItem(SelectionKind.Feature, FeatureId: moving.Id, Label: moving.Name, ComponentId: moving.Id)]);
+        vm.AssemblyCommands.Single(c => c.Label == "Move").Command.Execute(null);
+        void MoveX(double x)
+        {
+            var field = vm.Editor!.Fields.OfType<NumberField>().Single(f => f.Label == "Move X");
+            field.Text = x.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            field.Commit();
+        }
+
+        var offset = moving.Transform.Tx - vm.AssemblyDoc.Components[0].Transform.Tx; // inserted beside the first
+        MoveX(100);
+        var start = moving.Transform.Tx;
+        vm.Editor!.Fields.OfType<BoolField>().Single(f => f.Label == "Stop at collisions").Value = true;
+        MoveX(-offset); // onto the first screw: refused
+        Assert.Equal(start, moving.Transform.Tx, 1e-9);
+        Assert.Contains("collide", vm.Editor!.Message, StringComparison.Ordinal);
+        MoveX(150); // clear again: allowed
+        Assert.Equal(start + 50, moving.Transform.Tx, 1e-9);
+        Assert.Null(vm.Editor!.Message);
+        vm.AcceptEditorCommand.Execute(null);
+    }
 }
