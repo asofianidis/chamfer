@@ -223,7 +223,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Units | **Units** switches the part between MMGS, CGS, MKS and IPS. Lengths show in that unit everywhere (fields, sketch and drawing dimensions); type a bare number in the document unit or add a unit (25mm, 1in, 2.5cm). |
 | Properties | **Properties** holds custom properties as Name = value; values can use {Mass}, {Volume}, {Material}, {Configuration}, other properties and global variables. Description and PartNumber show in assembly BOMs and drawing title blocks. |
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
-| Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES, STL, 3MF or OBJ. |
+| Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES, STL, 3MF, OBJ, glTF (.glb), or a self-contained 3D web page (.html) that anyone can open in a browser to orbit and zoom the model. |
 | Sketch tools | **Trim** (click the piece to remove), **Extend**, **Fillet** and **Chamfer** (click a corner; Size sets the radius or distance), **Offset** (selected curves, by Size; Reverse flips the side), **Mirror** (selection about a selected centerline), **Linear/Circular Pattern** (Count copies), **Convert Entities** (click model edges behind the sketch), **Convert Face** (outline of the sketch face) and **Import DXF** (lines, arcs, circles and polylines from a DXF file, converted to mm). |
 | Advanced features | **Helix** on a sketch circle (pitch, height, handedness) is a sweep path for springs. **3D Sketch** is a polyline or spline through typed points (x,y,z, or @dx,dy,dz relative), also usable as a sweep path. **Thread** models an ISO metric thread on a selected cylindrical face (pitch defaults to coarse). **Swept Boss/Cut**: select the profile sketch, then the path sketch, helix or 3D sketch. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. **Dome** raises (or sinks) a spherical cap on a flat face, following its outline. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
 | Equations | **Equations** defines global variables (`Width = 40`, `Wall = Width / 20`). Type `=Width/2` in any number box or sketch dimension to link it. |
@@ -435,7 +435,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 8: Data Exchange & Interop
 - [ ] STEP AP203/AP214/AP242 import and export with colors, names, assembly structure, and PMI where possible
 - [ ] IGES, ACIS (`.sat`), Parasolid (`.x_t`, if a licensing path exists), JT
-- [~] STL, 3MF, OBJ, glTF export (for 3D printing and visualization) *(STL, 3MF, OBJ)*
+- [x] STL, 3MF, OBJ, glTF export (for 3D printing and visualization) *(STL, 3MF, OBJ, glTF binary with instancing)*
 - [~] DXF/DWG import into sketches *(ASCII DXF: lines, arcs, circles, polylines with bulges, splines as polylines, units)*
 - [x] Import diagnostics and healing (gap repair, face healing) *(open/bad/tiny edge and face checks; sewing, ShapeFix and closing shells into solids)*
 - [ ] FeatureWorks-style feature recognition on imported solids (stretch goal)
@@ -458,7 +458,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] Model-Based Definition (3D PMI)
 - [ ] Routing: piping, tubing, electrical harnesses
 - [ ] Basic PDM: check-in/out, revisions, where-used (Git-backed or server-backed)
-- [ ] eDrawings-style lightweight viewer
+- [~] eDrawings-style lightweight viewer *(export a self-contained HTML/WebGL viewer page)*
 - [ ] Localization (i18n)
 - [ ] Accessibility: keyboard navigation, screen-reader support for panels
 - [~] Mouse gestures, customizable shortcuts, customizable ribbon *(customisable shortcuts, command search)*
@@ -490,7 +490,7 @@ A high-level tracker against SolidWorks capability areas.
 | Sheet metal | Flanges, bends, flat pattern | 7 | 🟨 Base and edge flanges, sketched bends, hems, tabs, flat pattern, DXF |
 | Weldments | Structural members, cut lists | 7 | 🟨 Members, mitres, cut lists |
 | Mold tools | Parting line/surface, core/cavity | 7 | ⬜ |
-| Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | 🟨 STEP/IGES in and out; STL, 3MF, OBJ out; drawing DXF |
+| Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | 🟨 STEP/IGES in and out; STL, 3MF, OBJ, glTF and HTML viewer out; DXF in and out |
 | Simulation | SimulationXpress-level FEA, frequency, thermal | 9 | 🟨 Linear static stress |
 | Motion | Motion studies, animation | 9 | ⬜ |
 | Rendering | Visualize-style photoreal rendering | 10 | ⬜ |

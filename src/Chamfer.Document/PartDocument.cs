@@ -490,6 +490,22 @@ public sealed class PartDocument
         }
 
         var ext = Path.GetExtension(path).ToUpperInvariant();
+        if (ext is ".GLB" or ".HTML" or ".HTM")
+        {
+            var meshes = Bodies.Select(b => new ExportMesh(b.Name, b.Mesh, b.Color ?? 0xB9C3CE)).ToList();
+            var instances = meshes.Select((m, i) => new ExportInstance(i, Geometry.Transform3.Identity, m.Name)).ToList();
+            if (ext == ".GLB")
+            {
+                File.WriteAllBytes(path, SceneExport.Glb(meshes, instances));
+            }
+            else
+            {
+                File.WriteAllText(path, SceneExport.Html(meshes, instances, Path.GetFileNameWithoutExtension(path)));
+            }
+
+            return;
+        }
+
         if (ext is ".OBJ" or ".3MF")
         {
             var meshes = Bodies.Select(b => (b.Name, b.Shape.Tessellate(0.02, 0.2))).ToList();
