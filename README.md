@@ -465,8 +465,8 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ### Phase 11: Hardening
 - [x] Crash reporting with auto-save and document recovery *(auto-save every 2 minutes, crash log, recovery panel on the next start)*
-- [ ] Performance budgets: rebuild time, open time, frame time on reference assemblies
-- [ ] Large-model test suite (10k+ components)
+- [~] Performance budgets: rebuild time, open time, frame time on reference assemblies *(budgets for a 2000-component frame and a 100-hole pattern rebuild)*
+- [~] Large-model test suite (10k+ components) *(2000 instanced components build, cull and render under budget)*
 - [x] Fuzzing for file importers *(mutated part, sketch, assembly, drawing and DXF files must load or be rejected cleanly)*
 - [ ] Signed releases, notarization, reproducible builds
 
