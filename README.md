@@ -4,7 +4,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **Status:** Pre-alpha. You can model real parts, put them together and draw them. Sketches have trim, extend, offset, mirror, fillet and patterns. Parts support extrude, revolve, sweep, loft, rib, fillet, chamfer, shell, draft, Hole Wizard, patterns and mirror, plus equations, configurations and design tables. Assemblies have mates, a mate solver, interference checks, BOMs and exploded views. Drawings have standard, section and detail views, associative dimensions, and PDF/SVG/DXF export. See the [Roadmap](#roadmap).
+> **Status:** Pre-alpha. You can model real parts, put them together, draw, analyse and render them. Sketches have trim, extend, offset, mirror, fillet, patterns, DXF import and 3D sketches. Parts support extrude, revolve, sweep, loft, rib, fillet, chamfer, shell, draft, Hole Wizard, threads, linear/circular/sketch/table/curve/fill patterns, surfaces, multibody tools, sheet metal (flanges, hems, tabs, flat patterns) and weldments (members, cut lists, end caps, gussets), plus equations, configurations, design tables and custom properties. Assemblies have standard, advanced and mechanical mates, component patterns, assembly cuts, motion studies, interference checks, BOMs, exploded views and Pack and Go. Drawings have standard, section and detail views, associative dimensions, GD&T, BOM, hole and revision tables, and PDF/SVG/DXF export. Simulation covers static stress, natural frequencies and steady heat flow, and Render path-traces the model. See the [Roadmap](#roadmap).
 
 ![A filleted block with a through hole in the Chamfer part modeler, with mass properties in the side panel](docs/images/part-light.png)
 
@@ -253,7 +253,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Start | With a part or assembly open, **New Drawing** creates a sheet with front, top, right and isometric views at a fitting standard scale. **Add Sheet** and **Next Sheet** handle multiple sheets. |
 | Assemblies | **BOM Table** adds a bill of materials; **Auto Balloon** numbers each distinct part in the selected (or isometric) view to match it. |
 | Views | Select a view, then **Section View** (horizontal or vertical cut, hatched) or **Detail View** (magnified circle). Drag views to move them. **Hidden Lines** toggles hidden edges. |
-| Annotate | **Auto Dimension** adds overall sizes and hole diameters to the selected view, tied to model edges, so they update when the part changes. **Note** adds text. **Geometric Tolerance** builds a feature control frame (characteristic, tolerance, Ø, MMC/LMC, datums): click the feature, then where the frame goes. **Datum Feature** and **Surface Finish** place those symbols the same way. **Sheet** sets size, scale, projection angle and title block fields. |
+| Annotate | **Auto Dimension** adds overall sizes and hole diameters to the selected view, tied to model edges, so they update when the part changes. **Note** adds text. **Hole Table** lists the selected view's holes with tags and X/Y from its lower-left corner; **Add Revision** adds a row to the revision table and updates the title block. **Geometric Tolerance** builds a feature control frame (characteristic, tolerance, Ø, MMC/LMC, datums): click the feature, then where the frame goes. **Datum Feature** and **Surface Finish** place those symbols the same way. **Sheet** sets size, scale, projection angle and title block fields. |
 | Export | **Export PDF**, **SVG** or **DXF**. Drawings save as `.chdrw`. |
 
 ### Using the sketcher
@@ -397,7 +397,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target *(notes, auto balloons, surface finish, datum feature)*
 - [x] **GD&T** feature control frames (ASME Y14.5 / ISO 1101) *(all 14 characteristics, Ø zones, MMC/LMC, datum references, datum feature symbols)*
 - [~] Centerlines, center marks, cosmetic threads in drawings *(automatic centre marks)*
-- [~] BOM tables, hole tables, revision tables, general tables *(BOM tables)*
+- [~] BOM tables, hole tables, revision tables, general tables *(BOM, hole and revision tables)*
 - [ ] Layers, line styles, drafting standards (ANSI, ISO, DIN, JIS)
 - [~] Export to PDF, DXF, DWG, SVG; printing *(PDF, DXF and SVG)*
 - [x] Associativity: drawings update when the model changes

@@ -170,6 +170,10 @@ public sealed class Sheet
 
     public List<SurfaceFinish> Finishes { get; set; } = [];
 
+    public List<HoleTable> HoleTables { get; set; } = [];
+
+    public RevisionTable? Revisions { get; set; }
+
     public (double Width, double Height) Dimensions2D
     {
         get

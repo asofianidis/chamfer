@@ -48,6 +48,8 @@ public sealed partial class MainViewModel
         new("Datum Feature", "Datum feature symbol", new RelayCommand(StartDatum), "Ⓐ"),
         new("Surface Finish", "Surface texture symbol with roughness", new RelayCommand(StartSurfaceFinish), "√"),
         new("BOM Table", "Bill of materials table (assembly drawings)", new RelayCommand(AddBomTable), "☰"),
+        new("Hole Table", "Table of the holes in the selected view", new RelayCommand(StartHoleTable), "⊕"),
+        new("Add Revision", "Add a row to the revision table", new RelayCommand(StartRevision), "Ⓡ"),
         new("Auto Balloon", "Number the parts in the selected view (assembly drawings)", new RelayCommand(AutoBalloon), "①"),
         new("Add Sheet", "Add another sheet", new RelayCommand(AddSheet), "⊞"),
         new("Next Sheet", "Show the next sheet", new RelayCommand(NextSheet), "→"),
@@ -664,6 +666,56 @@ public sealed partial class MainViewModel
         };
     }
 
+    private void StartHoleTable()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet || SelectedView() is not { } view)
+        {
+            MessageText = "Select a view for the hole table.";
+            return;
+        }
+
+        CancelEditor();
+        HintText = "Click where the hole table's top-left corner goes.";
+        _pendingSheetClick = at =>
+        {
+            SnapshotDrawing();
+            sheet.HoleTables.Add(new HoleTable { Id = d.NextId("holetable"), ViewId = view.Id, X = at.X, Y = at.Y });
+            HintText = string.Empty;
+            RefreshDrawing();
+        };
+    }
+
+    private void StartRevision()
+    {
+        if (CurrentSheet is not { } sheet)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var panel = FeatureEditor.Info("Add Revision");
+        var approved = string.Empty;
+        panel.AddInfo(new TextField("Approved by", string.Empty, v => approved = v));
+        panel.AddInfo(new TextField("Description", string.Empty, text =>
+        {
+            SnapshotDrawing();
+            var (w, h) = sheet.Dimensions2D;
+            sheet.Revisions ??= new RevisionTable { X = w - 10 - 130, Y = h - 16 };
+            sheet.Revisions.Rows.Add(new Revision
+            {
+                Rev = sheet.Revisions.NextRev(),
+                Description = text,
+                Date = DateTime.Now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture),
+                Approved = approved,
+            });
+            DrawingDoc!.Properties["Revision"] = sheet.Revisions.Rows[^1].Rev;
+            Editor = null;
+            RefreshDrawing();
+        }));
+        panel.AddInfo(new InfoField("How", "Type what changed and press Enter. The title block's revision follows the latest row."));
+        Editor = panel;
+    }
+
     private void AddBomTable()
     {
         if (DrawingDoc is not { IsAssembly: true } || CurrentSheet is not { } sheet)
@@ -759,6 +811,11 @@ public sealed partial class MainViewModel
         sheet.Tolerances.RemoveAll(t => DrawingSelection.Contains(t.Id));
         sheet.Datums.RemoveAll(d => DrawingSelection.Contains(d.Id));
         sheet.Finishes.RemoveAll(f => DrawingSelection.Contains(f.Id));
+        sheet.HoleTables.RemoveAll(t => DrawingSelection.Contains(t.Id));
+        if (DrawingSelection.Contains("revisions"))
+        {
+            sheet.Revisions = null;
+        }
         DrawingSelection.Clear();
         RefreshDrawing();
     }

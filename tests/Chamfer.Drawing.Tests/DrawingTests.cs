@@ -300,4 +300,62 @@ public class DrawingTests
         Assert.Equal("A", Assert.Single(loaded.Sheets[0].Datums).Label);
         Assert.Equal("Ra 1.6", Assert.Single(loaded.Sheets[0].Finishes).Roughness);
     }
+
+    [Fact]
+    public void HoleTableAndRevisionTable()
+    {
+        // A 100 × 60 × 10 plate with Ø6 holes at (20, 15) and (50, 15), Ø10 at (80, 40), and a Ø8 boss on top.
+        var part = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(100, 60));
+        s.AddCircle(new Vec2(20, 15), 3);
+        s.AddCircle(new Vec2(50, 15), 3);
+        s.AddCircle(new Vec2(80, 40), 5);
+        var sf = part.Add(new SketchFeature { Sketch = s });
+        part.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        part.Rebuild();
+        var body = part.Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99);
+        var (u, v) = body.Shape.FacePlane(top)!.Value.ToLocal(new Vec3(30, 45, 10));
+        var boss = new Sketch();
+        boss.AddCircle(new Vec2(u, v), 4);
+        var bf = part.Add(new SketchFeature { Plane = new PlaneRef(Face: body.FaceRef(top)), Sketch = boss });
+        part.Add(new ExtrudeFeature { SketchId = bf.Id, Depth = 5 });
+        part.Rebuild();
+
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        drawing.AddStandardViews(sheet);
+        var front = sheet.Views[0];
+        var renderer = new DrawingRenderer(drawing);
+        var holes = DrawingTables.Holes(drawing.Bodies, renderer.Geometry(sheet, front));
+        Assert.Equal(3, holes.Count);
+        Assert.Equal(["A1", "A2", "A3"], holes.Select(h => h.Tag));
+        Assert.Equal((80, 40, 10), (Math.Round(holes[0].X, 6), Math.Round(holes[0].Y, 6), Math.Round(holes[0].Diameter, 6)));
+        Assert.Equal((20, 15, 6), (Math.Round(holes[1].X, 6), Math.Round(holes[1].Y, 6), Math.Round(holes[1].Diameter, 6)));
+        Assert.Equal((50, 15, 6), (Math.Round(holes[2].X, 6), Math.Round(holes[2].Y, 6), Math.Round(holes[2].Diameter, 6)));
+
+        sheet.HoleTables.Add(new HoleTable { Id = drawing.NextId("ht"), ViewId = front.Id, X = 20, Y = 280 });
+        sheet.Revisions = new RevisionTable { X = 250, Y = 280 };
+        sheet.Revisions.Rows.Add(new Revision { Rev = sheet.Revisions.NextRev(), Description = "First release", Date = "2026-11-22" });
+        Assert.Equal("B", sheet.Revisions.NextRev());
+        var g = renderer.Render(sheet);
+        var texts = g.Items.OfType<TextPrimitive>().Select(t => t.Text).ToList();
+        Assert.Contains("X LOC", texts);
+        Assert.Contains("Ø10", texts);
+        Assert.Equal(2, texts.Count(t => t == "A1")); // tag by the hole and in the table
+        Assert.Contains("First release", texts);
+
+        var loaded = DrawingDocument.Load(drawing.Save());
+        Assert.Single(loaded.Sheets[0].HoleTables);
+        Assert.Equal("First release", loaded.Sheets[0].Revisions!.Rows[0].Description);
+        var many = new RevisionTable();
+        for (var i = 0; i < 27; i++)
+        {
+            many.Rows.Add(new Revision { Rev = many.NextRev() });
+        }
+
+        Assert.Equal("Z", many.Rows[25].Rev);
+        Assert.Equal("AA", many.Rows[26].Rev);
+    }
 }
