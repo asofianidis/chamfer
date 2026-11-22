@@ -500,7 +500,11 @@ public static class MateSolver
             var placed = mated.Select(c => Place(c, xk)).ToArray();
             for (var i = 0; i < mated.Count; i++)
             {
-                mated[i].Transform = Orthonormalize(placed[i]);
+                var t = Orthonormalize(placed[i]);
+                if (t.IsRigid)
+                {
+                    mated[i].Transform = t;
+                }
             }
 
             start = mated.Select(c => c.Transform).ToArray();

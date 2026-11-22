@@ -402,4 +402,87 @@ public class AdvancedMateTests
         var p2 = asm.AddComponent("pin.chprt", Transform3.Translation(new Vec3(150, 0, 0)));
         Assert.Empty(asm.ApplyMateReferences(p2));
     }
+
+    private static IEnumerable<string> Mutations(string text, int count, int seed)
+    {
+        var rng = new Random(seed);
+        string[] junk = ["", "null", "-1", "1e308", "NaN", "\"\"", "[]", "{}", "0", "true"];
+        for (var n = 0; n < count; n++)
+        {
+            var sb = new System.Text.StringBuilder(text);
+            for (var k = 1 + rng.Next(4); k > 0 && sb.Length > 0; k--)
+            {
+                var at = rng.Next(sb.Length);
+                switch (rng.Next(4))
+                {
+                    case 0:
+                        sb.Remove(at, Math.Min(sb.Length - at, 1 + rng.Next(8)));
+                        break;
+                    case 1:
+                        sb.Insert(at, (char)rng.Next(32, 127));
+                        break;
+                    case 2:
+                        var s = sb.ToString();
+                        var digit = s.IndexOfAny("0123456789".ToCharArray(), at);
+                        if (digit >= 0)
+                        {
+                            var end = digit;
+                            while (end < s.Length && (char.IsDigit(s[end]) || s[end] is '.' or 'e' or '-'))
+                            {
+                                end++;
+                            }
+
+                            sb.Remove(digit, end - digit).Insert(digit, junk[rng.Next(junk.Length)]);
+                        }
+
+                        break;
+                    default:
+                        sb[at] = (char)rng.Next(32, 127);
+                        break;
+                }
+            }
+
+            yield return sb.ToString();
+        }
+    }
+
+    private static bool Expected(Exception ex) => ex is System.Text.Json.JsonException or NotSupportedException or FormatException;
+
+    [Fact]
+    public void MutatedAssembliesLoadOrFailCleanly()
+    {
+        var asm = new AssemblyDocument();
+        var plate = Block(60, 40, 10);
+        asm.RegisterPart("plate.chprt", plate);
+        var a = asm.AddComponent("plate.chprt");
+        var b = asm.AddComponent("plate.chprt", Transform3.Translation(new Vec3(0, 0, 20)));
+        asm.AddMate(MateType.Coincident, new MateRef(a.Id, Face(plate, f => f.Normal.Z > 0.99)), new MateRef(b.Id, Face(plate, f => f.Normal.Z < -0.99)));
+        var s = new Sketch();
+        s.AddCircle(new Vec2(10, 10), 3);
+        asm.AddCut(new AssemblyCut { Sketch = s, ThroughAll = true });
+        var json = asm.Save();
+        var failures = new List<string>();
+        foreach (var text in Mutations(json, 250, 42))
+        {
+            try
+            {
+                var loaded = AssemblyDocument.Load(text);
+                loaded.RegisterPart("plate.chprt", plate);
+                loaded.Solve();
+                foreach (var c in loaded.Components)
+                {
+                    _ = loaded.BodiesOf(c);
+                }
+            }
+            catch (Exception ex) when (Expected(ex))
+            {
+            }
+            catch (Exception ex)
+            {
+                failures.Add($"{ex.GetType().Name}: {ex.Message} @ {ex.StackTrace?.Split('\n').FirstOrDefault()?.Trim()}");
+            }
+        }
+
+        Assert.True(failures.Count == 0, string.Join("\n", failures.Distinct().Take(10)));
+    }
 }

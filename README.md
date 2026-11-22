@@ -467,7 +467,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Crash reporting with auto-save and document recovery *(auto-save every 2 minutes, crash log, recovery panel on the next start)*
 - [ ] Performance budgets: rebuild time, open time, frame time on reference assemblies
 - [ ] Large-model test suite (10k+ components)
-- [ ] Fuzzing for file importers
+- [x] Fuzzing for file importers *(mutated part, sketch, assembly, drawing and DXF files must load or be rejected cleanly)*
 - [ ] Signed releases, notarization, reproducible builds
 
 ---

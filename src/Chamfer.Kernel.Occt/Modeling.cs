@@ -167,6 +167,12 @@ public static unsafe class Modeling
     public static Operation Transform(Shape s, Transform3 t, bool copy = true)
     {
         ArgumentNullException.ThrowIfNull(s);
+        if (!t.IsUsable)
+        {
+            // Degenerate matrices can send the kernel into unbounded recursion; refuse them here.
+            throw new KernelException("The transform has invalid values.");
+        }
+
         var m = t.ToArray();
         fixed (double* pm = m)
         {
