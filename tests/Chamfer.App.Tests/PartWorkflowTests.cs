@@ -595,4 +595,30 @@ public class PartWorkflowTests
         vm.AcceptEditorCommand.Execute(null);
         Assert.True(vm.Document.State.Curves.ContainsKey(s3.Id));
     }
+
+    [Fact]
+    public void AssemblyCutFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var asm = vm.AssemblyDoc!;
+        var screw = asm.Components[0];
+        var full = asm.PartOf(screw).MassProperties().Volume;
+
+        vm.AssemblyCommands.Single(c => c.Label == "Assembly Cut").Command.Execute(null);
+        var d = vm.Editor!.Fields.OfType<NumberField>().Single(f => f.Label == "Diameter / width");
+        d.Text = "2";
+        d.Commit();
+        vm.AcceptEditorCommand.Execute(null);
+        var cut = Assert.Single(asm.Features);
+        Assert.NotEqual("pending", cut.Id);
+        Assert.True(asm.BodiesOf(screw)[0].Shape.MassProperties.Volume < full - 1);
+        Assert.Equal(full, asm.PartOf(screw).MassProperties().Volume, 1e-9);
+        Assert.Contains(vm.Tree, n => n.Tag == cut);
+
+        vm.UndoCommand.Execute(null);
+        Assert.Empty(vm.AssemblyDoc!.Features);
+    }
 }

@@ -17,4 +17,10 @@ public readonly record struct Box3(Vec3 Min, Vec3 Max)
         new Vec3(Math.Max(Max.X, p.X), Math.Max(Max.Y, p.Y), Math.Max(Max.Z, p.Z)));
 
     public Box3 Union(Box3 other) => other.IsEmpty ? this : IsEmpty ? other : Include(other.Min).Include(other.Max);
+
+    /// <summary>True when the boxes overlap (touching counts).</summary>
+    public bool Intersects(Box3 other) => !IsEmpty && !other.IsEmpty &&
+        Min.X <= other.Max.X && other.Min.X <= Max.X &&
+        Min.Y <= other.Max.Y && other.Min.Y <= Max.Y &&
+        Min.Z <= other.Max.Z && other.Min.Z <= Max.Z;
 }

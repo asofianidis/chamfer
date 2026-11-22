@@ -1202,6 +1202,10 @@ public sealed partial class MainViewModel : ViewModelBase
             {
                 mate.Suppressed = !mate.Suppressed;
             }
+            else if (tag is Chamfer.Assembly.AssemblyCut cut)
+            {
+                cut.Suppressed = !cut.Suppressed;
+            }
 
             RebuildAndRefresh();
             return;
@@ -1236,6 +1240,10 @@ public sealed partial class MainViewModel : ViewModelBase
             else if (tag is Chamfer.Assembly.Mate mate)
             {
                 asm.Mates.Remove(mate);
+            }
+            else if (tag is Chamfer.Assembly.AssemblyCut cut)
+            {
+                asm.Features.Remove(cut);
             }
 
             SelectedNode = null;

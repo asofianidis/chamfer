@@ -276,7 +276,7 @@ public sealed class DrawingDocument
 
             var asm = Assembly;
             var visible = asm.Components.Where(c => !c.Suppressed && !c.Hidden).ToList();
-            var key = string.Join(';', visible.Select(c => $"{c.Id}:{c.Transform.GetHashCode()}:{asm.PartOf(c).State.GetHashCode()}"));
+            var key = string.Join(';', visible.Select(c => $"{c.Id}:{c.Transform.GetHashCode()}:{asm.PartOf(c).State.GetHashCode()}")) + "|" + asm.FeaturesFingerprint();
             if (_assemblyBodies is { } cached && cached.Key == key)
             {
                 return cached.Bodies;
