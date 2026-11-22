@@ -417,7 +417,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Knit (sew), trim, untrim, extend, and delete face *(knit, forming solids from closed sets)*
 - [x] Thicken, and thickened cut
 - [~] Replace face, cut with surface *(cut with surface or plane)*
-- [~] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection *(zebra stripes, draft analysis, undercut detection)*
+- [x] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection
 - [~] Freeform *(flat faces reshaped through a grid of up to 5 x 5 control points pulled in or out, staying on their edges)*
 
 ### Phase 7: Specialized Toolsets

@@ -106,6 +106,119 @@ public sealed partial class MainViewModel
 
     private double[] ThicknessOf(TriangleMesh mesh) => _thickness.GetValue(mesh, MeshAnalysis.Thickness);
 
+    /// <summary>Colour by curvature: blue where flat, through green and yellow, to red at <see cref="CurvatureRadius"/> or tighter.</summary>
+    [ObservableProperty]
+    public partial bool CurvatureAnalysis { get; set; }
+
+    [ObservableProperty]
+    public partial double CurvatureRadius { get; set; } = 5;
+
+    partial void OnCurvatureAnalysisChanged(bool value) => RaiseScene();
+
+    partial void OnCurvatureRadiusChanged(double value) => RaiseScene();
+
+    [RelayCommand]
+    private void ToggleCurvatureAnalysis()
+    {
+        CurvatureAnalysis = !CurvatureAnalysis;
+        if (!CurvatureAnalysis)
+        {
+            if (Editor?.Title == "Curvature")
+            {
+                Editor = null;
+            }
+
+            return;
+        }
+
+        ThicknessAnalysis = UndercutAnalysis = DraftAnalysis = false;
+        CancelEditor();
+        var panel = FeatureEditor.Info("Curvature");
+        panel.AddInfo(new NumberField("Red at radius", "mm", () => CurvatureRadius, v => CurvatureRadius = v, 1e-6));
+        panel.AddInfo(new InfoField("Colours", "Blue: flat. Green, yellow, red: tighter, up to the radius above."));
+        Editor = panel;
+    }
+
+    /// <summary>
+    /// Deviation analysis: where two faces meet, how far their normals differ (0° where they're tangent).
+    /// Lists the edges over the limit and colours them.
+    /// </summary>
+    [RelayCommand]
+    private void ShowDeviationAnalysis()
+    {
+        CancelEditor();
+        var panel = FeatureEditor.Info("Deviation Analysis");
+        var limit = 1.0;
+        var rows = new List<PropertyField>();
+        void Check()
+        {
+            foreach (var r in rows)
+            {
+                panel.Fields.Remove(r);
+            }
+
+            rows.Clear();
+            _deviationEdges.Clear();
+            var inv = System.Globalization.CultureInfo.InvariantCulture;
+            var found = new List<(Body Body, int Edge, double Degrees)>();
+            foreach (var body in Document.Bodies)
+            {
+                foreach (var (edge, degrees) in EdgeDeviations(body))
+                {
+                    if (degrees > limit)
+                    {
+                        found.Add((body, edge, degrees));
+                        _deviationEdges.Add((body, edge));
+                    }
+                }
+            }
+
+            var smooth = Document.Bodies.SelectMany(EdgeDeviations).Where(x => x.Degrees <= limit).ToList();
+            rows.Add(new InfoField("Tangent edges", smooth.Count == 0 ? "none" : $"{smooth.Count}, at most {smooth.Max(x => x.Degrees).ToString("0.###", inv)}°"));
+            rows.Add(new InfoField("Over the limit", $"{found.Count} edge(s)" + (found.Count > 0 ? $", up to {found.Max(x => x.Degrees).ToString("0.#", inv)}°" : string.Empty)));
+            foreach (var r in rows)
+            {
+                panel.AddInfo(r);
+            }
+
+            RaiseScene();
+        }
+
+        panel.AddInfo(new NumberField("Limit", "°", () => limit, v =>
+        {
+            limit = v;
+            Check();
+        }, 0));
+        Editor = panel;
+        Check();
+    }
+
+    private readonly List<(Body Body, int Edge)> _deviationEdges = [];
+
+    /// <summary>The largest angle between the two faces' normals along each edge they share.</summary>
+    private static IEnumerable<(int Edge, double Degrees)> EdgeDeviations(Body body)
+    {
+        for (var e = 1; e <= body.EdgeCount; e++)
+        {
+            var faces = body.Shape.FacesOfEdge(e);
+            if (faces.Length != 2 || faces[0] == faces[1])
+            {
+                continue;
+            }
+
+            var worst = 0.0;
+            foreach (var p in body.Shape.SampleEdge(e, 0.05))
+            {
+                if (body.Shape.ProjectOnFace(faces[0], p) is { } a && body.Shape.ProjectOnFace(faces[1], p) is { } b)
+                {
+                    worst = Math.Max(worst, Math.Acos(Math.Clamp(Vec3.Dot(a.Normal.Normalized(), b.Normal.Normalized()), -1, 1)) * 180 / Math.PI);
+                }
+            }
+
+            yield return (e, worst);
+        }
+    }
+
     /// <summary>Show model-based dimensions and hole callouts in the 3D view.</summary>
     [ObservableProperty]
     public partial bool ShowPmi { get; set; }
@@ -224,6 +337,33 @@ public sealed partial class MainViewModel
 
                 item.VertexColors = colors;
                 item.FaceColors.Clear();
+            }
+        }
+
+        if (CurvatureAnalysis)
+        {
+            Rgba[] ramp = [Rgba.FromHex(0x2563EB), Rgba.FromHex(0x22C55E), Rgba.FromHex(0xEAB308), Rgba.FromHex(0xEF4444)];
+            foreach (var item in scene.Meshes)
+            {
+                item.VertexColors = [.. MeshAnalysis.Curvature(item.Mesh).Select(k =>
+                {
+                    var x = Math.Clamp(k * CurvatureRadius, 0, 1) * 3;
+                    var i = Math.Min(2, (int)x);
+                    return Rgba.Lerp(ramp[i], ramp[i + 1], x - i);
+                })];
+                item.FaceColors.Clear();
+            }
+        }
+
+        if (Editor?.Title == "Deviation Analysis")
+        {
+            var red = Rgba.FromHex(0xEF4444);
+            foreach (var item in scene.Meshes)
+            {
+                foreach (var (body, edge) in _deviationEdges.Where(d => ReferenceEquals(d.Body.Mesh, item.Mesh)))
+                {
+                    item.EdgeColors[edge] = red;
+                }
             }
         }
 
