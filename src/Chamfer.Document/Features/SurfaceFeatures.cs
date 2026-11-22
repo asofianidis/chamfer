@@ -297,3 +297,93 @@ public sealed class ThickenFeature : Feature
         }
     }
 }
+
+/// <summary>How a ruled surface leaves its edges.</summary>
+public enum RuledDirection
+{
+    /// <summary>Square to a flat face next to each edge.</summary>
+    NormalToFace,
+
+    /// <summary>Along one direction for every edge.</summary>
+    AlongDirection,
+}
+
+/// <summary>
+/// A ruled surface: a strip of the given width from each selected model edge, square to a face
+/// beside it or along a direction (for parting and shut-off surfaces, flanges to build on).
+/// </summary>
+public sealed class RuledSurfaceFeature : Feature
+{
+    public override string DefaultName => "Ruled-Surface";
+
+    public List<TopoRef> Edges { get; set; } = [];
+
+    public double Distance { get; set; } = 5;
+
+    public RuledDirection Type { get; set; }
+
+    /// <summary>For <see cref="RuledDirection.AlongDirection"/>.</summary>
+    public AxisRef Direction { get; set; } = AxisRef.Z;
+
+    /// <summary>Go the other way.</summary>
+    public bool Reverse { get; set; }
+
+    /// <summary>For <see cref="RuledDirection.NormalToFace"/>: use the other face beside each edge.</summary>
+    public bool OtherFace { get; set; }
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (Edges.Count == 0)
+        {
+            throw new FeatureException("Select the edges to rule from.");
+        }
+
+        if (Distance <= 0)
+        {
+            throw new FeatureException("The distance must be greater than zero.");
+        }
+
+        var along = Type == RuledDirection.AlongDirection ? ctx.ResolveAxis(Direction).Direction.Normalized() : Vec3.Zero;
+        var strips = new List<Shape>();
+        try
+        {
+            foreach (var edgeRef in Edges)
+            {
+                var (body, index) = ctx.ResolveEdge(edgeRef);
+                var dir = along;
+                if (Type == RuledDirection.NormalToFace)
+                {
+                    var flat = body.Shape.FacesOfEdge(index).Select(f => body.Shape.FacePlane(f)).OfType<Plane3>().ToList();
+                    if (flat.Count == 0)
+                    {
+                        throw new FeatureException("A selected edge has no flat face beside it; rule it along a direction instead.");
+                    }
+
+                    dir = flat[OtherFace && flat.Count > 1 ? 1 : 0].Normal;
+                }
+
+                using var edge = body.Shape.Sub(TopoKind.Edge, index);
+                using var op = Modeling.Extrude(edge, dir * (Reverse ? -Distance : Distance));
+                strips.Add(op.Result);
+            }
+
+            using var sewn = strips.Count == 1 ? null : Modeling.Sew(strips);
+            var shape = sewn is null ? strips[0] : sewn.Result;
+            if (sewn is null)
+            {
+                strips.Clear(); // the body owns it now
+            }
+
+            Surfaces.AddBody(ctx, shape, Id);
+        }
+        finally
+        {
+            foreach (var s in strips)
+            {
+                s.Dispose();
+            }
+        }
+    }
+}
+

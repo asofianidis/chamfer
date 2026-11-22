@@ -57,6 +57,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(ReferenceAxisFeature), "axis")]
 [JsonDerivedType(typeof(ReferencePointFeature), "point")]
 [JsonDerivedType(typeof(CoordinateSystemFeature), "coordinate-system")]
+[JsonDerivedType(typeof(RuledSurfaceFeature), "ruled-surface")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
 [JsonDerivedType(typeof(CombineFeature), "combine")]
 [JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]

@@ -264,6 +264,15 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(Num("Gap tolerance", "mm", kn, nameof(kn.Tolerance), 1e-6));
                 break;
 
+            case RuledSurfaceFeature rs:
+                ed.Add(new SelectionField("Edges", [SelectionKind.Edge], Refs(rs.Edges, SelectionKind.Edge), items => Set(() => rs.Edges = [.. items.Select(i => i.Ref!)])));
+                ed.Add(Num("Distance", "mm", rs, nameof(rs.Distance), 1e-6));
+                ed.Add(new ChoiceField("Type", ["Normal to a face", "Along a direction"], (int)rs.Type, i => Set(() => rs.Type = (RuledDirection)i)));
+                ed.Add(new SelectionField("Direction", Axes, [AxisItem(rs.Direction, doc)], items => Set(() => rs.Direction = Last(items)?.AsAxis() ?? AxisRef.Z), max: 1));
+                ed.Add(new BoolField("Other face", rs.OtherFace, v => Set(() => rs.OtherFace = v)));
+                ed.Add(new BoolField("Reverse", rs.Reverse, v => Set(() => rs.Reverse = v)));
+                break;
+
             case ThickenFeature th:
                 ed.Add(BodyField(doc, feature, "Surface", th.Body.Length > 0 ? [th.Body] : [], names => Set(() => th.Body = names.FirstOrDefault() ?? string.Empty), 1));
                 ed.Add(Num("Thickness", "mm", th, nameof(th.Thickness), 1e-6));
