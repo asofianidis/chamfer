@@ -85,6 +85,14 @@ public enum MateType
     LinearCoupler,
 }
 
+/// <summary>A named set of hidden components (a display state).</summary>
+public sealed class DisplayState
+{
+    public string Name { get; set; } = "Display State";
+
+    public List<string> HiddenComponents { get; set; } = [];
+}
+
 /// <summary>Geometry on a component a mate refers to: a face, an edge, or a reference plane of the part.</summary>
 public sealed record MateRef(string ComponentId, TopoRef? Face = null, TopoRef? Edge = null, string? PlaneId = null)
 {
@@ -274,6 +282,39 @@ public sealed partial class AssemblyDocument
     }
 
     public Component? Find(string id) => Components.Find(c => c.Id == id);
+
+    /// <summary>Saved display states (which components are hidden).</summary>
+    public List<DisplayState> DisplayStates { get; } = [];
+
+    /// <summary>The display state last applied or saved, if any.</summary>
+    public string? ActiveDisplayState { get; set; }
+
+    /// <summary>Saves which components are hidden now under a name (replacing a state of that name).</summary>
+    public DisplayState SaveDisplayState(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        var state = DisplayStates.Find(s => s.Name == name.Trim()) ?? new DisplayState { Name = name.Trim() };
+        state.HiddenComponents = [.. Components.Where(c => c.Hidden).Select(c => c.Id)];
+        if (!DisplayStates.Contains(state))
+        {
+            DisplayStates.Add(state);
+        }
+
+        ActiveDisplayState = state.Name;
+        return state;
+    }
+
+    /// <summary>Shows and hides components as a display state says.</summary>
+    public void ApplyDisplayState(DisplayState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        foreach (var c in Components)
+        {
+            c.Hidden = state.HiddenComponents.Contains(c.Id);
+        }
+
+        ActiveDisplayState = state.Name;
+    }
 
     public Component AddComponent(string path, Transform3? placement = null, string? configuration = null)
     {
@@ -479,6 +520,8 @@ public sealed partial class AssemblyDocument
         public List<Component> Components { get; set; } = [];
         public List<Mate> Mates { get; set; } = [];
         public List<AssemblyCut>? Features { get; set; }
+        public List<DisplayState>? DisplayStates { get; set; }
+        public string? ActiveDisplayState { get; set; }
     }
 
     public string Save() => JsonSerializer.Serialize(new AssemblyDto
@@ -488,6 +531,8 @@ public sealed partial class AssemblyDocument
         Components = Components,
         Mates = Mates,
         Features = Features.Count > 0 ? Features : null,
+        DisplayStates = DisplayStates.Count > 0 ? DisplayStates : null,
+        ActiveDisplayState = ActiveDisplayState,
     }, Options);
 
     /// <summary>
@@ -543,6 +588,9 @@ public sealed partial class AssemblyDocument
         Mates.AddRange(mates);
         Features.Clear();
         Features.AddRange(other.Features);
+        DisplayStates.Clear();
+        DisplayStates.AddRange(other.DisplayStates);
+        ActiveDisplayState = other.ActiveDisplayState;
         _nextId = Math.Max(_nextId, other._nextId);
     }
 
@@ -563,6 +611,8 @@ public sealed partial class AssemblyDocument
         doc.Components.AddRange(dto.Components);
         doc.Mates.AddRange(dto.Mates);
         doc.Features.AddRange(dto.Features ?? []);
+        doc.DisplayStates.AddRange(dto.DisplayStates ?? []);
+        doc.ActiveDisplayState = dto.ActiveDisplayState;
         doc._nextId = Math.Max(dto.NextId, doc.Components.Count + doc.Mates.Count + doc.Features.Count + 1);
         return doc;
     }

@@ -377,7 +377,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Cosmetic threads, thread feature *(modelled ISO metric threads, external and internal)*
 - [x] Library features *(save sketches and the features on them; insert onto any face or plane)*
 - [~] Appearances, decals, scenes *(body colours)*
-- [~] Section view, display states *(section view with capped cut faces)*
+- [x] Section view, display states *(section view with capped cut faces; hide/show components and named display states in assemblies)*
 - [~] Interactive feature editing via drag handles (Instant3D-style) *(drag the arrow to set an extrusion's depth)*
 
 ### Phase 4: Assemblies
