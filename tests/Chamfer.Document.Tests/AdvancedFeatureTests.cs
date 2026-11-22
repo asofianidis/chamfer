@@ -96,6 +96,15 @@ public class AdvancedFeatureTests
         loft.Ruled = true;
         doc.Rebuild();
         AssertOk(doc);
+
+        // Leaving the square normal to it keeps the loft fuller near the base.
+        loft.Ruled = false;
+        doc.Rebuild();
+        var plain = Volume(doc);
+        loft.StartConstraint = BoundaryTangency.NormalToProfile;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.True(Volume(doc) > plain + 50, $"{Volume(doc)} vs {plain}");
     }
 
     [Fact]
