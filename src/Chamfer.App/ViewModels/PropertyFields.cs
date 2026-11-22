@@ -258,6 +258,12 @@ public sealed partial class TextField : PropertyField
     }
 }
 
+/// <summary>A button in a panel.</summary>
+public sealed class ButtonField(string label, IRelayCommand command) : PropertyField(label)
+{
+    public IRelayCommand Command { get; } = command;
+}
+
 /// <summary>A read-only line of text (hints, results).</summary>
 public sealed partial class InfoField(string label, string text) : PropertyField(label)
 {

@@ -37,6 +37,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private static readonly FilePickerFileType StepFileType = new("STEP") { Patterns = ["*.step", "*.stp"] };
     private static readonly FilePickerFileType IgesFileType = new("IGES") { Patterns = ["*.iges", "*.igs"] };
     private static readonly FilePickerFileType StlFileType = new("STL") { Patterns = ["*.stl"] };
+    private static readonly FilePickerFileType CsvFileType = new("Design table (CSV)") { Patterns = ["*.csv"] };
 
     private readonly Stack<string> _undo = new();
     private readonly Stack<string> _redo = new();
@@ -77,6 +78,42 @@ public sealed partial class MainViewModel : ViewModelBase
     public PartScene SceneBuilder { get; } = new();
 
     public ObservableCollection<FeatureNode> Tree { get; } = [];
+
+    public ObservableCollection<string> ConfigurationNames { get; } = [];
+
+    [ObservableProperty]
+    public partial string? ActiveConfigurationName { get; set; }
+
+    private bool _syncingConfigurations;
+
+    partial void OnActiveConfigurationNameChanged(string? value)
+    {
+        if (_syncingConfigurations || value is null || value == Document.ActiveConfiguration)
+        {
+            return;
+        }
+
+        CancelEditor();
+        Document.ActiveConfiguration = value;
+        RebuildAndRefresh();
+    }
+
+    private void RefreshConfigurations()
+    {
+        _syncingConfigurations = true;
+        var names = Document.Configurations.Select(c => c.Name).ToList();
+        if (!names.SequenceEqual(ConfigurationNames))
+        {
+            ConfigurationNames.Clear();
+            foreach (var n in names)
+            {
+                ConfigurationNames.Add(n);
+            }
+        }
+
+        ActiveConfigurationName = Document.Active.Name;
+        _syncingConfigurations = false;
+    }
 
     public IReadOnlyList<CommandItem> FeatureCommands { get; }
 
@@ -164,6 +201,7 @@ public sealed partial class MainViewModel : ViewModelBase
     public void RebuildAndRefresh()
     {
         Document.Rebuild();
+        RefreshConfigurations();
         RefreshTree();
         var errors = Document.Features.Where(f => Document.Results.TryGetValue(f.Id, out var r) && r.Status == FeatureStatus.Error).ToList();
         var warnings = Document.Features.Where(f => Document.Results.TryGetValue(f.Id, out var r) && r.Status == FeatureStatus.Warning).ToList();
@@ -819,7 +857,7 @@ public sealed partial class MainViewModel : ViewModelBase
         }
 
         Snapshot();
-        f.IsSuppressed = !f.IsSuppressed;
+        Document.SetSuppressed(f, !Document.IsSuppressed(f));
         RebuildAndRefresh();
     }
 
@@ -985,6 +1023,127 @@ public sealed partial class MainViewModel : ViewModelBase
 
         RebuildAndRefresh();
         ShowEquations();
+    }
+
+    /// <summary>Configurations: add, switch, override variables, delete, and design tables.</summary>
+    [RelayCommand]
+    private void ShowConfigurations()
+    {
+        CancelEditor();
+        var panel = FeatureEditor.Info("Configurations");
+        panel.AddInfo(new InfoField("Active", $"{Document.Active.Name} (switch with the list above the feature tree)"));
+        panel.AddInfo(new TextField("Add configuration", string.Empty, name =>
+        {
+            if (Document.Configurations.Exists(c => c.Name == name))
+            {
+                MessageText = $"There is already a configuration named {name}.";
+                return;
+            }
+
+            Snapshot();
+            Document.Configurations.Add(Document.Active.Copy(name));
+            Document.ActiveConfiguration = name;
+            RebuildAndRefresh();
+            ShowConfigurations();
+        }));
+        panel.AddInfo(new TextField("Override here (Name = value)", string.Empty, text =>
+        {
+            var eq = text.IndexOf('=', StringComparison.Ordinal);
+            if (eq <= 0)
+            {
+                MessageText = "Type a variable name, =, and its value for this configuration.";
+                return;
+            }
+
+            Snapshot();
+            var name = text[..eq].Trim().Trim('"');
+            var expr = text[(eq + 1)..].Trim();
+            if (expr.Length == 0)
+            {
+                Document.Active.Variables.Remove(name);
+            }
+            else
+            {
+                Document.Active.Variables[name] = expr;
+            }
+
+            RebuildAndRefresh();
+            ShowConfigurations();
+        }));
+        foreach (var (name, expr) in Document.Active.Variables)
+        {
+            panel.AddInfo(new InfoField($"{name} (overridden)", $"= {expr}"));
+        }
+
+        var suppressed = Document.Active.Suppression.Where(kv => kv.Value).Select(kv => Document.Find(kv.Key)?.Name).OfType<string>().ToList();
+        if (suppressed.Count > 0)
+        {
+            panel.AddInfo(new InfoField("Suppressed here", string.Join(", ", suppressed)));
+        }
+
+        if (Document.Configurations.Count > 1)
+        {
+            panel.AddInfo(new ButtonField("Delete this configuration", new RelayCommand(() =>
+            {
+                Snapshot();
+                Document.Configurations.Remove(Document.Active);
+                Document.ActiveConfiguration = Document.Configurations[0].Name;
+                RebuildAndRefresh();
+                ShowConfigurations();
+            })));
+        }
+
+        panel.AddInfo(new ButtonField("Export design table", ExportDesignTableCommand));
+        panel.AddInfo(new ButtonField("Import design table", ImportDesignTableCommand));
+        Editor = panel;
+    }
+
+    [RelayCommand]
+    private async Task ExportDesignTable()
+    {
+        if (StorageProvider is null)
+        {
+            return;
+        }
+
+        var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "Export Design Table",
+            DefaultExtension = "csv",
+            SuggestedFileName = "DesignTable",
+            FileTypeChoices = [CsvFileType],
+        });
+        if (file?.TryGetLocalPath() is { } path)
+        {
+            await File.WriteAllTextAsync(path, DesignTable.Export(Document));
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportDesignTable()
+    {
+        if (StorageProvider is null)
+        {
+            return;
+        }
+
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Import Design Table", FileTypeFilter = [CsvFileType] });
+        if (files is not [var file] || file.TryGetLocalPath() is not { } path)
+        {
+            return;
+        }
+
+        try
+        {
+            Snapshot();
+            DesignTable.Import(Document, await File.ReadAllTextAsync(path));
+            RebuildAndRefresh();
+            ShowConfigurations();
+        }
+        catch (FormatException ex)
+        {
+            MessageText = $"Couldn't read the design table: {ex.Message}";
+        }
     }
 
     /// <summary>

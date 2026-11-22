@@ -151,6 +151,7 @@
           <Button Classes="command" Content="Mass Properties" Command="{Binding ShowMassPropertiesCommand}" />
           <Button Classes="command" Content="Measure" Command="{Binding MeasureCommand}" />
           <Button Classes="command" Content="Equations" Command="{Binding ShowEquationsCommand}" ToolTip.Tip="Global variables and equations" />
+          <Button Classes="command" Content="Configurations" Command="{Binding ShowConfigurationsCommand}" ToolTip.Tip="Configurations and design tables" />
         </WrapPanel>
 
         <!-- Sketch tools -->
@@ -219,7 +220,11 @@
         <!-- Feature tree -->
         <DockPanel IsVisible="{Binding ShowTree}">
           <StackPanel DockPanel.Dock="Top" IsVisible="{Binding IsModelMode}">
-            <TextBlock Classes="section" Text="FEATURES" />
+            <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,6">
+              <TextBlock Classes="section" Text="FEATURES" Margin="0" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1" ItemsSource="{Binding ConfigurationNames}" SelectedItem="{Binding ActiveConfigurationName}"
+                        MinWidth="120" FontSize="12" ToolTip.Tip="Active configuration" />
+            </Grid>
           </StackPanel>
           <WrapPanel DockPanel.Dock="Bottom" Margin="0,8,0,0" IsVisible="{Binding IsModelMode}">
             <Button Classes="tool" Content="Edit" Command="{Binding EditSelectedCommand}" ToolTip.Tip="Edit the selected feature (double-click)" />
@@ -369,6 +374,9 @@
                       </StackPanel>
                     </Border>
                   </Button>
+                </DataTemplate>
+                <DataTemplate DataType="vm:ButtonField">
+                  <Button Content="{Binding Label}" Command="{Binding Command}" Margin="0,4" HorizontalAlignment="Stretch" />
                 </DataTemplate>
                 <DataTemplate DataType="vm:InfoField">
                   <StackPanel Margin="0,4" IsVisible="{Binding IsVisible}">

@@ -200,4 +200,34 @@ public class PartWorkflowTests
         input.Commit();
         Assert.Equal(40 * 20 * 4, vm.Document.MassProperties().Volume, 1e-6);
     }
+
+    [Fact]
+    public void ConfigurationsFromThePanel()
+    {
+        var vm = BlockOnFront();
+        var extrude = vm.Document.Features.OfType<ExtrudeFeature>().Single();
+        vm.ShowEquationsCommand.Execute(null);
+        var eq = vm.Editor!.Fields.OfType<TextField>().Single();
+        eq.Text = "D = 10";
+        eq.Commit();
+        vm.EditFeature(extrude);
+        var depth = vm.Editor!.Fields.OfType<NumberField>().First(f => f.Label == "Depth");
+        depth.Text = "=D";
+        depth.Commit();
+        vm.AcceptEditorCommand.Execute(null);
+
+        vm.ShowConfigurationsCommand.Execute(null);
+        var add = vm.Editor!.Fields.OfType<TextField>().First(f => f.Label == "Add configuration");
+        add.Text = "Thick";
+        add.Commit();
+        Assert.Equal("Thick", vm.ActiveConfigurationName);
+        var over = vm.Editor!.Fields.OfType<TextField>().First(f => f.Label.StartsWith("Override", StringComparison.Ordinal));
+        over.Text = "D = 25";
+        over.Commit();
+        Assert.Equal(40 * 20 * 25, vm.Document.MassProperties().Volume, 1e-6);
+
+        vm.ActiveConfigurationName = "Default";
+        Assert.Equal(40 * 20 * 10, vm.Document.MassProperties().Volume, 1e-6);
+        Assert.Equal(["Default", "Thick"], vm.ConfigurationNames.ToArray());
+    }
 }

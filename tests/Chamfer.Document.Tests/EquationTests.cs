@@ -90,4 +90,72 @@ public class EquationTests
         Assert.Equal(FeatureStatus.Error, doc.Results[ex.Id].Status);
         Assert.Contains("Missing", doc.Results[ex.Id].Message, StringComparison.Ordinal);
     }
+
+    private static (PartDocument Doc, ExtrudeFeature Boss, ExtrudeFeature Cut) Configurable()
+    {
+        var doc = new PartDocument();
+        doc.SetVariable("Width", "40");
+        var sketch = new Sketch();
+        var sides = sketch.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 20));
+        sketch.AddConstraint(new FixConstraint(sides[0].Start));
+        var width = sketch.AddConstraint(new DistanceConstraint(sides[0], 40));
+        sketch.AddConstraint(new DistanceConstraint(sides[1], 20));
+        var sf = doc.Add(new SketchFeature { Sketch = sketch, DimensionLinks = new() { [width.Id] = "Width" } });
+        var boss = doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        var hole = new Sketch();
+        hole.AddCircle(new Vec2(10, 10), 3);
+        var hf = doc.Add(new SketchFeature { Sketch = hole });
+        var cut = doc.Add(new ExtrudeFeature { SketchId = hf.Id, IsCut = true, Reverse = true, EndCondition = EndCondition.ThroughAll });
+        return (doc, boss, cut);
+    }
+
+    [Fact]
+    public void ConfigurationsOverrideVariablesAndSuppression()
+    {
+        var (doc, _, cut) = Configurable();
+        doc.Rebuild();
+        var withHole = (40 * 20 * 10) - (Math.PI * 9 * 10);
+        Assert.Equal(withHole, doc.MassProperties().Volume, 1e-6);
+
+        var big = doc.Active.Copy("Big");
+        big.Variables["Width"] = "80";
+        big.Suppression[cut.Id] = true;
+        doc.Configurations.Add(big);
+        doc.ActiveConfiguration = "Big";
+        doc.Rebuild();
+        Assert.Equal(80 * 20 * 10, doc.MassProperties().Volume, 1e-6);
+        Assert.Equal(FeatureStatus.Suppressed, doc.Results[cut.Id].Status);
+
+        doc.ActiveConfiguration = "Default";
+        doc.Rebuild();
+        Assert.Equal(withHole, doc.MassProperties().Volume, 1e-6);
+
+        // Survives save/load, including the active configuration.
+        doc.ActiveConfiguration = "Big";
+        var loaded = PartDocument.Load(doc.Save());
+        loaded.Rebuild();
+        Assert.Equal("Big", loaded.ActiveConfiguration);
+        Assert.Equal(80 * 20 * 10, loaded.MassProperties().Volume, 1e-6);
+    }
+
+    [Fact]
+    public void DesignTableRoundTrip()
+    {
+        var (doc, _, cut) = Configurable();
+        DesignTable.Import(doc, $"Configuration,Width,$STATE@{cut.Name}\nSmall,30,U\nLarge,\"60\",S\n");
+        Assert.Equal(["Small", "Large"], doc.Configurations.Select(c => c.Name).ToArray());
+        Assert.Equal("Small", doc.ActiveConfiguration);
+        doc.Rebuild();
+        Assert.Equal((30 * 20 * 10) - (Math.PI * 9 * 10), doc.MassProperties().Volume, 1e-6);
+        doc.ActiveConfiguration = "Large";
+        doc.Rebuild();
+        Assert.Equal(60 * 20 * 10, doc.MassProperties().Volume, 1e-6);
+
+        var csv = DesignTable.Export(doc);
+        Assert.Contains("Large,60,S", csv, StringComparison.Ordinal);
+        var copy = PartDocument.Load(doc.Save());
+        DesignTable.Import(copy, csv);
+        Assert.Equal(2, copy.Configurations.Count);
+        Assert.Throws<FormatException>(() => DesignTable.Import(doc, "Configuration,$STATE@Nope\nA,S"));
+    }
 }
