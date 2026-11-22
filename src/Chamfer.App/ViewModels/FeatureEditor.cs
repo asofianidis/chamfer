@@ -186,6 +186,9 @@ public sealed partial class FeatureEditor : ObservableObject
                     items => Set(() => sw.ProfileSketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
                 ed.Add(new SelectionField("Path sketch", FeatureKinds, SketchItems(doc, [sw.PathSketchId]),
                     items => Set(() => sw.PathSketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
+                ed.Add(new SelectionField("Guide curve (optional)", FeatureKinds, SketchItems(doc, sw.GuideSketchId is { } guideId ? [guideId] : []),
+                    items => Set(() => sw.GuideSketchId = Last(items)?.FeatureId), max: 1));
+                ed.Add(Num("Twist", "°", sw, nameof(sw.TwistAngle)));
                 if (!sw.IsCut)
                 {
                     ed.Add(new BoolField("Merge result", sw.Merge, v => Set(() => sw.Merge = v)));

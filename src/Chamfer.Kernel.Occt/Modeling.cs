@@ -253,6 +253,18 @@ public static unsafe class Modeling
         return new Operation(Native.chf_sweep(profile.Handle, path.Handle, correctedFrenet ? 1 : 0), "sweep");
     }
 
+    /// <summary>
+    /// Sweep with a guide curve (the profile scales to keep touching it) or a twist in radians
+    /// (the profile turns evenly from start to end).
+    /// </summary>
+    public static Operation SweepGuided(Shape profile, Shape path, Shape? guide, double twist)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        ArgumentNullException.ThrowIfNull(path);
+        var g = guide?.Handle.DangerousGetHandle() ?? IntPtr.Zero;
+        return new Operation(Native.chf_sweep_ex(profile.Handle, path.Handle, g, 1, twist), "sweep");
+    }
+
     public static Operation Loft(IReadOnlyList<Shape> sections, bool solid = true, bool ruled = false)
     {
         ArgumentNullException.ThrowIfNull(sections);

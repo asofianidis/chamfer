@@ -190,6 +190,9 @@ CHF_API chf_op* chf_mirror(chf_shape* s, const double* plane6, int copy);
 CHF_API chf_op* chf_sweep(chf_shape* profile, chf_shape* path, int mode);
 /* Loft through sections (wires or faces). solid != 0 builds a closed solid. */
 CHF_API chf_op* chf_loft(int count, chf_shape* const* sections, int solid, int ruled);
+/* Sweep with a guide curve (the profile scales to keep touching it; guide may be null) or a twist
+   (radians, turning the profile evenly from start to end). */
+CHF_API chf_op* chf_sweep_ex(chf_shape* profile, chf_shape* path, chf_shape* guide, int mode, double twist);
 /*
  * Rib: grows an open wire lying in a plane (origin(3) normal(3)) into the base
  * solid, thickness1 along the normal and thickness2 against it, until it meets

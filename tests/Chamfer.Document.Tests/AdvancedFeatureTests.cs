@@ -38,6 +38,44 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void SweepWithTwistAndGuideCurve()
+    {
+        var doc = new PartDocument();
+        var path = new Sketch();
+        path.AddLine(new Vec2(0, 0), new Vec2(0, 50));
+        var pathFeature = doc.Add(new SketchFeature { Plane = PlaneRef.Front, Sketch = path });
+        var bar = new Sketch();
+        bar.AddCenterRectangle(Vec2.Zero, new Vec2(10, 3)); // 20 x 6, across X
+        var barFeature = doc.Add(new SketchFeature { Plane = PlaneRef.Top, Sketch = bar });
+        var sweep = doc.Add(new SweepFeature { ProfileSketchId = barFeature.Id, PathSketchId = pathFeature.Id, TwistAngle = 90 });
+        doc.Rebuild();
+        AssertOk(doc);
+
+        // A quarter turn: the same cross-section all along, ending 20 wide in Z instead of X.
+        Assert.Equal(20 * 6 * 50, Volume(doc), 6000 * 0.01);
+        var shape = doc.Bodies[0].Shape;
+        var end = Enumerable.Range(1, shape.FaceCount).Single(i => shape.Face(i).Normal.Y > 0.99 && Math.Abs(shape.Face(i).Centroid.Y - 50) < 1e-3);
+        var corners = shape.EdgesOfFace(end).SelectMany(e => shape.SampleEdge(e)).ToList();
+        Assert.Equal(6, corners.Max(p => p.X) - corners.Min(p => p.X), 0.05);
+        Assert.Equal(20, corners.Max(p => p.Z) - corners.Min(p => p.Z), 0.05);
+
+        // A guide line from the profile's edge out to twice its radius: a cone frustum.
+        var disc = new Sketch();
+        disc.AddCircle(Vec2.Zero, 5);
+        var discFeature = doc.Add(new SketchFeature { Plane = PlaneRef.Top, Sketch = disc });
+        var guide = new Sketch();
+        guide.AddLine(new Vec2(5, 0), new Vec2(10, 50));
+        var guideFeature = doc.Add(new SketchFeature { Plane = PlaneRef.Front, Sketch = guide });
+        doc.Delete(sweep);
+        doc.Add(new SweepFeature { ProfileSketchId = discFeature.Id, PathSketchId = pathFeature.Id, GuideSketchId = guideFeature.Id });
+        doc.Rebuild();
+        AssertOk(doc);
+        var frustum = Math.PI * 50 / 3 * (25 + 50 + 100);
+        Assert.Equal(frustum, Volume(doc), frustum * 0.02);
+        Assert.Equal(20, doc.Bodies[0].Shape.Bounds.Size.X, 0.3);
+    }
+
+    [Fact]
     public void LoftBetweenSquareAndCircle()
     {
         var doc = new PartDocument();
