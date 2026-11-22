@@ -59,6 +59,8 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(CoordinateSystemFeature), "coordinate-system")]
 [JsonDerivedType(typeof(RuledSurfaceFeature), "ruled-surface")]
 [JsonDerivedType(typeof(SplitLineFeature), "split-line")]
+[JsonDerivedType(typeof(ProjectedCurveFeature), "projected-curve")]
+[JsonDerivedType(typeof(CompositeCurveFeature), "composite-curve")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
 [JsonDerivedType(typeof(CombineFeature), "combine")]
 [JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]

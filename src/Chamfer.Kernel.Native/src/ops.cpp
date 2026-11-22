@@ -10,6 +10,10 @@
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepLib.hxx>
+#include <BRepBndLib.hxx>
+#include <BRepProj_Projection.hxx>
+#include <ShapeAnalysis_FreeBounds.hxx>
+#include <TopTools_HSequenceOfShape.hxx>
 #include <BRepAdaptor_CompCurve.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
@@ -547,6 +551,46 @@ chf_op* chf_split_line(chf_shape* s, chf_shape* tool) {
     TopoDS_Solid solid = maker.Solid();
     BRepLib::OrientClosedSolid(solid);
     return opFromHistory(solid, splitter.History());
+  });
+}
+
+chf_shape* chf_project_curve(chf_shape* curve, chf_shape* target, const double* dir3) {
+  return chf_guard<chf_shape*>(nullptr, [&] {
+    requireShape(curve);
+    requireShape(target);
+    BRepProj_Projection proj(curve->shape, target->shape, gp_Dir(dir3[0], dir3[1], dir3[2]));
+    if (!proj.IsDone()) throw std::runtime_error("the curve doesn't project onto the face");
+    // The projection lands on both sides of a closed body; keep the wire nearest the curve.
+    TopoDS_Shape best;
+    double bestDistance = 1e300;
+    Bnd_Box from;
+    BRepBndLib::Add(curve->shape, from);
+    gp_Pnt c = from.CornerMin().XYZ() * 0.5 + from.CornerMax().XYZ() * 0.5;
+    for (; proj.More(); proj.Next()) {
+      Bnd_Box b;
+      BRepBndLib::Add(proj.Current(), b);
+      gp_Pnt m = b.CornerMin().XYZ() * 0.5 + b.CornerMax().XYZ() * 0.5;
+      if (m.Distance(c) < bestDistance) {
+        bestDistance = m.Distance(c);
+        best = proj.Current();
+      }
+    }
+    if (best.IsNull()) throw std::runtime_error("the curve doesn't project onto the face");
+    return new chf_shape(best);
+  });
+}
+
+chf_shape* chf_join_curves(int count, chf_shape* const* curves) {
+  return chf_guard<chf_shape*>(nullptr, [&] {
+    Handle(TopTools_HSequenceOfShape) edges = new TopTools_HSequenceOfShape();
+    for (int i = 0; i < count; ++i) {
+      requireShape(curves[i]);
+      for (TopExp_Explorer ex(curves[i]->shape, TopAbs_EDGE); ex.More(); ex.Next()) edges->Append(ex.Current());
+    }
+    Handle(TopTools_HSequenceOfShape) wires;
+    ShapeAnalysis_FreeBounds::ConnectEdgesToWires(edges, 1e-4, Standard_False, wires);
+    if (wires.IsNull() || wires->Length() != 1) throw std::runtime_error("the curves don't join end to end into one chain");
+    return new chf_shape(wires->Value(1));
   });
 }
 

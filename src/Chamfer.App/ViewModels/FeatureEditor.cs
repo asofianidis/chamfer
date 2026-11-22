@@ -264,6 +264,18 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(Num("Gap tolerance", "mm", kn, nameof(kn.Tolerance), 1e-6));
                 break;
 
+            case ProjectedCurveFeature pc:
+                ed.Add(new SelectionField("Sketch", FeatureKinds, SketchItems(doc, [pc.SketchId]), items => Set(() => pc.SketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
+                ed.Add(new SelectionField("Face", Faces, pc.Face is { } pcFace ? [new SelectionItem(SelectionKind.Face, pcFace, Label: $"Face <{pcFace.Name}>")] : [],
+                    items => Set(() => pc.Face = Last(items)?.Ref), max: 1));
+                ed.Add(new BoolField("Reverse direction", pc.Reverse, v => Set(() => pc.Reverse = v)));
+                break;
+
+            case CompositeCurveFeature cc:
+                ed.Add(new SelectionField("Curves (in order)", FeatureKinds, SketchItems(doc, cc.CurveIds).Concat(cc.CurveIds.Select(doc.Find).OfType<Feature>().Where(f => f is ProjectedCurveFeature or CompositeCurveFeature).Select(SelectionItem.ForFeature)),
+                    items => Set(() => cc.CurveIds = [.. items.Select(i => i.FeatureId).OfType<string>()])));
+                break;
+
             case SplitLineFeature sl:
                 ed.Add(new SelectionField("Sketch", FeatureKinds, SketchItems(doc, [sl.SketchId]), items => Set(() => sl.SketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
                 ed.Add(new BoolField("Through all (project onto every face in line)", sl.ThroughAll, v => Set(() => sl.ThroughAll = v)));
