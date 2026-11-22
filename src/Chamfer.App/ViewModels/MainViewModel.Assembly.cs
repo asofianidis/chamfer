@@ -600,6 +600,7 @@ public sealed partial class MainViewModel
         await File.WriteAllTextAsync(path, asm.Save());
         FilePath = path;
         _dirty = false;
+        DiscardRecovery();
         RefreshAssembly();
     }
 
