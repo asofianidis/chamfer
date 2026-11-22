@@ -881,4 +881,31 @@ public class PartWorkflowTests
         vm.BuildScene();
         Assert.False(vm.IsHandle(MainViewModel.HandlePickId)); // no handle once the editor closes
     }
+
+    [Fact]
+    public void VaultFromTheUi()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"chamfer-vault-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        try
+        {
+            var path = Path.Combine(root, "part.chprt");
+            File.WriteAllText(path, new PartDocument().Save());
+            var vm = new MainViewModel { VaultUser = "alice" };
+            vm.LoadFile(path, File.ReadAllText(path));
+            vm.ShowVaultCommand.Execute(null);
+            vm.Editor!.Fields.OfType<ButtonField>().Single(f => f.Label == "Check out").Command.Execute(null);
+            Assert.Contains(vm.Editor!.Fields.OfType<InfoField>(), f => f.Label == "Status" && f.Text.Contains("alice", StringComparison.Ordinal));
+            var checkIn = vm.Editor.Fields.OfType<TextField>().Single();
+            checkIn.Text = "First release";
+            checkIn.Commit();
+            Assert.Equal("Checked in revision A.", vm.MessageText);
+            Assert.Contains(vm.Editor!.Fields.OfType<InfoField>(), f => f.Label == "Rev A" && f.Text.EndsWith("First release", StringComparison.Ordinal));
+            Assert.Contains(vm.Editor.Fields.OfType<ButtonField>(), f => f.Label == "Restore A");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }
