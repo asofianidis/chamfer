@@ -376,6 +376,43 @@ public sealed class PartDocument
     }
 
     /// <summary>
+    /// Mass properties expressed in a coordinate system feature: the centre of mass in its
+    /// coordinates and the inertia tensor (still about the centre of mass) along its axes.
+    /// </summary>
+    public PartMassProperties MassProperties(string coordinateSystemId)
+    {
+        var global = MassProperties();
+        if (!State.Frames.TryGetValue(coordinateSystemId, out var frame))
+        {
+            throw new InvalidOperationException($"Coordinate system '{coordinateSystemId}' isn't built.");
+        }
+
+        // Rows of R are the frame's axes in model coordinates: local = R (p - origin), I' = R I Rᵀ.
+        double[] r = [frame.M00, frame.M10, frame.M20, frame.M01, frame.M11, frame.M21, frame.M02, frame.M12, frame.M22];
+        var d = global.CenterOfMass - new Geometry.Vec3(frame.Tx, frame.Ty, frame.Tz);
+        var com = new Geometry.Vec3((r[0] * d.X) + (r[1] * d.Y) + (r[2] * d.Z), (r[3] * d.X) + (r[4] * d.Y) + (r[5] * d.Z), (r[6] * d.X) + (r[7] * d.Y) + (r[8] * d.Z));
+        var inertia = new double[9];
+        for (var i = 0; i < 3; i++)
+        {
+            for (var j = 0; j < 3; j++)
+            {
+                double sum = 0;
+                for (var k = 0; k < 3; k++)
+                {
+                    for (var l = 0; l < 3; l++)
+                    {
+                        sum += r[(3 * i) + k] * global.Inertia[(3 * k) + l] * r[(3 * j) + l];
+                    }
+                }
+
+                inertia[(3 * i) + j] = sum;
+            }
+        }
+
+        return global with { CenterOfMass = com, Inertia = inertia };
+    }
+
+    /// <summary>
     /// Moves a feature up (negative) or down (positive) in the history, unless
     /// that would put it before something it uses or after something that uses it.
     /// </summary>

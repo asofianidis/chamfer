@@ -430,6 +430,23 @@ public sealed class RenderTests
         window.Close();
     }
 
+    [Fact]
+    public async Task ReferenceGeometryRenders()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            var doc = PlateWithHole();
+            doc.Add(new ReferenceAxisFeature { Kind = AxisKind.TwoPlanes, PlaneA = PlaneRef.Front, PlaneB = PlaneRef.Right });
+            var point = doc.Add(new ReferencePointFeature { X = 10, Y = 10, Z = 10 });
+            doc.Add(new CoordinateSystemFeature { OriginPoint = point.Id });
+            vm.LoadFile("refs.chprt", doc.Save());
+            Assert.Equal(3, vm.Document.State.Axes.Count + vm.Document.State.Points.Count + vm.Document.State.Frames.Count);
+            Capture(window, "reference-geometry");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open(string theme)
     {
         Application.Current!.RequestedThemeVariant = theme == "dark" ? ThemeVariant.Dark : ThemeVariant.Light;

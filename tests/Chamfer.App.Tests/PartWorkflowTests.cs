@@ -1142,4 +1142,41 @@ public class PartWorkflowTests
         vm.AcceptEditorCommand.Execute(null);
         Assert.True(vm.Document.MassProperties().Volume > before + 50);
     }
+
+    [Fact]
+    public void ReferenceGeometryFromTheUi()
+    {
+        var vm = BlockOnFront();
+        var body = vm.Document.Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99);
+
+        // A point at the top face's centre, from the selection.
+        vm.SetSelection([SelectionItem.Face(body, top)]);
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Point").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var center = Assert.Single(vm.Document.Features.OfType<ReferencePointFeature>());
+        Assert.Equal(PointKind.FaceCenter, center.Kind);
+        Assert.True(vm.Document.State.Points.ContainsKey(center.Id));
+
+        // An axis: switching its type shows the matching selection box.
+        vm.SetSelection([]);
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Axis").Command.Execute(null);
+        var type = vm.Editor!.Fields.OfType<ChoiceField>().Single(f => f.Label == "Type");
+        type.Index = 1;
+        Assert.True(vm.Editor.Fields.OfType<SelectionField>().Single(f => f.Label == "Two planes").IsVisible);
+        Assert.False(vm.Editor.Fields.OfType<SelectionField>().Single(f => f.Label == "Two points").IsVisible);
+        vm.CancelEditorCommand.Execute(null);
+
+        // A coordinate system at the point; mass properties can be shown in it.
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Coordinate System").Command.Execute(null);
+        var origin = vm.Editor!.Fields.OfType<NumberField>().Single(f => f.Label == "Origin X");
+        origin.Text = "10";
+        origin.Commit();
+        vm.AcceptEditorCommand.Execute(null);
+        vm.ShowMassPropertiesCommand.Execute(null);
+        var relative = vm.Editor!.Fields.OfType<ChoiceField>().Single(f => f.Label == "Relative to");
+        var globalCom = vm.Editor.Fields.OfType<InfoField>().Single(f => f.Label == "Centre of mass").Text;
+        relative.Index = 1;
+        Assert.NotEqual(globalCom, vm.Editor!.Fields.OfType<InfoField>().Single(f => f.Label == "Centre of mass").Text);
+    }
 }

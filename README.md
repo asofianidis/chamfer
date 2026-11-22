@@ -355,7 +355,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] **Shell**, **Draft**, **Rib**
 - [~] **Hole Wizard**: counterbore, countersink, tapped, and pipe tap, with ANSI and ISO standards tables *(simple, counterbore, countersink and tapped, with ISO metric sizes; ANSI and pipe taps not yet)*
 - [x] **Linear Pattern**, **Circular Pattern**, **Mirror** *(of boss, cut, hole and pattern features)*
-- [~] Reference geometry: planes, axes, coordinate systems, points *(offset planes)*
+- [x] Reference geometry: planes, axes, coordinate systems, points *(offset, angled and three-point planes; axes along edges/cylinders, between planes or points; points at coordinates or on the model; coordinate systems for mass properties)*
 - [x] Persistent topological naming that survives parameter edits *(history-based names with geometric fallback)*
 - [x] Rebuild engine with error and warning reporting ("What's Wrong") *(incremental: unchanged prefixes are reused)*
 - [x] Materials and mass properties: mass, volume, center of mass, moments of inertia
