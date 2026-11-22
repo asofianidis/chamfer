@@ -88,6 +88,7 @@ public sealed partial class FeatureNode : ObservableObject
         FillPatternFeature => "⣿",
         CutWithSurfaceFeature => "⫻",
         ScaleFeature => "⤢",
+        Sketch3DFeature => "⟋",
         _ => "•",
     };
 }

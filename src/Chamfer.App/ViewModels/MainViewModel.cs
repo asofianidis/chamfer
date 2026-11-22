@@ -77,6 +77,10 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Fill Pattern", "Fill a face with copies on a grid", new RelayCommand(() => StartFeature(new FillPatternFeature())), "⣿"),
             new("Mirror", "Mirror features about a plane", new RelayCommand(() => StartFeature(new MirrorFeature())), "⇋"),
             new("Plane", "Reference plane", new RelayCommand(() => StartFeature(new ReferencePlaneFeature { Base = SelectedPlane() ?? PlaneRef.Front })), "▱"),
+            new("3D Sketch", "Polyline or spline through points in space, for sweep paths", new RelayCommand(() => StartFeature(new Sketch3DFeature
+            {
+                Points = [new(0, 0, 0), new(0, 0, 50), new(50, 0, 50)],
+            })), "⟋"),
             new("Helix", "Helix on a sketch circle, for springs and sweeps", new RelayCommand(() => StartSketchFeature(sf => new HelixFeature { SketchId = sf.Id })), "➰"),
             new("Thread", "Model a metric thread on a cylindrical face", new RelayCommand(StartThread), "⩫"),
 
