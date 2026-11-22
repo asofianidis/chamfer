@@ -1,0 +1,299 @@
+using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Chamfer.Document.Features;
+using Chamfer.Kernel.Occt;
+
+namespace Chamfer.Document;
+
+/// <summary>A material with a density in kg/m³.</summary>
+public sealed record Material(string Name, double Density)
+{
+    public static Material Steel { get; } = new("Plain Carbon Steel", 7800);
+    public static Material Aluminum { get; } = new("6061 Alloy", 2700);
+    public static Material Abs { get; } = new("ABS", 1020);
+    public static Material Brass { get; } = new("Brass", 8500);
+    public static Material Titanium { get; } = new("Ti-6Al-4V", 4430);
+    public static Material Wood { get; } = new("Oak", 750);
+
+    public static IReadOnlyList<Material> Library { get; } = [Steel, Aluminum, Abs, Brass, Titanium, Wood];
+}
+
+/// <summary>Per-feature outcome of the latest rebuild.</summary>
+public sealed record FeatureResult(FeatureStatus Status, string? Message);
+
+/// <summary>Mass properties of the whole part in SI-friendly units.</summary>
+/// <param name="Volume">mm³.</param>
+/// <param name="SurfaceArea">mm².</param>
+/// <param name="Mass">kg.</param>
+/// <param name="CenterOfMass">mm.</param>
+public sealed record PartMassProperties(double Volume, double SurfaceArea, double Mass, Geometry.Vec3 CenterOfMass);
+
+/// <summary>
+/// A part: an ordered feature history and the bodies it builds. Rebuilds are
+/// incremental: the model state after every feature is cached together with a
+/// fingerprint of the features that produced it, so an edit only re-executes
+/// the features from the first changed one onward.
+/// </summary>
+public sealed class PartDocument
+{
+    public const int FormatVersion = 1;
+    public const string FileExtension = "chprt";
+
+    private readonly List<(string Fingerprint, RebuildState State)> _cache = [];
+    private int _nextId = 1;
+
+    public List<Feature> Features { get; } = [];
+
+    public Material Material { get; set; } = Material.Steel;
+
+    /// <summary>Features at or after this index are rolled back (not built). Null = all built.</summary>
+    public int? RollbackIndex { get; set; }
+
+    /// <summary>State after the last rebuild.</summary>
+    public RebuildState State { get; private set; } = RebuildState.Initial;
+
+    public IReadOnlyList<Body> Bodies => State.Bodies;
+
+    public IReadOnlyDictionary<string, FeatureResult> Results => _results;
+
+    private readonly Dictionary<string, FeatureResult> _results = [];
+
+    public Feature? Find(string id) => Features.Find(f => f.Id == id);
+
+    /// <summary>Gives a feature an id and a numbered display name, then appends it (or inserts it at the rollback bar).</summary>
+    public T Add<T>(T feature)
+        where T : Feature
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        if (string.IsNullOrEmpty(feature.Id))
+        {
+            feature.Id = $"f{_nextId++}";
+        }
+
+        if (string.IsNullOrEmpty(feature.Name))
+        {
+            feature.Name = NextName(feature.DefaultName);
+        }
+
+        if (RollbackIndex is { } at && at < Features.Count)
+        {
+            Features.Insert(at, feature);
+            RollbackIndex = at + 1;
+        }
+        else
+        {
+            Features.Add(feature);
+        }
+
+        return feature;
+    }
+
+    public string NextName(string baseName)
+    {
+        for (var n = 1; ; n++)
+        {
+            var name = string.Create(CultureInfo.InvariantCulture, $"{baseName}{n}");
+            if (!Features.Exists(f => f.Name == name))
+            {
+                return name;
+            }
+        }
+    }
+
+    /// <summary>Features that read <paramref name="id"/>, directly or through others.</summary>
+    public IReadOnlyList<Feature> Dependents(string id)
+    {
+        var result = new List<Feature>();
+        var ids = new HashSet<string> { id };
+        foreach (var f in Features)
+        {
+            if (f.Dependencies.Any(ids.Contains))
+            {
+                result.Add(f);
+                ids.Add(f.Id);
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>Deletes a feature and everything that depends on it.</summary>
+    public IReadOnlyList<Feature> Delete(Feature feature)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        var removed = Dependents(feature.Id).Prepend(feature).ToList();
+        foreach (var f in removed)
+        {
+            var i = Features.IndexOf(f);
+            if (RollbackIndex is { } r && i < r)
+            {
+                RollbackIndex = r - 1;
+            }
+
+            Features.Remove(f);
+        }
+
+        return removed;
+    }
+
+    /// <summary>Re-executes features as needed and updates <see cref="State"/> and <see cref="Results"/>.</summary>
+    public void Rebuild()
+    {
+        var end = Math.Min(RollbackIndex ?? Features.Count, Features.Count);
+        var state = RebuildState.Initial;
+        var reuse = true;
+        var fingerprint = string.Empty;
+        for (var i = 0; i < Features.Count; i++)
+        {
+            var f = Features[i];
+            if (i >= end)
+            {
+                _results[f.Id] = new FeatureResult(FeatureStatus.RolledBack, null);
+                continue;
+            }
+
+            fingerprint = Fingerprint(f, fingerprint);
+            if (reuse && i < _cache.Count && _cache[i].Fingerprint == fingerprint)
+            {
+                state = _cache[i].State;
+                continue;
+            }
+
+            reuse = false;
+            if (i < _cache.Count)
+            {
+                _cache.RemoveRange(i, _cache.Count - i);
+            }
+
+            if (f.IsSuppressed)
+            {
+                _results[f.Id] = new FeatureResult(FeatureStatus.Suppressed, null);
+            }
+            else
+            {
+                var ctx = new RebuildContext(this, state, f);
+                try
+                {
+                    f.Execute(ctx);
+                    state = ctx.Capture();
+                    _results[f.Id] = ctx.Warnings.Count > 0
+                        ? new FeatureResult(FeatureStatus.Warning, string.Join(" ", ctx.Warnings))
+                        : new FeatureResult(FeatureStatus.Ok, null);
+                }
+                catch (Exception ex) when (ex is FeatureException or KernelException)
+                {
+                    _results[f.Id] = new FeatureResult(FeatureStatus.Error, ex is KernelException ? $"The geometry kernel couldn't build this feature ({ex.Message})." : ex.Message);
+                }
+            }
+
+            _cache.Add((fingerprint, state));
+        }
+
+        foreach (var stale in _results.Keys.Where(k => Find(k) is null).ToList())
+        {
+            _results.Remove(stale);
+        }
+
+        if (_cache.Count > end)
+        {
+            _cache.RemoveRange(end, _cache.Count - end);
+        }
+
+        State = state;
+    }
+
+    /// <summary>Drops cached states so the next rebuild re-executes everything.</summary>
+    public void InvalidateAll() => _cache.Clear();
+
+    /// <summary>Mass properties of all bodies with the document's material.</summary>
+    public PartMassProperties MassProperties()
+    {
+        double volume = 0, area = 0;
+        var moment = Geometry.Vec3.Zero;
+        foreach (var b in Bodies)
+        {
+            var m = b.Shape.MassProperties;
+            volume += m.Volume;
+            area += m.SurfaceArea;
+            moment += m.CenterOfMass * m.Volume;
+        }
+
+        var mass = volume * 1e-9 * Material.Density;
+        return new PartMassProperties(volume, area, mass, volume > 0 ? moment / volume : Geometry.Vec3.Zero);
+    }
+
+    private static string Fingerprint(Feature f, string previous) =>
+        $"{previous.GetHashCode(StringComparison.Ordinal):x8}:{f.IsSuppressed}:{JsonSerializer.Serialize(f, Options)}";
+
+    // ------------------------------------------------------------ persistence
+
+    internal static readonly JsonSerializerOptions Options = new()
+    {
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        Converters = { new JsonStringEnumConverter() },
+    };
+
+    private sealed class PartDto
+    {
+        public int Version { get; set; }
+        public string Format { get; set; } = "chamfer-part";
+        public Material? Material { get; set; }
+        public int? RollbackIndex { get; set; }
+        public int NextId { get; set; }
+        public List<Feature> Features { get; set; } = [];
+    }
+
+    public string Save() => JsonSerializer.Serialize(new PartDto
+    {
+        Version = FormatVersion,
+        Material = Material,
+        RollbackIndex = RollbackIndex,
+        NextId = _nextId,
+        Features = Features,
+    }, Options);
+
+    public static PartDocument Load(string json)
+    {
+        var dto = JsonSerializer.Deserialize<PartDto>(json, Options) ?? throw new JsonException("Empty part document.");
+        if (dto.Version > FormatVersion)
+        {
+            throw new NotSupportedException($"This part was saved by a newer version of Chamfer (format {dto.Version}).");
+        }
+
+        var doc = new PartDocument
+        {
+            Material = dto.Material ?? Material.Steel,
+            RollbackIndex = dto.RollbackIndex,
+        };
+        doc.Features.AddRange(dto.Features);
+        doc._nextId = Math.Max(dto.NextId, doc.Features.Count + 1);
+        return doc;
+    }
+
+    /// <summary>Writes all bodies to a STEP, IGES, STL or BRep file, chosen by extension.</summary>
+    public void Export(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        if (Bodies.Count == 0)
+        {
+            throw new InvalidOperationException("There is nothing to export.");
+        }
+
+        using var all = Modeling.Compound([.. Bodies.Select(b => b.Shape)]);
+        var ext = Path.GetExtension(path).ToUpperInvariant();
+        switch (ext)
+        {
+            case ".STEP" or ".STP": all.WriteStep(path); break;
+            case ".IGES" or ".IGS": all.WriteIges(path); break;
+            case ".STL": all.WriteStl(path, 0.02); break;
+            case ".BREP" or ".BRP": all.WriteBrep(path); break;
+            default: throw new NotSupportedException($"Can't export {ext} files.");
+        }
+    }
+
+    /// <summary>Deep copy through the file format, e.g. for undo snapshots or background rebuilds.</summary>
+    public PartDocument Clone() => Load(Save());
+}

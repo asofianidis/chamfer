@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Managed bindings to the chamfer_kernel native shim over Open CASCADE.</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <!--
+    The native shim and the OCCT libraries it links are built by
+    build/native/build-native.sh into artifacts/native/<rid>/ and copied next
+    to the managed assemblies. Override ChamferNativeDir to use another build.
+  -->
+  <PropertyGroup>
+    <ChamferNativeRid Condition="'$(ChamferNativeRid)' == ''">$(NETCoreSdkRuntimeIdentifier)</ChamferNativeRid>
+    <ChamferNativeDir Condition="'$(ChamferNativeDir)' == ''">$(MSBuildThisFileDirectory)..\..\artifacts\native\$(ChamferNativeRid)\</ChamferNativeDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="$(ChamferNativeDir)*.dll;$(ChamferNativeDir)*.dylib;$(ChamferNativeDir)*.so*"
+          Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Chamfer.Geometry\Chamfer.Geometry.csproj" />
+  </ItemGroup>
+</Project>

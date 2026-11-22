@@ -8,18 +8,39 @@ on:
 permissions:
   contents: read
 
+env:
+  OCCT_VERSION: V7_9_3
+
 jobs:
   build-and-test:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        include:
+          - os: windows-latest
+            rid: win-x64
+          - os: macos-latest
+            rid: osx-arm64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      # OCCT takes a while to build, so the install is cached per version, OS
+      # and build script; the shim itself is rebuilt every time.
+      - name: Cache OCCT
+        id: occt-cache
+        uses: actions/cache@v4
+        with:
+          path: artifacts/occt/${{ matrix.rid }}
+          key: occt-${{ env.OCCT_VERSION }}-${{ matrix.rid }}-${{ hashFiles('build/occt/build-occt.sh') }}
+
+      - name: Build native kernel
+        shell: bash
+        run: build/native/build-native.sh ${{ matrix.rid }} artifacts/occt/${{ matrix.rid }}
+
       - name: Restore
         run: dotnet restore Chamfer.slnx
       - name: Build

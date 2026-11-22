@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>Kernel-agnostic 3D math and mesh types.</Description>
+  </PropertyGroup>
+</Project>

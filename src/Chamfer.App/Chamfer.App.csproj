@@ -4,6 +4,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <AssemblyName>Chamfer</AssemblyName>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Avalonia app types are public by convention; XAML needs them. -->
     <NoWarn>$(NoWarn);CA1515</NoWarn>
   </PropertyGroup>
@@ -20,5 +21,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Chamfer.Sketching\Chamfer.Sketching.csproj" />
+    <ProjectReference Include="..\Chamfer.Document\Chamfer.Document.csproj" />
+    <ProjectReference Include="..\Chamfer.Viewport\Chamfer.Viewport.csproj" />
   </ItemGroup>
 </Project>

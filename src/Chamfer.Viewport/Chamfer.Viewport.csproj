@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Description>3D camera, scene and a portable software renderer with an ID buffer for picking.</Description>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Chamfer.Geometry\Chamfer.Geometry.csproj" />
+  </ItemGroup>
+</Project>
