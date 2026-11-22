@@ -384,8 +384,8 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Assembly document (`.chasm`), insert components, subassemblies *(rigid subassemblies: mate to their faces, one BOM line, edit in place, nested Pack and Go)*
 - [x] Assembly solver for 3D mate constraints *(Levenberg–Marquardt over component placements, with DOF from the Jacobian rank and conflict reporting)*
 - [x] **Standard mates**: coincident, parallel, perpendicular, tangent, concentric, lock, distance, angle
-- [~] **Advanced mates**: limit distance and angle, width, symmetric, path, linear/linear coupler *(limit distance/angle, width, symmetric, slot, linear coupler)*
-- [~] **Mechanical mates**: gear, rack and pinion, cam, hinge, screw, universal joint, slot *(gear, rack and pinion, screw, hinge, universal joint)*
+- [x] **Advanced mates**: limit distance and angle, width, symmetric, path, linear/linear coupler *(plus slot)*
+- [x] **Mechanical mates**: gear, rack and pinion, cam, hinge, screw, universal joint, slot
 - [~] Mate references, SmartMates (drag-to-mate) *(mate references: concentric/coincident faces, applied on insert)*
 - [~] Move and rotate component with collision detection *(numeric move/rotate, optionally stopping at collisions; drag not yet)*
 - [x] Interference detection, clearance verification *(interference volumes; pairs closer than a minimum gap, with their distance)*

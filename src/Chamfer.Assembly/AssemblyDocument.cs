@@ -83,6 +83,12 @@ public enum MateType
 
     /// <summary>B moves along its direction Value times as far as A moves along its own.</summary>
     LinearCoupler,
+
+    /// <summary>B's point (or axis origin) stays on the curve of edge A.</summary>
+    Path,
+
+    /// <summary>The follower B (a cylinder) stays touching the cam profile, edge A, seen along B's axis.</summary>
+    Cam,
 }
 
 /// <summary>A named set of hidden components (a display state).</summary>
@@ -350,7 +356,7 @@ public sealed partial class AssemblyDocument
 
         // Pick the alignment closest to how the parts sit now, as other CAD tools do.
         mate.Aligned = aligned ?? (type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.Symmetric or MateType.Width
-            or MateType.Slot or MateType.UniversalJoint or MateType.LinearCoupler
+            or MateType.Slot or MateType.UniversalJoint or MateType.LinearCoupler or MateType.Path or MateType.Cam
             ? false
             : MateSolver.ClosestAlignment(this, mate));
         if (type == MateType.Lock)

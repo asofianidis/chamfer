@@ -289,6 +289,7 @@ public sealed partial class MainViewModel
                 MateType.Width when c is null || d is null => "Pick the two slot faces as the third and fourth entities.",
                 MateType.Slot when c is null => "Pick the pin and one slot wall, then the other slot wall as the third entity.",
                 MateType.Hinge when (c is null) != (d is null) => "For a hinge, pick both touching faces (third and fourth), or neither.",
+                MateType.Path or MateType.Cam when a.Edge is null => "Pick the path or cam profile edge first.",
                 _ => null,
             };
             if (missing is not null)
