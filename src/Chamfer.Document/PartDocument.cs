@@ -6,7 +6,7 @@ using Chamfer.Kernel.Occt;
 
 namespace Chamfer.Document;
 
-/// <summary>A material: density in kg/m³ and, for simulation, elastic modulus and yield strength in MPa.</summary>
+/// <summary>A material: density in kg/m³ and, for simulation, elastic modulus and yield strength in MPa and thermal conductivity.</summary>
 public sealed record Material(string Name, double Density)
 {
     /// <summary>Young's modulus, MPa.</summary>
@@ -17,12 +17,15 @@ public sealed record Material(string Name, double Density)
     /// <summary>Yield strength, MPa.</summary>
     public double YieldStrength { get; init; } = 250;
 
-    public static Material Steel { get; } = new("Plain Carbon Steel", 7800) { YoungModulus = 210000, PoissonRatio = 0.28, YieldStrength = 220 };
-    public static Material Aluminum { get; } = new("6061 Alloy", 2700) { YoungModulus = 69000, PoissonRatio = 0.33, YieldStrength = 275 };
-    public static Material Abs { get; } = new("ABS", 1020) { YoungModulus = 2000, PoissonRatio = 0.39, YieldStrength = 40 };
-    public static Material Brass { get; } = new("Brass", 8500) { YoungModulus = 100000, PoissonRatio = 0.33, YieldStrength = 200 };
-    public static Material Titanium { get; } = new("Ti-6Al-4V", 4430) { YoungModulus = 114000, PoissonRatio = 0.34, YieldStrength = 880 };
-    public static Material Wood { get; } = new("Oak", 750) { YoungModulus = 11000, PoissonRatio = 0.3, YieldStrength = 40 };
+    /// <summary>Thermal conductivity, W/(m·K).</summary>
+    public double ThermalConductivity { get; init; } = 45;
+
+    public static Material Steel { get; } = new("Plain Carbon Steel", 7800) { YoungModulus = 210000, PoissonRatio = 0.28, YieldStrength = 220, ThermalConductivity = 45 };
+    public static Material Aluminum { get; } = new("6061 Alloy", 2700) { YoungModulus = 69000, PoissonRatio = 0.33, YieldStrength = 275, ThermalConductivity = 167 };
+    public static Material Abs { get; } = new("ABS", 1020) { YoungModulus = 2000, PoissonRatio = 0.39, YieldStrength = 40, ThermalConductivity = 0.17 };
+    public static Material Brass { get; } = new("Brass", 8500) { YoungModulus = 100000, PoissonRatio = 0.33, YieldStrength = 200, ThermalConductivity = 109 };
+    public static Material Titanium { get; } = new("Ti-6Al-4V", 4430) { YoungModulus = 114000, PoissonRatio = 0.34, YieldStrength = 880, ThermalConductivity = 6.7 };
+    public static Material Wood { get; } = new("Oak", 750) { YoungModulus = 11000, PoissonRatio = 0.3, YieldStrength = 40, ThermalConductivity = 0.17 };
 
     public static IReadOnlyList<Material> Library { get; } = [Steel, Aluminum, Abs, Brass, Titanium, Wood];
 }
