@@ -89,7 +89,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         }
 
         var scale = view.Scale ?? sheet.Scale;
-        var key = $"{view.Id}|{view.Kind}|{view.ParentId}|{view.Ax},{view.Ay},{view.Bx},{view.By},{view.Radius}|{scale}|{view.Side}|" +
+        var key = $"{view.Id}|{view.Kind}|{view.ParentId}|{doc.FirstAngle}|{view.Ax},{view.Ay},{view.Bx},{view.By},{view.Radius}|{scale}|{view.Side}|" +
             $"{string.Join(',', view.Crop ?? [])}|{string.Join(',', view.Break ?? [])}|{view.BreakAlongY}";
         if (_cache.TryGetValue(key, out var cached))
         {
@@ -127,7 +127,16 @@ public sealed class DrawingRenderer(DrawingDocument doc)
     {
         var parent = sheet.Views.Find(v => v.Id == view.ParentId) ?? throw new InvalidOperationException("The projected view's parent is missing.");
         var pg = Geometry(sheet, parent);
-        var (toward, x) = ProjectedAxes(pg.Toward, pg.XAxis, view.Side);
+
+        // First-angle projection puts each view on the far side: the view to the right shows the left.
+        var looking = !doc.FirstAngle ? view.Side : view.Side switch
+        {
+            ViewSide.Right => ViewSide.Left,
+            ViewSide.Left => ViewSide.Right,
+            ViewSide.Above => ViewSide.Below,
+            _ => ViewSide.Above,
+        };
+        var (toward, x) = ProjectedAxes(pg.Toward, pg.XAxis, looking);
         return Oriented(view, toward, x, scale);
     }
 

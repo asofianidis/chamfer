@@ -119,6 +119,12 @@ public enum DraftingStandard
 
     /// <summary>Third-angle projection, dimension text horizontal (unidirectional).</summary>
     Ansi,
+
+    /// <summary>DIN (German, follows ISO): first-angle projection, aligned dimension text.</summary>
+    Din,
+
+    /// <summary>JIS (Japanese): third-angle projection, aligned dimension text.</summary>
+    Jis,
 }
 
 /// <summary>A free text note on a sheet.</summary>
@@ -295,7 +301,7 @@ public sealed class DrawingDocument
     public void ApplyStandard(DraftingStandard standard)
     {
         Standard = standard;
-        FirstAngle = standard == DraftingStandard.Iso;
+        FirstAngle = standard is DraftingStandard.Iso or DraftingStandard.Din;
     }
 
     /// <summary>False when the named layer exists and is hidden.</summary>
