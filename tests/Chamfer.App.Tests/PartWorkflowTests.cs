@@ -470,4 +470,36 @@ public class PartWorkflowTests
             Directory.Delete(folder, recursive: true);
         }
     }
+
+    [Fact]
+    public void FillPatternFromTheUi()
+    {
+        var part = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(100, 60));
+        var sf = part.Add(new SketchFeature { Sketch = s });
+        part.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        part.Rebuild();
+        var top = Enumerable.Range(1, part.Bodies[0].FaceCount).Single(i => part.Bodies[0].Face(i).Normal.Z > 0.99);
+        var (u, v) = part.Bodies[0].Shape.FacePlane(top)!.Value.ToLocal(new Geometry.Vec3(10, 10, 10));
+        var pts = new Sketch();
+        pts.AddPoint(new Vec2(u, v));
+        var ps = part.Add(new SketchFeature { Plane = new PlaneRef(Face: part.Bodies[0].FaceRef(top)), Sketch = pts });
+        var hole = part.Add(new HoleFeature { SketchId = ps.Id, Diameter = 6, EndCondition = EndCondition.ThroughAll });
+
+        var vm = new MainViewModel();
+        vm.LoadFile("plate.chprt", part.Save());
+        var body = vm.Document.Bodies[0];
+        var topFace = Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Normal.Z > 0.99);
+        vm.SetSelection([SelectionItem.ForFeature(vm.Document.Find(hole.Id)!), SelectionItem.Face(body, topFace)]);
+        vm.FeatureCommands.Single(c => c.Label == "Fill Pattern").Command.Execute(null);
+        var fill = Assert.IsType<FillPatternFeature>(vm.Editor!.Feature);
+        Assert.Equal([hole.Id], fill.Seeds);
+        Assert.NotNull(fill.Face);
+        var spacing = vm.Editor.Fields.OfType<NumberField>().Single(f => f.Label == "Spacing");
+        spacing.Text = "20";
+        spacing.Commit();
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal((100 * 60 * 10) - (15 * Math.PI * 9 * 10), vm.Document.MassProperties().Volume, 1e-3);
+    }
 }

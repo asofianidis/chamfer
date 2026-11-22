@@ -211,7 +211,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Extrude / revolve | With a sketch selected (or just after exiting one), click **Extruded Boss**, **Extruded Cut**, **Revolved Boss** or **Revolved Cut**. Revolves use the sketch's first centerline as the axis. |
 | Dress-up features | Select edges or faces, then **Fillet** or **Chamfer**. Select faces to remove, then **Shell**. **Draft** takes a neutral plane and faces. |
 | Holes | Select a planar face and click **Hole Wizard**. Place points for the hole centres, exit the sketch, then pick the type and ISO size. |
-| Patterns and mirror | Select features in the tree, then **Linear Pattern**, **Circular Pattern** or **Mirror**, and pick a direction, axis or plane in the view. |
+| Patterns and mirror | Select features in the tree, then **Linear Pattern**, **Circular Pattern** or **Mirror**, and pick a direction, axis or plane in the view. **Sketch Pattern** copies to a sketch's points, **Table Pattern** to typed X,Y offsets, **Curve Pattern** along a sketched path (evenly or by spacing, optionally turning with it) and **Fill Pattern** over a selected face on a square or staggered grid. |
 | Property panel | Changes preview live. Type values or expressions (`25.4*2`, `1in`) and press Enter. Click a selection box to make it active, then pick in the view; Ctrl/⌘-click or Shift-click adds and removes. **OK** (Enter) or **Cancel** (Esc). |
 | Feature tree | Double-click to edit. **Suppress**, **Delete** (with dependents), **Roll Here** and **Roll Forward** act on the selected feature. Errors are red, warnings amber. |
 | Analysis | **Section** cuts the part with the Front, Top or Right plane (offset, flip) and shows the cut faces. **Draft Analysis** colours faces green, red or yellow by draft against a pull direction. **Zebra** shows stripes for judging surface smoothness. |
@@ -361,7 +361,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Multibody parts: combine, intersect, split, move/copy body, delete body
 - [x] **Global variables and equations**
 - [x] **Configurations**, then **design tables** (spreadsheet-driven configurations)
-- [ ] Curve-driven, sketch-driven, table-driven, fill, and variable patterns
+- [~] Curve-driven, sketch-driven, table-driven, fill, and variable patterns *(curve-driven with alignment, sketch-driven, table-driven, fill with square or staggered grid)*
 - [ ] Wrap, dome, flex, deform, indent
 - [~] Cosmetic threads, thread feature *(modelled ISO metric threads, external and internal)*
 - [ ] Library features

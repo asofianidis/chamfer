@@ -82,6 +82,10 @@ public sealed partial class FeatureNode : ObservableObject
         HelixFeature => "➰",
         ThreadFeature => "⩫",
         StructuralMemberFeature => "⌗",
+        SketchDrivenPatternFeature => "⁘",
+        TablePatternFeature => "▦",
+        CurveDrivenPatternFeature => "∿",
+        FillPatternFeature => "⣿",
         _ => "•",
     };
 }
