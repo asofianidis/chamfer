@@ -374,4 +374,28 @@ public class PartWorkflowTests
         vm.UndoCommand.Execute(null);
         Assert.Single(vm.AssemblyDoc.Components);
     }
+
+    [Fact]
+    public void ImportDxfIntoSketchAndExtrude()
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"chamfer-{Guid.NewGuid():N}.dxf");
+        File.WriteAllText(file, string.Join('\n', ["0", "SECTION", "2", "ENTITIES",
+            "0", "LWPOLYLINE", "90", "4", "70", "1", "10", "0", "20", "0", "10", "30", "20", "0", "10", "30", "20", "20", "10", "0", "20", "20",
+            "0", "ENDSEC", "0", "EOF"]));
+        try
+        {
+            var vm = new MainViewModel();
+            vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+            vm.NewSketchCommand.Execute(null);
+            vm.ImportDxfFile(file);
+            Assert.StartsWith("Imported 4 lines", vm.MessageText, StringComparison.Ordinal);
+            vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.Equal(30 * 20 * 10, vm.Document.MassProperties().Volume, 1e-6);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
 }
