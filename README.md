@@ -215,12 +215,13 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Patterns and mirror | Select features in the tree, then **Linear Pattern**, **Circular Pattern** or **Mirror**, and pick a direction, axis or plane in the view. **Sketch Pattern** copies to a sketch's points, **Table Pattern** to typed X,Y offsets, **Curve Pattern** along a sketched path (evenly or by spacing, optionally turning with it) and **Fill Pattern** over a selected face on a square or staggered grid. |
 | Property panel | Changes preview live. Type values or expressions (`25.4*2`, `1in`) and press Enter. Click a selection box to make it active, then pick in the view; Ctrl/⌘-click or Shift-click adds and removes. **OK** (Enter) or **Cancel** (Esc). |
 | Feature tree | Double-click to edit. **Suppress**, **Delete** (with dependents), **Roll Here** and **Roll Forward** act on the selected feature. Errors are red, warnings amber. |
+| 3D annotations | **3D Annotations** shows the part's overall sizes and hole callouts (grouped by size, e.g. 4× Ø6 THRU) on the model, in the document's units. |
 | Render | **Render** path-traces the current view: metals glossy, wood matte, other materials as coated plastic, with a soft sun, sky light and a shadow-catching floor. Pick the quality, then **Render** and **Save PNG**. Click the view to return to the live model. |
 | Analysis | **Section** cuts the part with the Front, Top or Right plane (offset, flip) and shows the cut faces. **Draft Analysis** colours faces green, red or yellow by draft against a pull direction. **Zebra** shows stripes for judging surface smoothness. |
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
 | Vault | **Vault** treats the file's folder as a vault: check the file out (others can't), check it in with a comment to record the next revision letter, see the history and restore any revision, and see which assemblies and drawings use it. |
 | Shortcuts | **Ctrl+K** finds any command by name. **F1** lists the shortcuts; add or change one as `Ctrl+Shift+H = Hole Wizard` (leave the command empty to remove it). Custom shortcuts are saved with your settings. |
-| Templates and library | **Templates** saves the current part (units, material, properties, features) as a template and starts new parts from templates. **Library** lists the parts in the design library folder: open them in part mode, or insert them in an assembly; add the current part to it by name. |
+| Templates and library | **Templates** saves the current part (units, material, properties, features) as a template and starts new parts from templates. **Library** lists the parts in the design library folder: open them in part mode, or insert them in an assembly; add the current part to it by name. Select features in the tree and save them as a **library feature** (with their sketches); insert it later onto a selected face or plane. |
 | Units | **Units** switches the part between MMGS, CGS, MKS and IPS. Lengths show in that unit everywhere (fields, sketch and drawing dimensions); type a bare number in the document unit or add a unit (25mm, 1in, 2.5cm). |
 | Properties | **Properties** holds custom properties as Name = value; values can use {Mass}, {Volume}, {Material}, {Configuration}, other properties and global variables. Description and PartNumber show in assembly BOMs and drawing title blocks. |
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
@@ -373,7 +374,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Curve-driven, sketch-driven, table-driven, fill, and variable patterns *(curve-driven with alignment, sketch-driven, table-driven, fill with square or staggered grid)*
 - [~] Wrap, dome, flex, deform, indent *(dome)*
 - [~] Cosmetic threads, thread feature *(modelled ISO metric threads, external and internal)*
-- [ ] Library features
+- [x] Library features *(save sketches and the features on them; insert onto any face or plane)*
 - [~] Appearances, decals, scenes *(body colours)*
 - [~] Section view, display states *(section view with capped cut faces)*
 - [~] Interactive feature editing via drag handles (Instant3D-style) *(drag the arrow to set an extrusion's depth)*
@@ -456,7 +457,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Design Library, favorites, templates *(part templates; design library folders to open or insert from)*
 - [~] Custom properties, property tab builder *(custom properties with {Mass}/{Material}/variable tokens, used by BOMs and title blocks)*
 - [~] Photorealistic rendering (path tracer, PBR materials, HDRI environments) *(CPU path tracer: BVH, plastic/metal/matte finishes from the material, soft sun shadows, sky, floor, PNG output)*
-- [ ] Model-Based Definition (3D PMI)
+- [~] Model-Based Definition (3D PMI) *(3D size dimensions and grouped hole callouts on the model)*
 - [ ] Routing: piping, tubing, electrical harnesses
 - [~] Basic PDM: check-in/out, revisions, where-used (Git-backed or server-backed) *(folder vault: locks, check-in with revision letters and comments, history and restore, where-used)*
 - [~] eDrawings-style lightweight viewer *(export a self-contained HTML/WebGL viewer page)*

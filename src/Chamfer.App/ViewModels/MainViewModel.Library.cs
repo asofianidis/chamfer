@@ -1,3 +1,4 @@
+using Chamfer.App.Part;
 using Chamfer.Document;
 using CommunityToolkit.Mvvm.Input;
 
@@ -72,6 +73,57 @@ public sealed partial class MainViewModel
         Editor = panel;
     }
 
+    /// <summary>Library features in the design library folders.</summary>
+    public IReadOnlyList<string> LibraryFeatureFiles() =>
+        [.. LibraryFolders.Where(Directory.Exists)
+            .SelectMany(f => Directory.EnumerateFiles(f, "*." + LibraryFeatures.FileExtension, SearchOption.AllDirectories))
+            .Order(StringComparer.OrdinalIgnoreCase)];
+
+    /// <summary>Saves the features selected in the tree (with their sketches) as a library feature.</summary>
+    public string? SaveLibraryFeature(string name)
+    {
+        var features = Selection.Where(s => s.Kind == SelectionKind.Feature && s.FeatureId is not null)
+            .Select(s => Document.Find(s.FeatureId!)).OfType<Chamfer.Document.Feature>().ToList();
+        try
+        {
+            var json = LibraryFeatures.Save(Document, features);
+            var folder = LibraryFolders[0];
+            Directory.CreateDirectory(folder);
+            var safe = string.Concat(name.Trim().Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c));
+            var path = Path.Combine(folder, safe + "." + LibraryFeatures.FileExtension);
+            File.WriteAllText(path, json);
+            MessageText = $"Saved library feature '{safe}'.";
+            return path;
+        }
+        catch (InvalidOperationException ex)
+        {
+            MessageText = ex.Message;
+            return null;
+        }
+    }
+
+    /// <summary>Inserts a library feature onto the selected face or plane.</summary>
+    public void InsertLibraryFeature(string path)
+    {
+        if (SelectedPlane() is not { } target)
+        {
+            MessageText = "Select the face or plane to put the library feature on.";
+            return;
+        }
+
+        Snapshot();
+        try
+        {
+            var added = LibraryFeatures.Insert(Document, File.ReadAllText(path), target);
+            RebuildAndRefresh();
+            MessageText = $"Inserted {Path.GetFileNameWithoutExtension(path)} ({added.Count} features).";
+        }
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or IOException)
+        {
+            MessageText = $"Couldn't insert it: {ex.Message}";
+        }
+    }
+
     /// <summary>Parts in the design library folders.</summary>
     public IReadOnlyList<string> LibraryParts() =>
         [.. LibraryFolders.Where(Directory.Exists)
@@ -110,6 +162,22 @@ public sealed partial class MainViewModel
         if (parts.Count == 0)
         {
             panel.AddInfo(new InfoField("Library", "No parts yet. Save parts into the library folder to reuse them."));
+        }
+
+        // Library features: insert onto the selected face or plane (part mode).
+        if (AssemblyDoc is null && DrawingDoc is null)
+        {
+            foreach (var path in LibraryFeatureFiles())
+            {
+                var name = Path.GetFileNameWithoutExtension(path);
+                panel.AddInfo(new ButtonField($"Insert feature {name}", new RelayCommand(() => InsertLibraryFeature(path))));
+            }
+
+            panel.AddInfo(new TextField("Save selected features as library feature", string.Empty, name =>
+            {
+                SaveLibraryFeature(name);
+                ShowDesignLibrary();
+            }));
         }
 
         panel.AddInfo(new InfoField("Folders", string.Join("\n", LibraryFolders)));

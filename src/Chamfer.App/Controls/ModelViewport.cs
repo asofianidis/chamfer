@@ -371,7 +371,27 @@ public sealed class ModelViewport : Control
         }
 
         context.DrawImage(_bitmap, new Rect(0, 0, width, height), new Rect(Bounds.Size));
+        DrawLabels(context);
         DrawTriad(context);
+    }
+
+    /// <summary>3D annotation text at each label's projected anchor.</summary>
+    private void DrawLabels(DrawingContext context)
+    {
+        if (_still is not null)
+        {
+            return;
+        }
+
+        foreach (var label in _scene.Labels)
+        {
+            var s = Camera.Project(label.At, PixelWidth, PixelHeight);
+            var brush = new SolidColorBrush(Color.FromRgb(label.Color.R, label.Color.G, label.Color.B));
+            var text = new FormattedText(label.Text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, Typeface.Default, 13, brush);
+            var at = new Point((s.X / PixelScale) - (text.Width / 2), (s.Y / PixelScale) - text.Height - 2);
+            context.FillRectangle(new SolidColorBrush(Color.FromArgb(200, 255, 255, 255)), new Rect(at.X - 2, at.Y, text.Width + 4, text.Height));
+            context.DrawText(text, at);
+        }
     }
 
     /// <summary>The XYZ axis triad in the lower-left corner.</summary>
