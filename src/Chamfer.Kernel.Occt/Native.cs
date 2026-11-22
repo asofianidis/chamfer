@@ -88,6 +88,13 @@ internal static unsafe partial class Native
 
     // -------------------------------------------------------------------- I/O
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)] public static partial int chf_write_step(ShapeHandle s, string path);
+    [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)] public static partial IntPtr chf_xcaf_read_step(string path);
+    [LibraryImport(Lib)] public static partial void chf_xcaf_free(IntPtr x);
+    [LibraryImport(Lib)] public static partial void chf_xcaf_counts(IntPtr x, int* out2);
+    [LibraryImport(Lib)] public static partial ShapeHandle chf_xcaf_part(IntPtr x, int i, uint* color);
+    [LibraryImport(Lib)] public static partial IntPtr chf_xcaf_part_name(IntPtr x, int i);
+    [LibraryImport(Lib)] public static partial int chf_xcaf_instance(IntPtr x, int i, double* m12);
+    [LibraryImport(Lib)] public static partial IntPtr chf_xcaf_instance_name(IntPtr x, int i);
     [LibraryImport(Lib, StringMarshalling = StringMarshalling.Utf8)]
     public static partial int chf_write_step_assembly(int partCount, IntPtr* parts, IntPtr* partNames, uint* partColors,
         int instanceCount, int* instancePart, double* matrices12, IntPtr* instanceNames, string assemblyName, string path);

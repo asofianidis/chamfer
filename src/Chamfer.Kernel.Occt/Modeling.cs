@@ -302,6 +302,49 @@ public static unsafe class Modeling
         }
     }
 
+    /// <summary>
+    /// Reads a STEP file's product structure, flattened to distinct parts (with names and colours,
+    /// null when the file has none) and placed instances.
+    /// </summary>
+    public static (IReadOnlyList<(Shape Shape, string Name, uint? Color)> Parts, IReadOnlyList<(int Part, Transform3 Placement, string Name)> Instances)
+        ReadStepAssembly(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        var x = Native.chf_xcaf_read_step(path);
+        if (x == IntPtr.Zero)
+        {
+            throw new KernelException($"STEP import failed: {Native.LastError()}");
+        }
+
+        try
+        {
+            var counts = stackalloc int[2];
+            Native.chf_xcaf_counts(x, counts);
+            var parts = new List<(Shape, string, uint?)>();
+            for (var i = 0; i < counts[0]; i++)
+            {
+                uint color;
+                var shape = Shape.Wrap(Native.chf_xcaf_part(x, i, &color), "STEP part");
+                parts.Add((shape, Marshal.PtrToStringUTF8(Native.chf_xcaf_part_name(x, i)) ?? $"Part{i + 1}", color == 0xFFFFFFFFu ? null : color));
+            }
+
+            var instances = new List<(int, Transform3, string)>();
+            var m = stackalloc double[12];
+            for (var i = 0; i < counts[1]; i++)
+            {
+                var part = Native.chf_xcaf_instance(x, i, m);
+                var t = new Transform3(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11]);
+                instances.Add((part, t, Marshal.PtrToStringUTF8(Native.chf_xcaf_instance_name(x, i)) ?? parts[part].Item2));
+            }
+
+            return (parts, instances);
+        }
+        finally
+        {
+            Native.chf_xcaf_free(x);
+        }
+    }
+
     /// <summary>Intersection curves of a shape with a plane.</summary>
     public static Shape Section(Shape s, Vec3 planeOrigin, Vec3 planeNormal)
     {

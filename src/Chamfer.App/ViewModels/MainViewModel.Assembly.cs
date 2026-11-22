@@ -61,6 +61,7 @@ public sealed partial class MainViewModel
         new("Bill of Materials", "List parts and quantities", new RelayCommand(ShowBom), "☰"),
         new("Pack and Go", "Copy the assembly and all its parts to one folder", new RelayCommand(StartPackAndGo), "⇪"),
         new("Design Library", "Insert reusable parts from the library", new RelayCommand(ShowDesignLibrary), "▦"),
+        new("Import STEP", "Open a STEP assembly as parts and an assembly", new AsyncRelayCommand(ImportStepAssemblyAsync), "⇩"),
         new("Explode", "Spread the components apart (toggle)", new RelayCommand(() => Exploded = !Exploded), "✳"),
         new("Open Part", "Edit the selected component's part", new RelayCommand(OpenSelectedPart), "↗"),
     ];

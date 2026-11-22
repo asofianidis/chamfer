@@ -252,6 +252,19 @@ CHF_API chf_shape* chf_heal(const chf_shape* s, double tolerance);
 CHF_API int chf_write_step_assembly(int partCount, chf_shape* const* parts, const char* const* partNames, const unsigned* partColors,
                                     int instanceCount, const int* instancePart, const double* matrices12, const char* const* instanceNames,
                                     const char* assemblyName, const char* path);
+
+/* Reads a STEP file's product structure, flattened: distinct parts (shape, name, colour or 0xFFFFFFFF)
+ * and placed instances (part index, row-major 3x4 placement, name). */
+typedef struct chf_xcaf chf_xcaf;
+CHF_API chf_xcaf* chf_xcaf_read_step(const char* path);
+CHF_API void chf_xcaf_free(chf_xcaf* x);
+/* out2 = partCount instanceCount */
+CHF_API void chf_xcaf_counts(const chf_xcaf* x, int* out2);
+CHF_API chf_shape* chf_xcaf_part(const chf_xcaf* x, int i, unsigned* color);
+CHF_API const char* chf_xcaf_part_name(const chf_xcaf* x, int i);
+/* Returns the instance's part index and writes its placement. */
+CHF_API int chf_xcaf_instance(const chf_xcaf* x, int i, double* m12);
+CHF_API const char* chf_xcaf_instance_name(const chf_xcaf* x, int i);
 CHF_API int chf_write_step(const chf_shape* s, const char* path);
 CHF_API chf_shape* chf_read_step(const char* path);
 CHF_API int chf_write_iges(const chf_shape* s, const char* path);
