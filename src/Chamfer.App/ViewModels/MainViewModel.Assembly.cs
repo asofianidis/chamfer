@@ -55,6 +55,8 @@ public sealed partial class MainViewModel
         new("Circular Pattern", "Copy the selected component around an axis", new RelayCommand(() => StartComponentPattern(circular: true)), "⟳"),
         new("Move", "Move or rotate the selected component", new RelayCommand(StartMove), "✥"),
         new("Fix / Float", "Fix the selected component in place, or let it move", new RelayCommand(ToggleFixed), "⚓"),
+        new("Hide / Show", "Hide the selected component, or show it again", new RelayCommand(ToggleHidden), "◌"),
+        new("Display States", "Save and switch sets of hidden components", new RelayCommand(ShowDisplayStates), "◑"),
         new("Assembly Cut", "Cut a hole or pocket through components in the assembly only", new RelayCommand(StartAssemblyCut), "⊘"),
         new("Interference", "Find overlapping components", new RelayCommand(ShowInterference), "⧉"),
         new("Clearance", "Find components closer than a minimum gap", new RelayCommand(ShowClearance), "↔"),
@@ -498,6 +500,57 @@ public sealed partial class MainViewModel
         Editor = panel;
     }
 
+    private void ToggleHidden()
+    {
+        if (AssemblyDoc is null || SelectedComponent() is not { } c)
+        {
+            MessageText = "Select a component to hide or show.";
+            return;
+        }
+
+        SnapshotAssembly();
+        c.Hidden = !c.Hidden;
+        RebuildAndRefresh();
+    }
+
+    private void ShowDisplayStates()
+    {
+        if (AssemblyDoc is not { } asm)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var panel = FeatureEditor.Info("Display States");
+        if (asm.DisplayStates.Count > 0)
+        {
+            var names = asm.DisplayStates.Select(s => s.Name).ToList();
+            panel.AddInfo(new ChoiceField("Show", names, Math.Max(0, names.IndexOf(asm.ActiveDisplayState ?? string.Empty)), i =>
+            {
+                SnapshotAssembly();
+                asm.ApplyDisplayState(asm.DisplayStates[i]);
+                RebuildAndRefresh();
+            }));
+        }
+
+        var name = new TextField("Save the current one as", asm.ActiveDisplayState ?? $"Display State-{asm.DisplayStates.Count + 1}", _ => { });
+        panel.AddInfo(name);
+        panel.AddInfo(new ButtonField("Save", new RelayCommand(() =>
+        {
+            if (string.IsNullOrWhiteSpace(name.Text))
+            {
+                return;
+            }
+
+            SnapshotAssembly();
+            asm.SaveDisplayState(name.Text);
+            _dirty = true;
+            ShowDisplayStates();
+        })));
+        panel.AddInfo(new InfoField("Hidden now", string.Join(", ", asm.Components.Where(c => c.Hidden).Select(c => c.Name).DefaultIfEmpty("none"))));
+        Editor = panel;
+    }
+
     private void StartExplodeStep()
     {
         if (AssemblyDoc is not { } asm)
@@ -803,7 +856,7 @@ public sealed partial class MainViewModel
         Tree.Clear();
         foreach (var c in asm.Components)
         {
-            var label = $"{(c.Fixed ? "(f) " : string.Empty)}{c.Name}{(c.Configuration is { } cfg ? $" [{cfg}]" : string.Empty)}";
+            var label = $"{(c.Fixed ? "(f) " : string.Empty)}{c.Name}{(c.Configuration is { } cfg ? $" [{cfg}]" : string.Empty)}{(c.Hidden ? " (hidden)" : string.Empty)}";
             var sub = c.Suppressed ? null : SafeSubAssembly(asm, c);
             Tree.Add(new FeatureNode(label, sub is null ? "⬚" : "◫", tag: c) { Status = c.Suppressed ? FeatureStatus.Suppressed : FeatureStatus.Ok });
             foreach (var child in sub?.Components ?? [])

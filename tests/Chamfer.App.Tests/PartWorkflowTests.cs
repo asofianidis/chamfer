@@ -1346,4 +1346,39 @@ public class PartWorkflowTests
         vm.UndoCommand.Execute(null);
         Assert.Equal(30, vm.AssemblyDoc!.Components[0].ExplodeOffset.Z, 1e-9);
     }
+
+    [Fact]
+    public void HideComponentsAndSwitchDisplayStates()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        for (var i = 0; i < 2; i++)
+        {
+            vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+        }
+
+        var asm = vm.AssemblyDoc!;
+        void Save(string name)
+        {
+            vm.AssemblyCommands.Single(c => c.Label == "Display States").Command.Execute(null);
+            vm.Editor!.Fields.OfType<TextField>().Single().Text = name;
+            vm.Editor.Fields.OfType<ButtonField>().Single(b => b.Label == "Save").Command.Execute(null);
+        }
+
+        Save("All");
+        var second = asm.Components[1];
+        vm.SetSelection([new SelectionItem(SelectionKind.Feature, FeatureId: second.Id, Label: second.Name, ComponentId: second.Id)]);
+        vm.AssemblyCommands.Single(c => c.Label == "Hide / Show").Command.Execute(null);
+        Assert.True(second.Hidden);
+        Assert.Contains(vm.Tree, n => n.Name.EndsWith("(hidden)", StringComparison.Ordinal));
+        Save("One");
+
+        vm.AssemblyCommands.Single(c => c.Label == "Display States").Command.Execute(null);
+        vm.Editor!.Fields.OfType<ChoiceField>().Single(f => f.Label == "Show").Index = 0;
+        Assert.False(asm.Components[1].Hidden);
+        var reloaded = Chamfer.Assembly.AssemblyDocument.Load(asm.Save());
+        Assert.Equal(["All", "One"], reloaded.DisplayStates.Select(s => s.Name));
+        Assert.Single(reloaded.DisplayStates[1].HiddenComponents);
+    }
 }
