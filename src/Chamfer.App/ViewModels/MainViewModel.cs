@@ -54,6 +54,11 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Revolved Boss", "Revolve a sketch about a centerline", new RelayCommand(() => StartSketchFeature(sf => new RevolveFeature { SketchId = sf.Id })), "◐"),
             new("Extruded Cut", "Cut by extruding a sketch", new RelayCommand(() => StartSketchFeature(sf => new ExtrudeFeature { SketchId = sf.Id, IsCut = true, EndCondition = EndCondition.ThroughAll })), "▭"),
             new("Revolved Cut", "Cut by revolving a sketch", new RelayCommand(() => StartSketchFeature(sf => new RevolveFeature { SketchId = sf.Id, IsCut = true })), "◑"),
+            new("Swept Boss", "Sweep a profile sketch along a path sketch", new RelayCommand(() => StartFeature(NewSweep(cut: false))), "⤳"),
+            new("Lofted Boss", "Loft through profile sketches in order", new RelayCommand(() => StartFeature(NewLoft(cut: false))), "⏢"),
+            new("Swept Cut", "Cut by sweeping a profile along a path", new RelayCommand(() => StartFeature(NewSweep(cut: true))), "⤳"),
+            new("Lofted Cut", "Cut by lofting through profiles", new RelayCommand(() => StartFeature(NewLoft(cut: true))), "⏢"),
+            new("Rib", "Thicken an open sketch into the part", new RelayCommand(() => StartSketchFeature(sf => new RibFeature { SketchId = sf.Id, Thickness = 2 })), "⊿"),
             new("Fillet", "Round edges", new RelayCommand(() => StartFeature(new FilletFeature { Radius = 2 })), "◜"),
             new("Chamfer", "Bevel edges", new RelayCommand(() => StartFeature(new ChamferFeature { Distance = 1 })), "◸"),
             new("Shell", "Hollow the part", new RelayCommand(() => StartFeature(new ShellFeature { Thickness = 1 })), "□"),
@@ -539,6 +544,22 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private SketchFeature? _lastSketch;
 
+    private List<SketchFeature> SelectedSketches() =>
+        [.. Selection.Where(s => s.Kind == SelectionKind.Feature).Select(s => Document.Find(s.FeatureId!)).OfType<SketchFeature>()];
+
+    private SweepFeature NewSweep(bool cut)
+    {
+        var sketches = SelectedSketches();
+        return new SweepFeature
+        {
+            IsCut = cut,
+            ProfileSketchId = sketches.Count > 0 ? sketches[0].Id : string.Empty,
+            PathSketchId = sketches.Count > 1 ? sketches[1].Id : string.Empty,
+        };
+    }
+
+    private LoftFeature NewLoft(bool cut) => new() { IsCut = cut, SectionSketchIds = [.. SelectedSketches().Select(s => s.Id)] };
+
     private void StartHole()
     {
         if (Selection.LastOrDefault(s => s.Kind == SelectionKind.Face) is not { } face || ResolvePlane(new PlaneRef(Face: face.Ref)) is null)
@@ -830,6 +851,34 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void MoveUp() => MoveSelected(-1);
+
+    [RelayCommand]
+    private void MoveDown() => MoveSelected(1);
+
+    private void MoveSelected(int delta)
+    {
+        if (SelectedNode?.Feature is not { } f)
+        {
+            return;
+        }
+
+        var snapshot = Document.Save();
+        if (!Document.Move(f, delta))
+        {
+            MessageText = $"{f.Name} can't move past a feature it depends on or that depends on it.";
+            return;
+        }
+
+        _undo.Push(snapshot);
+        _redo.Clear();
+        _dirty = true;
+        UndoCommand.NotifyCanExecuteChanged();
+        RebuildAndRefresh();
+        SelectedNode = Tree.FirstOrDefault(n => n.Feature == f);
+    }
+
+    [RelayCommand]
     private void RollbackHere()
     {
         if (SelectedNode?.Feature is not { } f)
@@ -878,6 +927,9 @@ public sealed partial class MainViewModel : ViewModelBase
         panel.AddInfo(new InfoField("Volume", $"{m.Volume.ToString("0.###", inv)} mm³"));
         panel.AddInfo(new InfoField("Surface area", $"{m.SurfaceArea.ToString("0.###", inv)} mm²"));
         panel.AddInfo(new InfoField("Centre of mass", m.CenterOfMass.ToString()));
+        panel.AddInfo(new InfoField("Moments of inertia (kg·mm², about centre of mass)",
+            $"Ixx {m.Ixx.ToString("0.###", inv)}\nIyy {m.Iyy.ToString("0.###", inv)}\nIzz {m.Izz.ToString("0.###", inv)}\n" +
+            $"Ixy {m.Ixy.ToString("0.###", inv)}  Ixz {m.Ixz.ToString("0.###", inv)}  Iyz {m.Iyz.ToString("0.###", inv)}"));
         var box = Document.Bodies.Aggregate(Box3.Empty, (b, body) => b.Union(body.Shape.Bounds));
         if (!box.IsEmpty)
         {

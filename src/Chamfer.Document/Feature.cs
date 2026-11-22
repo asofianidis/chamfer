@@ -49,6 +49,9 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(CircularPatternFeature), "circularPattern")]
 [JsonDerivedType(typeof(MirrorFeature), "mirror")]
 [JsonDerivedType(typeof(ImportFeature), "import")]
+[JsonDerivedType(typeof(SweepFeature), "sweep")]
+[JsonDerivedType(typeof(LoftFeature), "loft")]
+[JsonDerivedType(typeof(RibFeature), "rib")]
 public abstract class Feature
 {
     /// <summary>Stable identifier used by references and persistent names. Never shown to users.</summary>

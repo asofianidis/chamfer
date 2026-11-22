@@ -58,6 +58,9 @@ public sealed partial class FeatureNode : ObservableObject
         MirrorFeature => "⇋",
         ReferencePlaneFeature => "▱",
         ImportFeature => "⬇",
+        SweepFeature => "⤳",
+        LoftFeature => "⏢",
+        RibFeature => "⊿",
         _ => "•",
     };
 }

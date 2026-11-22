@@ -27,7 +27,16 @@ public sealed record FeatureResult(FeatureStatus Status, string? Message);
 /// <param name="SurfaceArea">mm².</param>
 /// <param name="Mass">kg.</param>
 /// <param name="CenterOfMass">mm.</param>
-public sealed record PartMassProperties(double Volume, double SurfaceArea, double Mass, Geometry.Vec3 CenterOfMass);
+/// <param name="Inertia">Inertia tensor about the centre of mass in kg·mm², row-major 3×3 (off-diagonals are -∫xy dm etc.).</param>
+public sealed record PartMassProperties(double Volume, double SurfaceArea, double Mass, Geometry.Vec3 CenterOfMass, double[] Inertia)
+{
+    public double Ixx => Inertia[0];
+    public double Iyy => Inertia[4];
+    public double Izz => Inertia[8];
+    public double Ixy => Inertia[1];
+    public double Ixz => Inertia[2];
+    public double Iyz => Inertia[5];
+}
 
 /// <summary>
 /// A part: an ordered feature history and the bodies it builds. Rebuilds are
@@ -211,16 +220,71 @@ public sealed class PartDocument
     {
         double volume = 0, area = 0;
         var moment = Geometry.Vec3.Zero;
+        var parts = new List<(MassProperties M, Geometry.Vec3 C)>();
         foreach (var b in Bodies)
         {
             var m = b.Shape.MassProperties;
             volume += m.Volume;
             area += m.SurfaceArea;
             moment += m.CenterOfMass * m.Volume;
+            parts.Add((m, m.CenterOfMass));
         }
 
-        var mass = volume * 1e-9 * Material.Density;
-        return new PartMassProperties(volume, area, mass, volume > 0 ? moment / volume : Geometry.Vec3.Zero);
+        var density = Material.Density * 1e-9; // kg/mm³
+        var mass = volume * density;
+        var com = volume > 0 ? moment / volume : Geometry.Vec3.Zero;
+
+        // Combine body tensors about the overall centre of mass (parallel-axis theorem).
+        var inertia = new double[9];
+        foreach (var (m, c) in parts)
+        {
+            var bodyMass = m.Volume * density;
+            var d = c - com;
+            double[] own = [m.Ixx, m.Ixy, m.Ixz, m.Ixy, m.Iyy, m.Iyz, m.Ixz, m.Iyz, m.Izz];
+            double[] dv = [d.X, d.Y, d.Z];
+            var d2 = d.LengthSquared;
+            for (var i = 0; i < 3; i++)
+            {
+                for (var j = 0; j < 3; j++)
+                {
+                    inertia[(3 * i) + j] += (own[(3 * i) + j] * density) + (bodyMass * (((i == j) ? d2 : 0) - (dv[i] * dv[j])));
+                }
+            }
+        }
+
+        return new PartMassProperties(volume, area, mass, com, inertia);
+    }
+
+    /// <summary>
+    /// Moves a feature up (negative) or down (positive) in the history, unless
+    /// that would put it before something it uses or after something that uses it.
+    /// </summary>
+    public bool Move(Feature feature, int delta)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        var from = Features.IndexOf(feature);
+        var to = from + delta;
+        if (from < 0 || to < 0 || to >= Features.Count || delta == 0)
+        {
+            return false;
+        }
+
+        var lo = Math.Min(from, to);
+        var hi = Math.Max(from, to);
+        var between = Features.GetRange(lo, hi - lo + 1).Where(f => f != feature).ToList();
+        if (delta < 0 && between.Any(f => feature.Dependencies.Contains(f.Id)))
+        {
+            return false;
+        }
+
+        if (delta > 0 && between.Any(f => f.Dependencies.Contains(feature.Id)))
+        {
+            return false;
+        }
+
+        Features.RemoveAt(from);
+        Features.Insert(to, feature);
+        return true;
     }
 
     private static string Fingerprint(Feature f, string previous) =>

@@ -178,6 +178,12 @@ CHF_API chf_op* chf_mirror(chf_shape* s, const double* plane6, int copy);
 CHF_API chf_op* chf_sweep(chf_shape* profile, chf_shape* path, int mode);
 /* Loft through sections (wires or faces). solid != 0 builds a closed solid. */
 CHF_API chf_op* chf_loft(int count, chf_shape* const* sections, int solid, int ruled);
+/*
+ * Rib: grows an open wire lying in a plane (origin(3) normal(3)) into the base
+ * solid, thickness1 along the normal and thickness2 against it, until it meets
+ * the base. The result is the base with the rib fused on.
+ */
+CHF_API chf_op* chf_rib(chf_shape* base, chf_shape* wire, const double* plane6, double thickness1, double thickness2);
 /* Offset a face/shell into a solid of given thickness. */
 CHF_API chf_op* chf_thicken(chf_shape* s, double thickness);
 /* Sew faces/shells into a shell or solid. */

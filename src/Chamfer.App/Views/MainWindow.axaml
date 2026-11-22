@@ -224,6 +224,8 @@
             <Button Classes="tool" Content="Edit" Command="{Binding EditSelectedCommand}" ToolTip.Tip="Edit the selected feature (double-click)" />
             <Button Classes="tool" Content="Suppress" Command="{Binding ToggleSuppressCommand}" ToolTip.Tip="Suppress or unsuppress" />
             <Button Classes="tool" Content="Delete" Command="{Binding DeleteSelectedCommand}" />
+            <Button Classes="tool" Content="▲" Command="{Binding MoveUpCommand}" ToolTip.Tip="Move the feature earlier in the history" />
+            <Button Classes="tool" Content="▼" Command="{Binding MoveDownCommand}" ToolTip.Tip="Move the feature later in the history" />
             <Button Classes="tool" Content="Roll Here" Command="{Binding RollbackHereCommand}" ToolTip.Tip="Roll back to just after this feature" />
             <Button Classes="tool" Content="Roll Forward" Command="{Binding RollForwardCommand}" />
             <ComboBox x:Name="MaterialBox" Margin="0,6,0,0" MinWidth="180" ItemsSource="{x:Static doc:Material.Library}" PlaceholderText="Material…"
@@ -328,6 +330,16 @@
                       </TextBox.KeyBindings>
                     </TextBox>
                     <TextBlock Grid.Column="2" Text="{Binding Unit}" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" Opacity="0.7" Width="24" />
+                  </Grid>
+                </DataTemplate>
+                <DataTemplate DataType="vm:TextField">
+                  <Grid ColumnDefinitions="120,*" Margin="0,3">
+                    <TextBlock Text="{Binding Label}" VerticalAlignment="Center" FontSize="12.5" />
+                    <TextBox Grid.Column="1" Text="{Binding Text}" FontSize="12.5">
+                      <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter" Command="{Binding CommitCommand}" />
+                      </TextBox.KeyBindings>
+                    </TextBox>
                   </Grid>
                 </DataTemplate>
                 <DataTemplate DataType="vm:ChoiceField">

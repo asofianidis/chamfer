@@ -138,4 +138,40 @@ public class PartWorkflowTests
         Assert.Equal(Document.FeatureStatus.Ok, vm.Document.Results[hole.Id].Status);
         Assert.True(vm.Document.MassProperties().Volume < 80 * 40 * 20 - (2 * Math.PI * 3.3 * 3.3 * 20));
     }
+
+    [Fact]
+    public void SweepFromTwoSelectedSketches()
+    {
+        var vm = new MainViewModel();
+        SketchFeature Make(string plane, Action<Sketch> draw)
+        {
+            vm.SetSelection([SelectionItem.Plane(plane, plane)]);
+            vm.NewSketchCommand.Execute(null);
+            var editor = vm.Sketch!.Editor;
+            editor.BeginChange();
+            draw(editor.Sketch);
+            editor.EndChange(solve: true);
+            var sf = vm.EditingSketch!;
+            vm.ExitSketchCommand.Execute(null);
+            return sf;
+        }
+
+        var profile = Make("top", s => s.AddCircle(Vec2.Zero, 2));
+        var path = Make("front", s => s.AddLine(Vec2.Zero, new Vec2(0, 40)));
+        vm.SetSelection([SelectionItem.ForFeature(profile), SelectionItem.ForFeature(path)]);
+        vm.FeatureCommands.Single(c => c.Label == "Swept Boss").Command.Execute(null);
+        var sweep = Assert.IsType<SweepFeature>(vm.Editor!.Feature);
+        Assert.Equal(profile.Id, sweep.ProfileSketchId);
+        Assert.Equal(path.Id, sweep.PathSketchId);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(Math.PI * 4 * 40, vm.Document.MassProperties().Volume, 1e-3);
+
+        // Rename through the edit panel.
+        vm.EditFeature(sweep);
+        var name = vm.Editor!.Fields.OfType<TextField>().Single();
+        name.Text = "Rod";
+        name.Commit();
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Contains(vm.Tree, n => n.Name == "Rod");
+    }
 }

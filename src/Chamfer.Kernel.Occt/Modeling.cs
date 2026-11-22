@@ -194,6 +194,19 @@ public static unsafe class Modeling
         return WithHandles(sections, (n, p) => new Operation(Native.chf_loft(n, p, solid ? 1 : 0, ruled ? 1 : 0), "loft"));
     }
 
+    /// <summary>
+    /// Grows an open wire lying in a plane into <paramref name="baseShape"/>,
+    /// <paramref name="thickness1"/> along the plane normal and <paramref name="thickness2"/>
+    /// against it, until it meets the base. The result includes the base.
+    /// </summary>
+    public static Operation Rib(Shape baseShape, Shape wire, Vec3 planeOrigin, Vec3 planeNormal, double thickness1, double thickness2)
+    {
+        ArgumentNullException.ThrowIfNull(baseShape);
+        ArgumentNullException.ThrowIfNull(wire);
+        var p = stackalloc double[6] { planeOrigin.X, planeOrigin.Y, planeOrigin.Z, planeNormal.X, planeNormal.Y, planeNormal.Z };
+        return new Operation(Native.chf_rib(baseShape.Handle, wire.Handle, p, thickness1, thickness2), "rib");
+    }
+
     public static Operation Thicken(Shape s, double thickness)
     {
         ArgumentNullException.ThrowIfNull(s);

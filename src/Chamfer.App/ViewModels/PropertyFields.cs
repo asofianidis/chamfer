@@ -196,6 +196,33 @@ public sealed partial class SelectionField : PropertyField
     }
 }
 
+/// <summary>Free text, applied on Enter or when focus leaves.</summary>
+public sealed partial class TextField : PropertyField
+{
+    private readonly Action<string> _apply;
+
+    public TextField(string label, string text, Action<string> apply)
+        : base(label)
+    {
+        _apply = apply;
+        Text = text;
+        CommitCommand = new RelayCommand(Commit);
+    }
+
+    public IRelayCommand CommitCommand { get; }
+
+    [ObservableProperty]
+    public partial string Text { get; set; }
+
+    public void Commit()
+    {
+        if (!string.IsNullOrWhiteSpace(Text))
+        {
+            _apply(Text.Trim());
+        }
+    }
+}
+
 /// <summary>A read-only line of text (hints, results).</summary>
 public sealed partial class InfoField(string label, string text) : PropertyField(label)
 {

@@ -243,6 +243,10 @@ public partial class MainWindow : Window
         {
             field.Commit();
         }
+        else if (e.Source is TextBox { DataContext: TextField text })
+        {
+            text.Commit();
+        }
     }
 
     private void OnWindowKeyDown(object? sender, KeyEventArgs e)

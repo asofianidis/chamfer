@@ -81,7 +81,7 @@ public sealed partial class FeatureEditor : ObservableObject
     private static readonly SelectionKind[] Axes = [SelectionKind.Edge, SelectionKind.Face, SelectionKind.Plane];
     private static readonly SelectionKind[] FeatureKinds = [SelectionKind.Feature];
 
-    private static readonly string[] EndConditions = ["Blind", "Through All", "Mid Plane"];
+    private static readonly string[] EndConditions = ["Blind", "Through All", "Mid Plane", "Up To Surface", "Offset From Surface"];
 
     /// <summary>Builds the panel for a feature. <paramref name="selection"/> pre-fills selection fields.</summary>
     public static FeatureEditor Create(PartDocument doc, Feature feature, bool isNew, IReadOnlyList<SelectionItem> selection, Action changed)
@@ -101,6 +101,11 @@ public sealed partial class FeatureEditor : ObservableObject
 
         IEnumerable<SelectionItem> Pre(SelectionKind[] kinds) => isNew ? selection.Where(s => kinds.Contains(s.Kind)) : [];
 
+        if (!isNew)
+        {
+            ed.Add(new TextField("Name", feature.Name, name => Set(() => feature.Name = name)));
+        }
+
         switch (feature)
         {
             case ExtrudeFeature ex:
@@ -112,6 +117,15 @@ public sealed partial class FeatureEditor : ObservableObject
                     i => Set(() => ex.EndCondition2 = i == 1 ? EndCondition.ThroughAll : EndCondition.Blind)));
                 ed.Add(new NumberField("Depth 2", "mm", () => ex.Depth2, v => Set(() => ex.Depth2 = v), 1e-6));
                 ed.Add(new NumberField("Start offset", "mm", () => ex.StartOffset, v => Set(() => ex.StartOffset = v)));
+                ed.Add(new SelectionField("Up to face", Faces, ex.UpToFace is { } upTo ? [new SelectionItem(SelectionKind.Face, upTo, Label: $"Face <{upTo.Name}>")] : [],
+                    items => Set(() => ex.UpToFace = Last(items)?.Ref), max: 1));
+                ed.Add(new NumberField("Surface offset", "mm", () => ex.SurfaceOffset, v => Set(() => ex.SurfaceOffset = v), 0));
+                ed.Add(new NumberField("Draft angle", "°", () => ex.DraftAngle, v => Set(() => ex.DraftAngle = v), 0));
+                ed.Add(new BoolField("Draft outward", ex.DraftOutward, v => Set(() => ex.DraftOutward = v)));
+                ed.Add(new BoolField("Thin feature", ex.IsThin, v => Set(() => ex.IsThin = v)));
+                ed.Add(new NumberField("Wall thickness", "mm", () => ex.ThinThickness, v => Set(() => ex.ThinThickness = v), 1e-6));
+                ed.Add(new BoolField("Reverse wall side", ex.ThinReverse, v => Set(() => ex.ThinReverse = v)));
+                ed.Activate(null);
                 if (!ex.IsCut)
                 {
                     ed.Add(new BoolField("Merge result", ex.Merge, v => Set(() => ex.Merge = v)));
@@ -124,6 +138,35 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Mid plane", rev.MidPlane, v => Set(() => rev.MidPlane = v)));
                 ed.Add(new BoolField("Reverse direction", rev.Reverse, v => Set(() => rev.Reverse = v)));
                 ed.Add(new InfoField("Axis", "The sketch's first centerline is the axis."));
+                break;
+
+            case SweepFeature sw:
+                ed.Add(new SelectionField("Profile sketch", FeatureKinds, SketchItems(doc, [sw.ProfileSketchId]),
+                    items => Set(() => sw.ProfileSketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
+                ed.Add(new SelectionField("Path sketch", FeatureKinds, SketchItems(doc, [sw.PathSketchId]),
+                    items => Set(() => sw.PathSketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
+                if (!sw.IsCut)
+                {
+                    ed.Add(new BoolField("Merge result", sw.Merge, v => Set(() => sw.Merge = v)));
+                }
+
+                break;
+
+            case LoftFeature lo:
+                ed.Add(new SelectionField("Profiles (in order)", FeatureKinds, SketchItems(doc, lo.SectionSketchIds),
+                    items => Set(() => lo.SectionSketchIds = [.. items.Select(i => i.FeatureId!).Where(id => doc.Find(id) is SketchFeature)])));
+                ed.Add(new BoolField("Ruled (straight) sides", lo.Ruled, v => Set(() => lo.Ruled = v)));
+                if (!lo.IsCut)
+                {
+                    ed.Add(new BoolField("Merge result", lo.Merge, v => Set(() => lo.Merge = v)));
+                }
+
+                break;
+
+            case RibFeature rib:
+                ed.Add(new NumberField("Thickness", "mm", () => rib.Thickness, v => Set(() => rib.Thickness = v), 1e-6));
+                ed.Add(new BoolField("Both sides of sketch", rib.BothSides, v => Set(() => rib.BothSides = v)));
+                ed.Add(new BoolField("Flip side", rib.FlipSide, v => Set(() => rib.FlipSide = v)));
                 break;
 
             case FilletFeature fil:
@@ -248,6 +291,9 @@ public sealed partial class FeatureEditor : ObservableObject
 
         return ed;
     }
+
+    private static IEnumerable<SelectionItem> SketchItems(PartDocument doc, IEnumerable<string> ids) =>
+        ids.Select(doc.Find).OfType<SketchFeature>().Select(SelectionItem.ForFeature);
 
     private static SelectionItem? Last(IReadOnlyList<SelectionItem> items) => items.Count > 0 ? items[^1] : null;
 
