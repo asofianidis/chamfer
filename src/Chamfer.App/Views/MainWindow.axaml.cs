@@ -261,6 +261,38 @@ public partial class MainWindow : Window
             return;
         }
 
+        // User and default shortcuts first (Ctrl stands for Cmd on macOS).
+        if (vm.Sketch is null && e.Key is not (Key.LeftCtrl or Key.RightCtrl or Key.LeftShift or Key.RightShift or Key.LeftAlt or Key.RightAlt or Key.LWin or Key.RWin))
+        {
+            var mods = new List<string>();
+            if (e.KeyModifiers.HasFlag(CommandModifier))
+            {
+                mods.Add("Ctrl");
+            }
+
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Alt))
+            {
+                mods.Add("Alt");
+            }
+
+            if (e.KeyModifiers.HasFlag(KeyModifiers.Shift))
+            {
+                mods.Add("Shift");
+            }
+
+            var key = e.Key.ToString();
+            if (key.Length == 2 && key[0] == 'D' && char.IsDigit(key[1]))
+            {
+                key = key[1..];
+            }
+
+            if (vm.RunShortcut(string.Join('+', mods.Append(key))))
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+
         var command = e.KeyModifiers.HasFlag(CommandModifier);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
         if (command)

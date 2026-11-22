@@ -813,4 +813,43 @@ public class PartWorkflowTests
             }
         }
     }
+
+    [Fact]
+    public void ShortcutsAndFindCommand()
+    {
+        var file = Path.Combine(Path.GetTempPath(), $"chamfer-keys-{Guid.NewGuid():N}.json");
+        try
+        {
+            Assert.Equal("Ctrl+Shift+E", MainViewModel.Normalize("shift + ctrl + e"));
+            Assert.Equal("Ctrl+F5", MainViewModel.Normalize("Cmd+F5"));
+
+            var vm = new MainViewModel { ShortcutsFile = file };
+            Assert.True(vm.RunShortcut("Ctrl+K"));
+            Assert.Equal("Find Command", vm.Editor!.Title);
+            var search = vm.Editor.Fields.OfType<TextField>().Single();
+            search.Text = "fillet";
+            search.Commit();
+            Assert.IsType<FilletFeature>(vm.Editor!.Feature); // one match runs it
+            vm.CancelEditorCommand.Execute(null);
+
+            vm.RunCommand("Find Command");
+            search = vm.Editor!.Fields.OfType<TextField>().Single();
+            search.Text = "pattern";
+            search.Commit();
+            Assert.True(vm.Editor!.Fields.OfType<ButtonField>().Count() >= 6); // several matches list as buttons
+
+            vm.SetShortcut("ctrl+shift+h", "Hole Wizard");
+            vm.SetShortcut("Ctrl+M", string.Empty);
+            Assert.False(vm.RunShortcut("Q"));
+
+            var next = new MainViewModel { ShortcutsFile = file };
+            Assert.Equal("Hole Wizard", next.Shortcuts["Ctrl+Shift+H"]);
+            Assert.False(next.Shortcuts.ContainsKey("Ctrl+M"));
+            Assert.Equal("Extruded Boss", next.Shortcuts["Ctrl+E"]);
+        }
+        finally
+        {
+            File.Delete(file);
+        }
+    }
 }
