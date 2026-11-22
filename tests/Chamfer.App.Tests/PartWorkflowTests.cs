@@ -702,7 +702,7 @@ public class PartWorkflowTests
     {
         var vm = new MainViewModel();
         vm.ShowUnitsCommand.Execute(null);
-        vm.Editor!.Fields.OfType<ChoiceField>().Single().Index = 3; // IPS
+        vm.Editor!.Fields.OfType<ChoiceField>().Single(f => f.Label == "Unit system").Index = 3; // IPS
         Assert.Equal(Geometry.LengthUnit.Inch, vm.Document.Units);
         Assert.StartsWith("IPS", vm.StatusText, StringComparison.Ordinal);
 

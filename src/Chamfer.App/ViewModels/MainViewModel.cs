@@ -538,6 +538,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private void RefreshStatus()
     {
         DisplayUnits.Length = Document.Units;
+        DisplayUnits.Decimals = Document.Decimals;
         var system = Units.SystemName(Document.Units);
         var bodies = Document.Bodies.Count;
         StatusText = Sketch is not null ? Sketch.StatusText
@@ -556,6 +557,14 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             Snapshot();
             Document.Units = units[i];
+            RebuildAndRefresh();
+            ShowUnits();
+        }));
+        string[] places = ["As needed", "0", "1", "2", "3", "4"];
+        panel.AddInfo(new ChoiceField("Decimal places", places, Document.Decimals is { } dp ? Math.Clamp(dp, 0, 4) + 1 : 0, i =>
+        {
+            Snapshot();
+            Document.Decimals = i == 0 ? null : i - 1;
             RebuildAndRefresh();
             ShowUnits();
         }));

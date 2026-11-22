@@ -415,6 +415,26 @@ public class DrawingTests
     }
 
     [Fact]
+    public void DimensionDecimalPlaces()
+    {
+        Assert.Equal("25", Units.Format(25, LengthUnit.Millimeter));
+        Assert.Equal("25.00", Units.Format(25, LengthUnit.Millimeter, decimals: 2));
+        Assert.Equal("1.000", Units.Format(25.4, LengthUnit.Inch, decimals: 3));
+
+        var (part, _) = Part();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        var front = drawing.Add(sheet, ViewKind.Front, 150, 150);
+        var body = part.Bodies[0];
+        var hole = Enumerable.Range(1, body.EdgeCount).First(i => body.Edge(i).Curve == CurveKind.Circle);
+        drawing.AddDimension(sheet, front, DimensionKind.Diameter, new DimensionAnchor(body.EdgeRef(hole), DimensionAnchor.Center, body.Edge(hole).CenterOrDirection));
+        drawing.Decimals = 2;
+        var g = new DrawingRenderer(drawing).Render(sheet);
+        Assert.Contains(g.Items.OfType<TextPrimitive>(), t => t.Text == "⌀20.00");
+        Assert.Equal(2, DrawingDocument.Load(drawing.Save()).Decimals);
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();

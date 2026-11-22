@@ -990,6 +990,13 @@ public sealed partial class MainViewModel
             sheet.Scale = v;
             RefreshDrawing();
         }, 0.001));
+        string[] places = ["As needed", "0", "1", "2", "3", "4"];
+        panel.AddInfo(new ChoiceField("Dimension decimals", places, d.Decimals is { } dp ? Math.Clamp(dp, 0, 4) + 1 : 0, i =>
+        {
+            SnapshotDrawing();
+            d.Decimals = i == 0 ? null : i - 1;
+            RefreshDrawing();
+        }));
         panel.AddInfo(new BoolField("First-angle projection (ISO)", d.FirstAngle, v =>
         {
             SnapshotDrawing();
