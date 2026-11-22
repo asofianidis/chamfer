@@ -245,6 +245,13 @@ CHF_API int chf_diagnose(const chf_shape* s, double tolerance, int* out7);
 CHF_API chf_shape* chf_heal(const chf_shape* s, double tolerance);
 
 /* ------------------------------------------------------------------- I/O */
+/*
+ * STEP with product structure, names and colours. parts: the distinct part shapes with names and
+ * 0xRRGGBB colours; instances: part index, placement (12 doubles, row-major 3x4) and name each.
+ */
+CHF_API int chf_write_step_assembly(int partCount, chf_shape* const* parts, const char* const* partNames, const unsigned* partColors,
+                                    int instanceCount, const int* instancePart, const double* matrices12, const char* const* instanceNames,
+                                    const char* assemblyName, const char* path);
 CHF_API int chf_write_step(const chf_shape* s, const char* path);
 CHF_API chf_shape* chf_read_step(const char* path);
 CHF_API int chf_write_iges(const chf_shape* s, const char* path);

@@ -521,6 +521,16 @@ public sealed class PartDocument
             return;
         }
 
+        // STEP keeps body names and colours as products when there's more than a single plain body.
+        if (ext is ".STEP" or ".STP" && (Bodies.Count > 1 || Bodies.Any(b => b.Color is not null)))
+        {
+            Modeling.WriteStepAssembly(
+                [.. Bodies.Select(b => (b.Shape, b.Name, b.Color ?? 0xB9C3CEu))],
+                [.. Bodies.Select((b, i) => (i, Geometry.Transform3.Identity, b.Name))],
+                Path.GetFileNameWithoutExtension(path), path);
+            return;
+        }
+
         using var all = Modeling.Compound([.. Bodies.Select(b => b.Shape)]);
         switch (ext)
         {

@@ -159,6 +159,58 @@ public static class AssemblyTools
             return;
         }
 
+        if (ext is ".STEP" or ".STP")
+        {
+            // Product structure: each distinct part once (its bodies as one shape), placed per component.
+            var parts = new List<(Shape Shape, string Name, uint Color)>();
+            var index = new Dictionary<IReadOnlyList<Body>, int>(ReferenceEqualityComparer.Instance);
+            var instances = new List<(int Part, Transform3 Placement, string Name)>();
+            var owned = new List<Shape>();
+            try
+            {
+                foreach (var c in asm.Components.Where(c => !c.Suppressed && !c.Hidden))
+                {
+                    var bodies = asm.BodiesOf(c);
+                    if (bodies.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    if (!index.TryGetValue(bodies, out var k))
+                    {
+                        var shape = bodies.Count == 1 ? bodies[0].Shape : Modeling.Compound([.. bodies.Select(b => b.Shape)]);
+                        if (bodies.Count > 1)
+                        {
+                            owned.Add(shape);
+                        }
+
+                        var name = Toolbox.IsToolboxPath(c.Path) ? FastenerSpec.Parse(c.Path)!.Description : Path.GetFileNameWithoutExtension(c.Path);
+                        k = parts.Count;
+                        index[bodies] = k;
+                        parts.Add((shape, name, bodies[0].Color ?? 0xB9C3CEu));
+                    }
+
+                    instances.Add((k, c.Transform, c.Name));
+                }
+
+                if (instances.Count == 0)
+                {
+                    throw new InvalidOperationException("There is nothing to export.");
+                }
+
+                Modeling.WriteStepAssembly(parts, instances, Path.GetFileNameWithoutExtension(path), path);
+            }
+            finally
+            {
+                foreach (var s in owned)
+                {
+                    s.Dispose();
+                }
+            }
+
+            return;
+        }
+
         var shapes = asm.Components.Where(c => !c.Suppressed && !c.Hidden).SelectMany(c => asm.PlacedBodies(c).Select(p => p.Placed)).ToList();
         if (shapes.Count == 0)
         {
