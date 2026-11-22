@@ -510,6 +510,25 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task WeldAndDatumTargetSymbolsRender()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            vm.LoadFile("plate.chprt", PlateWithHole().Save());
+            vm.NewDrawingCommand.Execute(null);
+            var sheet = vm.CurrentSheet!;
+            var front = sheet.Views[0];
+            sheet.Welds.Add(new Chamfer.Drawing.WeldSymbol { Id = "w1", Size = "6", Length = "50", AnchorX = front.X + 20, AnchorY = front.Y + 30, X = front.X + 45, Y = front.Y + 55, AllAround = true, FieldWeld = true });
+            sheet.Welds.Add(new Chamfer.Drawing.WeldSymbol { Id = "w2", Kind = Chamfer.Drawing.WeldKind.VGroove, Size = "8", BothSides = true, AnchorX = front.X - 20, AnchorY = front.Y + 30, X = front.X - 45, Y = front.Y + 55 });
+            sheet.DatumTargets.Add(new Chamfer.Drawing.DatumTarget { Id = "t1", Label = "A1", Area = "⌀6", AnchorX = front.X, AnchorY = front.Y - 20, X = front.X + 25, Y = front.Y - 45 });
+            vm.RebuildAndRefresh();
+            Capture(window, "drawing-welds");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open(string theme)
     {
         Application.Current!.RequestedThemeVariant = theme == "dark" ? ThemeVariant.Dark : ThemeVariant.Light;

@@ -234,6 +234,10 @@ public sealed class Sheet
 
     public List<SurfaceFinish> Finishes { get; set; } = [];
 
+    public List<WeldSymbol> Welds { get; set; } = [];
+
+    public List<DatumTarget> DatumTargets { get; set; } = [];
+
     public List<HoleTable> HoleTables { get; set; } = [];
 
     public RevisionTable? Revisions { get; set; }
