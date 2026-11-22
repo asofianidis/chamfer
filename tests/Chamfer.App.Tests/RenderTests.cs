@@ -206,6 +206,25 @@ public sealed class RenderTests
             Assert.Contains(vm.Editor!.Fields.OfType<InfoField>(), f => f.Label == "Factor of safety");
             window.FindControl<Controls.ModelViewport>("Viewport")!.SetView(StandardView.Isometric);
             Capture(window, "simulation");
+
+            // Natural frequencies with the same fixture.
+            var freq = (CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.VisibleFeatureCommands.Single(c => c.Label == "Frequency").Command;
+            task = freq.ExecuteAsync(null);
+            while (!task.IsCompleted)
+            {
+                Dispatcher.UIThread.RunJobs();
+                Thread.Sleep(10);
+            }
+
+            Assert.NotNull(vm.FrequencyResult);
+            var modes = vm.FrequencyResult!.Modes;
+            Assert.Equal(4, modes.Count);
+            Assert.True(modes[0].Frequency > 0);
+            Assert.True(modes.Zip(modes.Skip(1)).All(p => p.First.Frequency <= p.Second.Frequency * (1 + 1e-9)));
+            Assert.Equal(4, vm.Editor!.Fields.OfType<InfoField>().Count(f => f.Label.StartsWith("Mode ", StringComparison.Ordinal)));
+            vm.Editor.Fields.OfType<ChoiceField>().Single(f => f.Label == "Show mode").Index = 1;
+            Assert.Same(modes[1].Shape, vm.StudyResult);
+            Capture(window, "frequency");
             window.Close();
         }, TestContext.Current.CancellationToken);
     }

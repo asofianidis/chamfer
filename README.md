@@ -224,7 +224,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
 | Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids) and **Thicken**. |
 | Sheet metal | The **Sheet Metal** tab: **Base Flange** from a sketch (closed makes a plate, open lines make a bent sheet with the bend radius), **Edge Flange** on straight edges (length, angle, either direction), **Flatten** to see the blank with bend lines, and **Export Flat DXF**. |
-| Simulation | The **Simulation** tab: select faces and click **Fixture**, **Force** (normal or along an axis) or **Pressure**, then **Run Study**. The part is shown deformed and coloured by von Mises stress, with max stress, max displacement and factor of safety against the material's yield strength. |
+| Simulation | The **Simulation** tab: select faces and click **Fixture**, **Force** (normal or along an axis) or **Pressure**, then **Run Study**. **Frequency** finds the first four natural frequencies with the same fixtures and plots each mode shape. The static plot shows the part deformed and coloured by von Mises stress, with max stress, max displacement and factor of safety against the material's yield strength. |
 | Macros | **Macro** opens a C# editor. Scripts get `Api` (sketch builders, `Extrude`, `FilletEdges`, `Variable`, `Link`, queries and export) and `Print`. **Record** captures what you do as a replayable macro; **Open/Save Macro** use `.csx` files. |
 | Plugins | .NET assemblies in `plugins/` next to the app (or `%APPDATA%/Chamfer/plugins`) implementing `IChamferPlugin` can add commands; they appear under a **Plugins** tab. |
 | Weldments | Sketch centre lines, then **Structural Member** (profile and size from the library, rotation). Each line becomes a body and corners are mitred. **Cut List** groups members by profile and length. |
@@ -433,7 +433,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 
 ### Phase 9: Simulation & Motion
 - [~] Linear static FEA: tetrahedral meshing via OCCT/Netgen or Gmsh, a solver (CalculiX integration or our own), results plots *(our own solver on a voxel mesh: incompatible-mode hexahedra, matrix-free conjugate gradient, fixtures, forces and pressures, von Mises plots on the deformed shape, factor of safety)*
-- [ ] Frequency and buckling studies
+- [~] Frequency and buckling studies *(natural frequencies and mode shapes by subspace iteration)*
 - [ ] Thermal studies
 - [~] Motion study: animation timeline, motors, springs, gravity *(rotary and linear motors, kinematic frames, scrubbing and playback)*
 - [x] Basic kinematics and interference over time

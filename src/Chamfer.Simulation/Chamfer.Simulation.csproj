@@ -1,8 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <Description>Linear static stress analysis of parts on a voxel hexahedral mesh.</Description>
+    <Description>Linear static stress and natural frequency analysis of parts on a voxel hexahedral mesh.</Description>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Chamfer.Document\Chamfer.Document.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Chamfer.Simulation.Tests" />
   </ItemGroup>
 </Project>
