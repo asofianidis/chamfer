@@ -387,3 +387,91 @@ public sealed class RuledSurfaceFeature : Feature
     }
 }
 
+/// <summary>
+/// Split Line: divides the model's faces along a sketch's curves (lines, arcs, splines, closed or
+/// open), without changing the solid, so the pieces can be coloured, drafted or used as references.
+/// The curves are projected along the sketch normal onto faces within <see cref="Reach"/> of the sketch.
+/// </summary>
+public sealed class SplitLineFeature : Feature
+{
+    public override string DefaultName => "Split Line";
+
+    public string SketchId { get; set; } = string.Empty;
+
+    /// <summary>How far either side of the sketch plane faces are split (default: just the face the sketch is on).</summary>
+    public double Reach { get; set; } = 0.05;
+
+    /// <summary>Project right through the model, splitting every face in line with the curves.</summary>
+    public bool ThroughAll { get; set; }
+
+    public override IEnumerable<string> Dependencies => [SketchId];
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var sketch = ctx.Sketch(SketchId);
+        var reach = ThroughAll ? ctx.ThroughAllLength(sketch.Plane.Origin) : Reach;
+        if (reach <= 0)
+        {
+            throw new FeatureException("The reach must be greater than zero.");
+        }
+
+        var n = sketch.Plane.Normal;
+        var sheets = new List<Shape>();
+        try
+        {
+            foreach (var w in Surfaces.Wires(sketch))
+            {
+                using (w)
+                {
+                    using var moved = Modeling.Transform(w, Transform3.Translation(n * -reach));
+                    using var band = Modeling.Extrude(moved.Result, n * (2 * reach));
+                    sheets.Add(band.Result);
+                }
+            }
+
+            if (sheets.Count == 0)
+            {
+                throw new FeatureException("The sketch has no curves to split with.");
+            }
+
+            using var tool = sheets.Count == 1 ? null : Modeling.Compound(sheets);
+            var cutter = tool ?? sheets[0];
+            var touched = false;
+            foreach (var body in ctx.Bodies.Where(b => !b.IsSurface && b.Shape.Bounds.Intersects(cutter.Bounds)).ToList())
+            {
+                Operation op;
+                try
+                {
+                    op = Modeling.SplitLine(body.Shape, cutter);
+                }
+                catch (KernelException ex)
+                {
+                    throw new FeatureException($"The faces can't be split here: {ex.Message}");
+                }
+
+                using (op)
+                {
+                    if (op.Result.FaceCount > body.FaceCount)
+                    {
+                        ctx.Replace(body, op, "split");
+                        touched = true;
+                    }
+                }
+            }
+
+            if (!touched)
+            {
+                ctx.Warn("The sketch doesn't cross any face; try Through all.");
+            }
+        }
+        finally
+        {
+            foreach (var s in sheets)
+            {
+                s.Dispose();
+            }
+        }
+    }
+}
+

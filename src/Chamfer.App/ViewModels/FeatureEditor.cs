@@ -264,6 +264,11 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(Num("Gap tolerance", "mm", kn, nameof(kn.Tolerance), 1e-6));
                 break;
 
+            case SplitLineFeature sl:
+                ed.Add(new SelectionField("Sketch", FeatureKinds, SketchItems(doc, [sl.SketchId]), items => Set(() => sl.SketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
+                ed.Add(new BoolField("Through all (project onto every face in line)", sl.ThroughAll, v => Set(() => sl.ThroughAll = v)));
+                break;
+
             case RuledSurfaceFeature rs:
                 ed.Add(new SelectionField("Edges", [SelectionKind.Edge], Refs(rs.Edges, SelectionKind.Edge), items => Set(() => rs.Edges = [.. items.Select(i => i.Ref!)])));
                 ed.Add(Num("Distance", "mm", rs, nameof(rs.Distance), 1e-6));

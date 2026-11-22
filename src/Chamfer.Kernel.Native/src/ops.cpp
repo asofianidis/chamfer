@@ -525,6 +525,31 @@ chf_op* chf_freeform(chf_shape* s, int face, int count, const double* points) {
   });
 }
 
+chf_op* chf_split_line(chf_shape* s, chf_shape* tool) {
+  return chf_guard<chf_op*>(nullptr, [&]() -> chf_op* {
+    requireShape(s);
+    requireShape(tool);
+    // Split the body's shells (its faces), not the solid: the faces the tool crosses are divided
+    // along the crossing, and no inner faces are made. Then make the solid again from them.
+    BRepAlgoAPI_Splitter splitter;
+    TopTools_ListOfShape args, tools;
+    for (TopExp_Explorer ex(s->shape, TopAbs_SHELL); ex.More(); ex.Next()) args.Append(ex.Current());
+    if (args.IsEmpty()) throw std::runtime_error("split line needs a solid");
+    tools.Append(tool->shape);
+    splitter.SetArguments(args);
+    splitter.SetTools(tools);
+    splitter.Build();
+    if (!splitter.IsDone() || splitter.HasErrors()) throw std::runtime_error("the sketch can't split these faces");
+
+    BRepBuilderAPI_MakeSolid maker;
+    for (TopExp_Explorer ex(splitter.Shape(), TopAbs_SHELL); ex.More(); ex.Next()) maker.Add(TopoDS::Shell(ex.Current()));
+    if (!maker.IsDone()) throw std::runtime_error("couldn't rebuild the solid from the split faces");
+    TopoDS_Solid solid = maker.Solid();
+    BRepLib::OrientClosedSolid(solid);
+    return opFromHistory(solid, splitter.History());
+  });
+}
+
 chf_shape* chf_fill(chf_shape* wire) {
   return chf_guard<chf_shape*>(nullptr, [&] {
     requireShape(wire);
