@@ -211,4 +211,47 @@ public class AssemblyTests
             dir.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public void InContextGasketFollowsItsSource()
+    {
+        var asm = new AssemblyDocument();
+        asm.RegisterPart("base.chprt", Block(40, 20, 10, holeRadius: 5));
+        asm.RegisterPart("gasket.chprt", new PartDocument());
+        var baseComp = asm.AddComponent("base.chprt");
+        var gasket = asm.AddComponent("gasket.chprt", Transform3.Translation(new Vec3(100, 0, 50)));
+        var top = FaceWhere(asm.PartOf(baseComp), f => f.Normal.Z > 0.99);
+
+        // Sketch the base's top face outline in the gasket part, and extrude it.
+        var (plane, sketch) = InContext.SketchOnFace(asm, gasket, baseComp, top);
+        var part = asm.PartOf(gasket);
+        part.Add(new ExtrudeFeature { SketchId = sketch.Id, Depth = 2 });
+        part.Rebuild();
+        Assert.All(part.Features, f => Assert.Equal(FeatureStatus.Ok, part.Results[f.Id].Status));
+        Assert.Equal(((40 * 20) - (Math.PI * 25)) * 2, part.Bodies[0].Shape.MassProperties.Volume, 1e-3);
+        Box3 Placed() => asm.PlacedBodies(gasket).Single().Placed.Bounds;
+        Assert.Equal(0, Placed().Min.X, 1e-6);
+        Assert.Equal(40, Placed().Max.X, 1e-6);
+        Assert.Equal(10, Placed().Min.Z, 1e-6); // sits on the base's top face, wherever the gasket component is
+
+        // The source moves: the gasket follows on update.
+        Assert.Empty(InContext.Update(asm));
+        baseComp.Transform = Transform3.Translation(new Vec3(5, 0, 0));
+        Assert.Same(gasket, Assert.Single(InContext.Update(asm)));
+        Assert.Equal(5, Placed().Min.X, 1e-6);
+
+        // Locked references stop updating; the part file round-trips with its reference.
+        InContext.SetLocked(plane, true);
+        baseComp.Transform = Transform3.Translation(new Vec3(20, 0, 0));
+        Assert.Empty(InContext.Update(asm));
+        Assert.Equal(5, Placed().Min.X, 1e-6);
+        var reloaded = PartDocument.Load(part.Save());
+        var saved = Assert.Single(reloaded.Features.OfType<InContextPlaneFeature>());
+        Assert.True(saved.Reference!.Locked);
+        Assert.Equal(baseComp.Id, saved.Reference.SourceComponentId);
+
+        InContext.Break(plane);
+        Assert.Empty(InContext.References(asm));
+        Assert.Throws<InvalidOperationException>(() => InContext.SketchOnFace(asm, gasket, gasket, top));
+    }
 }

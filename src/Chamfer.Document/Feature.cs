@@ -52,6 +52,7 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(SweepFeature), "sweep")]
 [JsonDerivedType(typeof(LoftFeature), "loft")]
 [JsonDerivedType(typeof(BoundaryFeature), "boundary")]
+[JsonDerivedType(typeof(InContextPlaneFeature), "in-context-plane")]
 [JsonDerivedType(typeof(RibFeature), "rib")]
 [JsonDerivedType(typeof(CombineFeature), "combine")]
 [JsonDerivedType(typeof(SplitBodyFeature), "splitBody")]
