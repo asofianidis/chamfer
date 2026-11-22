@@ -350,7 +350,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Property panel framework for every feature, with live preview
 - [~] **Extruded Boss/Base** and **Extruded Cut**: blind, through all, up to vertex, surface, or offset, mid-plane, two-direction, draft, thin feature *(all but up to vertex)*
 - [x] **Revolved Boss** and **Revolved Cut** *(one direction and mid-plane)*
-- [~] **Fillet**: constant radius, variable radius, face fillet, full round *(constant radius on edges and faces)*
+- [~] **Fillet**: constant radius, variable radius, face fillet, full round *(constant and variable radius on edges and faces)*
 - [~] **Chamfer**: distance-distance, distance-angle, vertex *(equal distance, distance-distance, distance-angle)*
 - [x] **Shell**, **Draft**, **Rib**
 - [~] **Hole Wizard**: counterbore, countersink, tapped, and pipe tap, with ANSI and ISO standards tables *(simple, counterbore, countersink and tapped, with ISO metric sizes; ANSI and pipe taps not yet)*

@@ -150,6 +150,36 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void VariableRadiusFilletTapers()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(40, 20));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 20 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var edge = Enumerable.Range(1, body.EdgeCount).First(i =>
+        {
+            var e = body.Edge(i);
+            return Math.Abs(e.Start.Z - 20) < 1e-6 && Math.Abs(e.End.Z - 20) < 1e-6 && Math.Abs(e.Start.Y - e.End.Y) < 1e-6 && Math.Abs(e.Start.Y) < 1e-6;
+        });
+        var fillet = doc.Add(new FilletFeature { Edges = [body.EdgeRef(edge)], Radius = 2 });
+        doc.Rebuild();
+        AssertOk(doc);
+        var constant = 16000 - Volume(doc); // (1 - pi/4) r^2 L
+        Assert.Equal((1 - (Math.PI / 4)) * 4 * 40, constant, 1e-3);
+
+        // 2 to 6 along the edge removes more, but less than a constant 6.
+        fillet.EndRadius = 6;
+        doc.Rebuild();
+        AssertOk(doc);
+        var variable = 16000 - Volume(doc);
+        Assert.InRange(variable, constant * 2, (1 - (Math.PI / 4)) * 36 * 40);
+        Assert.Equal(6, PartDocument.Load(doc.Save()).Features.OfType<FilletFeature>().Single().EndRadius);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();

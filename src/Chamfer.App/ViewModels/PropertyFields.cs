@@ -60,6 +60,9 @@ public sealed partial class NumberField : PropertyField
 
     private string Format(double v) => IsLength ? DisplayUnits.Format(v) : v.ToString(IsInteger ? "0" : "0.####", CultureInfo.InvariantCulture);
 
+    /// <summary>Shows the current value again (after something else changed it).</summary>
+    public void Reload() => Text = _getLink?.Invoke() is { } link ? "=" + link : Format(_read());
+
     /// <summary>Parses the text and applies it; restores the old value if it doesn't parse.</summary>
     public void Commit()
     {
