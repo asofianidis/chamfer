@@ -167,6 +167,29 @@ public sealed unsafe class Shape : IDisposable
         }
     }
 
+    /// <summary>Point-in-solid tests: 1 inside, 0 outside, 2 on the boundary, per point.</summary>
+    public byte[] Classify(IReadOnlyList<Vec3> points)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+        var data = new double[points.Count * 3];
+        for (var i = 0; i < points.Count; i++)
+        {
+            (data[3 * i], data[(3 * i) + 1], data[(3 * i) + 2]) = (points[i].X, points[i].Y, points[i].Z);
+        }
+
+        var result = new byte[points.Count];
+        fixed (double* pd = data)
+        fixed (byte* pr = result)
+        {
+            if (Native.chf_classify(Handle, points.Count, pd, pr) == 0)
+            {
+                throw new KernelException($"classify: {Native.LastError()}");
+            }
+        }
+
+        return result;
+    }
+
     /// <summary>Minimum distance to another shape and the closest points on each.</summary>
     public (double Distance, Vec3 OnThis, Vec3 OnOther) DistanceTo(Shape other)
     {

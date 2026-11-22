@@ -24,6 +24,7 @@
     <ProjectReference Include="..\Chamfer.Document\Chamfer.Document.csproj" />
     <ProjectReference Include="..\Chamfer.Assembly\Chamfer.Assembly.csproj" />
     <ProjectReference Include="..\Chamfer.Drawing\Chamfer.Drawing.csproj" />
+    <ProjectReference Include="..\Chamfer.Simulation\Chamfer.Simulation.csproj" />
     <ProjectReference Include="..\Chamfer.Viewport\Chamfer.Viewport.csproj" />
   </ItemGroup>
 </Project>

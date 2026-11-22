@@ -45,6 +45,9 @@ public sealed class MeshItem
     /// <summary>Pick id of edge 1; edge i gets EdgePickBase + i - 1. 0 = not pickable.</summary>
     public int EdgePickBase { get; set; }
 
+    /// <summary>Per-vertex colours (e.g. a stress plot); when set they replace <see cref="Color"/>.</summary>
+    public Rgba[]? VertexColors { get; set; }
+
     /// <summary>0-1; values below 1 draw the mesh see-through, without writing depth.</summary>
     public double Opacity { get; set; } = 1;
 }
