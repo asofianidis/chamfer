@@ -218,13 +218,23 @@ public sealed class SketchEditor
 
     public void Select(SketchEntity entity, bool toggle = false)
     {
-        if (toggle && _selection.Remove(entity))
+        // Entities in a block select together.
+        IReadOnlyList<SketchEntity> group = SketchBlocks.BlockOf(Sketch, entity) is { } block && entity is not SketchPoint
+            ? SketchBlocks.Entities(Sketch, block)
+            : [entity];
+        if (toggle && _selection.Contains(entity))
         {
-            // Deselected.
+            foreach (var e in group.Append(entity))
+            {
+                _selection.Remove(e);
+            }
         }
-        else if (!_selection.Contains(entity))
+        else
         {
-            _selection.Add(entity);
+            foreach (var e in group.Where(e => !_selection.Contains(e)))
+            {
+                _selection.Add(e);
+            }
         }
 
         SelectionChanged?.Invoke(this, EventArgs.Empty);
