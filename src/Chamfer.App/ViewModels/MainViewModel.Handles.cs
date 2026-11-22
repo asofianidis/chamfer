@@ -13,7 +13,7 @@ public sealed partial class MainViewModel
     /// <summary>The handle's axis: where the measured size starts, and the direction it grows.</summary>
     private (Vec3 Base, Vec3 Direction, double Scale, Func<double> Read, Action<double> Write)? _handle;
 
-    public bool IsHandle(int id) => id == HandlePickId && _handle is not null;
+    public bool IsHandle(int id) => (id == HandlePickId && _handle is not null) || BeginComponentDrag(id);
 
     /// <summary>The current handle as (tip, direction), if any (for tests and the scene).</summary>
     public (Vec3 Tip, Vec3 Direction)? ActiveHandle =>
@@ -22,6 +22,12 @@ public sealed partial class MainViewModel
     /// <summary>Moves the handle to where the mouse ray passes closest to its axis.</summary>
     public void DragHandle(Vec3 rayOrigin, Vec3 rayDirection)
     {
+        if (_drag is not null)
+        {
+            DragComponent(rayOrigin, rayDirection);
+            return;
+        }
+
         if (_handle is not { } h)
         {
             return;

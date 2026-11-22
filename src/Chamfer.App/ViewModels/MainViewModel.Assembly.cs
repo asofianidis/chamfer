@@ -54,6 +54,7 @@ public sealed partial class MainViewModel
         new("Linear Pattern", "Copy the selected component along an axis", new RelayCommand(() => StartComponentPattern(circular: false)), "⋯"),
         new("Circular Pattern", "Copy the selected component around an axis", new RelayCommand(() => StartComponentPattern(circular: true)), "⟳"),
         new("Move", "Move or rotate the selected component", new RelayCommand(StartMove), "✥"),
+        new("Drag", "Drag components in the view (toggle); mates hold them", new RelayCommand(() => ToggleDragComponentsCommand.Execute(null)), "✋"),
         new("Fix / Float", "Fix the selected component in place, or let it move", new RelayCommand(ToggleFixed), "⚓"),
         new("Hide / Show", "Hide the selected component, or show it again", new RelayCommand(ToggleHidden), "◌"),
         new("Display States", "Save and switch sets of hidden components", new RelayCommand(ShowDisplayStates), "◑"),
