@@ -108,6 +108,7 @@ public sealed partial class FeatureNode : ObservableObject
         VertexChamferFeature => "◸",
         CosmeticThreadFeature => "≡",
         IndentFeature => "⊍",
+        WrapFeature => "⌒",
         ToolingSplitFeature => "⊟",
         DimpleFeature => "◉",
         DeleteFaceFeature => "⌫",

@@ -231,6 +231,23 @@ public static unsafe class Modeling
         return Shape.Wrap(Native.chf_project_curve(curve.Handle, target.Handle, d), "projected curve");
     }
 
+    /// <summary>
+    /// A face on a cylinder bounded by polygons in (angle, height) coordinates: the first loop is the
+    /// outline, the rest are holes.
+    /// </summary>
+    public static Shape WrapFace(Vec3 origin, Vec3 axis, Vec3 angleZero, double radius, IReadOnlyList<IReadOnlyList<(double Angle, double Height)>> loops)
+    {
+        ArgumentNullException.ThrowIfNull(loops);
+        var frame = stackalloc double[9] { origin.X, origin.Y, origin.Z, axis.X, axis.Y, axis.Z, angleZero.X, angleZero.Y, angleZero.Z };
+        var sizes = loops.Select(l => l.Count).ToArray();
+        var pts = loops.SelectMany(l => l).SelectMany(p => new[] { p.Angle, p.Height }).ToArray();
+        fixed (int* ps = sizes)
+        fixed (double* pp = pts)
+        {
+            return Shape.Wrap(Native.chf_wrap_face(frame, radius, sizes.Length, ps, pp), "wrap");
+        }
+    }
+
     /// <summary>Joins curves end to end into one wire.</summary>
     public static Shape JoinCurves(IReadOnlyList<Shape> curves)
     {

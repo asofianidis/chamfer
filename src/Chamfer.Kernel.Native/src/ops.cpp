@@ -10,6 +10,10 @@
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepLib.hxx>
+#include <Geom_CylindricalSurface.hxx>
+#include <GCE2d_MakeSegment.hxx>
+#include <ShapeFix_Face.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepProj_Projection.hxx>
 #include <ShapeAnalysis_FreeBounds.hxx>
@@ -591,6 +595,40 @@ chf_shape* chf_join_curves(int count, chf_shape* const* curves) {
     ShapeAnalysis_FreeBounds::ConnectEdgesToWires(edges, 1e-4, Standard_False, wires);
     if (wires.IsNull() || wires->Length() != 1) throw std::runtime_error("the curves don't join end to end into one chain");
     return new chf_shape(wires->Value(1));
+  });
+}
+
+chf_shape* chf_wrap_face(const double* frame9, double radius, int loopCount, const int* loopSizes, const double* angleHeight) {
+  return chf_guard<chf_shape*>(nullptr, [&] {
+    if (radius <= 0 || loopCount < 1) throw std::runtime_error("nothing to wrap");
+    gp_Ax3 ax(gp_Pnt(frame9[0], frame9[1], frame9[2]), gp_Dir(frame9[3], frame9[4], frame9[5]), gp_Dir(frame9[6], frame9[7], frame9[8]));
+    Handle(Geom_CylindricalSurface) surface = new Geom_CylindricalSurface(ax, radius);
+    // Each loop is a polygon in the surface's (angle, height) parameters: its sides are helical
+    // segments on the cylinder.
+    std::vector<TopoDS_Wire> wires;
+    int at = 0;
+    for (int l = 0; l < loopCount; ++l) {
+      BRepBuilderAPI_MakeWire wire;
+      const int n = loopSizes[l];
+      for (int i = 0; i < n; ++i) {
+        gp_Pnt2d a(angleHeight[2 * (at + i)], angleHeight[2 * (at + i) + 1]);
+        gp_Pnt2d b(angleHeight[2 * (at + (i + 1) % n)], angleHeight[2 * (at + (i + 1) % n) + 1]);
+        if (a.Distance(b) < 1e-12) continue;
+        Handle(Geom2d_TrimmedCurve) seg = GCE2d_MakeSegment(a, b);
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(seg, surface);
+        BRepLib::BuildCurves3d(edge);
+        wire.Add(edge);
+      }
+      at += n;
+      if (!wire.IsDone()) throw std::runtime_error("a wrapped outline doesn't close");
+      wires.push_back(wire.Wire());
+    }
+    BRepBuilderAPI_MakeFace face(surface, wires[0], Standard_True);
+    for (size_t i = 1; i < wires.size(); ++i) face.Add(wires[i]);
+    if (!face.IsDone()) throw std::runtime_error("couldn't make the wrapped face");
+    ShapeFix_Face fix(face.Face());
+    fix.Perform();
+    return new chf_shape(fix.Face());
   });
 }
 

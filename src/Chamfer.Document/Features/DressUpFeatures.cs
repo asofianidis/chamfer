@@ -500,3 +500,95 @@ public sealed class VertexChamferFeature : Feature
     }
 }
 
+/// <summary>
+/// Wrap: lays a sketch's closed regions onto a cylindrical face (sketch distances become lengths
+/// around it) and raises them (emboss) or sinks them (deboss) by a depth.
+/// </summary>
+public sealed class WrapFeature : Feature
+{
+    public override string DefaultName => "Wrap";
+
+    public string SketchId { get; set; } = string.Empty;
+
+    public TopoRef? Face { get; set; }
+
+    /// <summary>Sink the regions into the face instead of raising them.</summary>
+    public bool Deboss { get; set; }
+
+    public double Depth { get; set; } = 1;
+
+    public override IEnumerable<string> Dependencies => [SketchId];
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (Depth <= 0)
+        {
+            throw new FeatureException("The depth must be greater than zero.");
+        }
+
+        var sketch = ctx.Sketch(SketchId);
+        var (body, index) = ctx.ResolveFace(Face ?? throw new FeatureException("Select the cylindrical face to wrap onto."));
+        var info = body.Face(index);
+        if (info.Surface != SurfaceKind.Cylinder)
+        {
+            throw new FeatureException("Wrap goes onto a cylindrical face.");
+        }
+
+        // Angle zero faces the sketch; distances across the sketch become arc length round the cylinder.
+        var axis = info.AxisDirection.Normalized();
+        var o = info.AxisOrigin;
+        var toSketch = sketch.Plane.Origin - o;
+        var radial = toSketch - (axis * Vec3.Dot(toSketch, axis));
+        if (radial.LengthSquared < 1e-12)
+        {
+            throw new FeatureException("Put the sketch on a plane beside the cylinder, not through its axis.");
+        }
+
+        radial = radial.Normalized();
+        var around = Vec3.Cross(axis, radial);
+        var r = info.Radius;
+        (double, double) Map(Chamfer.Sketching.Vec2 p)
+        {
+            var w = sketch.Plane.ToWorld(p.X, p.Y);
+            return (Vec3.Dot(w - sketch.Plane.Origin, around) / r, Vec3.Dot(w - o, axis));
+        }
+
+        var regions = ProfileShapes.Regions(sketch);
+        if (regions.Count == 0)
+        {
+            throw new FeatureException("The sketch needs closed regions to wrap.");
+        }
+
+        foreach (var region in regions)
+        {
+            List<IReadOnlyList<(double, double)>> loops = [[.. region.Outer.Segments.SelectMany(s => s.Sample()).Select(Map)]];
+            loops.AddRange(region.Holes.Select(h => (IReadOnlyList<(double, double)>)[.. h.Segments.SelectMany(s => s.Sample()).Select(Map)]));
+            using var face = Modeling.WrapFace(o, axis, radial, r, loops);
+            Operation thick;
+            try
+            {
+                thick = Modeling.Thicken(face, Deboss ? -Depth : Depth);
+            }
+            catch (KernelException ex)
+            {
+                throw new FeatureException("The wrapped region can't be given that depth.", ex);
+            }
+
+            using (thick)
+            {
+                var solid = thick.Result;
+                var names = Naming.Finish(solid, new string?[solid.FaceCount], Id);
+                if (Deboss)
+                {
+                    ctx.RemoveMaterial(solid, names);
+                }
+                else
+                {
+                    ctx.AddMaterial(solid, names, merge: true);
+                }
+            }
+        }
+    }
+}
+

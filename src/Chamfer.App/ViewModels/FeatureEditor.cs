@@ -332,6 +332,14 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(BodyField(doc, feature, "Bodies to combine", co.ToolBodies, names => Set(() => co.ToolBodies = names)));
                 break;
 
+            case WrapFeature wr:
+                ed.Add(new SelectionField("Sketch", FeatureKinds, SketchItems(doc, [wr.SketchId]), items => Set(() => wr.SketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
+                ed.Add(new SelectionField("Cylindrical face", Faces, wr.Face is { } wf ? [new SelectionItem(SelectionKind.Face, wf, Label: $"Face <{wf.Name}>")] : [],
+                    items => Set(() => wr.Face = Last(items)?.Ref), max: 1));
+                ed.Add(new ChoiceField("Type", ["Emboss (raise)", "Deboss (sink)"], wr.Deboss ? 1 : 0, i => Set(() => wr.Deboss = i == 1)));
+                ed.Add(Num("Depth", "mm", wr, nameof(wr.Depth), 1e-6));
+                break;
+
             case IndentFeature ind:
                 ed.Add(BodyField(doc, feature, "Target body", ind.TargetBody.Length > 0 ? [ind.TargetBody] : [], names => Set(() => ind.TargetBody = names.FirstOrDefault() ?? string.Empty), 1));
                 ed.Add(BodyField(doc, feature, "Tool body", ind.ToolBody.Length > 0 ? [ind.ToolBody] : [], names => Set(() => ind.ToolBody = names.FirstOrDefault() ?? string.Empty), 1));
