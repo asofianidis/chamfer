@@ -391,6 +391,11 @@ public sealed partial class FeatureEditor : ObservableObject
 
                 sizeField = ed.Add(SizeChoice());
                 ed.Add(Num("Rotation", "°", sm, nameof(sm.Rotation)));
+                ed.Add(new BoolField("End caps on free ends", sm.EndCaps, v => Set(() => sm.EndCaps = v)));
+                ed.Add(Num("End cap thickness", "mm", sm, nameof(sm.EndCapThickness), 1e-3));
+                ed.Add(new BoolField("Gussets at corners", sm.Gussets, v => Set(() => sm.Gussets = v)));
+                ed.Add(Num("Gusset size", "mm", sm, nameof(sm.GussetSize), 1e-3));
+                ed.Add(Num("Gusset thickness", "mm", sm, nameof(sm.GussetThickness), 1e-3));
                 ed.Add(new InfoField("Path", "Each straight sketch line becomes a member; joined lines are mitred."));
                 break;
 

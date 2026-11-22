@@ -85,6 +85,19 @@ public sealed class StructuralMemberFeature : Feature
     /// <summary>Rotates the profile about the member axis, degrees.</summary>
     public double Rotation { get; set; }
 
+    /// <summary>Close free (unjoined) member ends with plates.</summary>
+    public bool EndCaps { get; set; }
+
+    public double EndCapThickness { get; set; } = 3;
+
+    /// <summary>Add a triangular gusset plate in the inside corner of each joint.</summary>
+    public bool Gussets { get; set; }
+
+    /// <summary>Length of the gusset's two short sides.</summary>
+    public double GussetSize { get; set; } = 40;
+
+    public double GussetThickness { get; set; } = 5;
+
     public override IEnumerable<string> Dependencies => [SketchId];
 
     public StructuralProfile Profile =>
@@ -106,6 +119,7 @@ public sealed class StructuralMemberFeature : Feature
         var segments = lines.Select(l => (A: sketch.Plane.ToWorld(l.Start.X, l.Start.Y), B: sketch.Plane.ToWorld(l.End.X, l.End.Y))).ToList();
         var rot = Rotation * Math.PI / 180;
         var index = 0;
+        var capCount = 0;
         foreach (var (a, b) in segments)
         {
             index++;
@@ -136,6 +150,83 @@ public sealed class StructuralMemberFeature : Feature
 
             var names = Naming.Finish(member, new string?[member.FaceCount], $"{Id}:m{index}");
             ctx.Bodies.Add(new Body(member, names, $"{profile.Description} <{index}>"));
+
+            if (EndCaps)
+            {
+                foreach (var (tip, outward, joint) in new[] { (a, -dir, startJoint), (b, dir, endJoint) })
+                {
+                    if (joint is null)
+                    {
+                        // Same profile orientation as the member (asymmetric sections stay aligned), extruded outward.
+                        AddCap(ctx, profile, new Plane3(tip, dir, across), outward, ++capCount);
+                    }
+                }
+            }
+        }
+
+        if (Gussets)
+        {
+            AddGussets(ctx, segments, sketch.Plane.Normal, profile);
+        }
+    }
+
+    /// <summary>A plate of the profile's outer outline on a free end.</summary>
+    private void AddCap(RebuildContext ctx, StructuralProfile profile, Plane3 endPlane, Vec3 outward, int n)
+    {
+        if (EndCapThickness <= 0)
+        {
+            throw new FeatureException("The end cap thickness must be positive.");
+        }
+
+        using var face = Modeling.Face(endPlane, [profile.Loops()[0]]);
+        using var op = Modeling.Extrude(face, outward * EndCapThickness);
+        var cap = op.Result;
+        var names = Naming.Finish(cap, new string?[cap.FaceCount], $"{Id}:cap{n}");
+        ctx.Bodies.Add(new Body(cap, names, string.Create(CultureInfo.InvariantCulture, $"End cap {profile.Name} t{EndCapThickness:0.#} <{n}>")));
+    }
+
+    /// <summary>Triangular plates in the inside corner wherever two members meet.</summary>
+    private void AddGussets(RebuildContext ctx, List<(Vec3 A, Vec3 B)> segments, Vec3 normal, StructuralProfile profile)
+    {
+        if (GussetSize <= 0 || GussetThickness <= 0)
+        {
+            throw new FeatureException("The gusset size and thickness must be positive.");
+        }
+
+        var corners = segments.SelectMany(s => new[] { s.A, s.B })
+            .GroupBy(p => (Math.Round(p.X, 6), Math.Round(p.Y, 6), Math.Round(p.Z, 6)))
+            .Where(g => g.Count() == 2)
+            .Select(g => g.First());
+        var n = 0;
+        foreach (var corner in corners)
+        {
+            var dirs = segments.Where(s => Vec3.Distance(s.A, corner) < 1e-6 || Vec3.Distance(s.B, corner) < 1e-6)
+                .Select(s => (Vec3.Distance(s.A, corner) < 1e-6 ? s.B - s.A : s.A - s.B).Normalized()).ToList();
+            if (dirs.Count != 2 || Vec3.Cross(dirs[0], dirs[1]).Length < 1e-6)
+            {
+                continue;
+            }
+
+            // The inside corner of the profiles, half the member width in from the centre lines.
+            var half = profile.W / 2;
+            var d1 = dirs[0];
+            var d2 = dirs[1];
+            var sin = Vec3.Cross(d1, d2).Length;
+            var inner = corner + ((d1 + d2) * (half / sin));
+            var plane = new Plane3(inner - (normal * (GussetThickness / 2)), normal, d1);
+            var p1 = plane.ToLocal(inner + (d1 * GussetSize));
+            var p2 = plane.ToLocal(inner + (d2 * GussetSize));
+            var tri = new List<ProfileSegment>
+            {
+                ProfileSegment.Line(0, 0, p1.U, p1.V),
+                ProfileSegment.Line(p1.U, p1.V, p2.U, p2.V),
+                ProfileSegment.Line(p2.U, p2.V, 0, 0),
+            };
+            using var face = Modeling.Face(plane, [tri]);
+            using var op = Modeling.Extrude(face, normal * GussetThickness);
+            var g = op.Result;
+            var names = Naming.Finish(g, new string?[g.FaceCount], $"{Id}:gusset{++n}");
+            ctx.Bodies.Add(new Body(g, names, string.Create(CultureInfo.InvariantCulture, $"Gusset {GussetSize:0.#} t{GussetThickness:0.#} <{n}>")));
         }
     }
 
