@@ -1321,4 +1321,29 @@ public class PartWorkflowTests
         vm.UndoCommand.Execute(null);
         Assert.Single(vm.AssemblyDoc!.Components);
     }
+
+    [Fact]
+    public void ExplodeStepsAndCollapse()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        vm.AssemblyCommands.Single(c => c.Label == "Toolbox").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var screw = vm.AssemblyDoc!.Components[0];
+        vm.SetSelection([new SelectionItem(SelectionKind.Feature, FeatureId: screw.Id, Label: screw.Name, ComponentId: screw.Id)]);
+        vm.AssemblyCommands.Single(c => c.Label == "Explode Step").Command.Execute(null);
+        var distance = vm.Editor!.Fields.OfType<NumberField>().Single(f => f.Label == "Distance");
+        distance.Text = "30";
+        distance.Commit();
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.True(vm.Exploded);
+        Assert.Equal(new Chamfer.Geometry.Vec3(0, 0, 30), screw.ExplodeOffset);
+        Assert.Contains(vm.BuildScene().Lines, l => l.Dashed); // the explode line
+
+        vm.AssemblyCommands.Single(c => c.Label == "Collapse").Command.Execute(null);
+        Assert.False(vm.Exploded);
+        Assert.Equal(Chamfer.Geometry.Vec3.Zero, vm.AssemblyDoc!.Components[0].ExplodeOffset);
+        vm.UndoCommand.Execute(null);
+        Assert.Equal(30, vm.AssemblyDoc!.Components[0].ExplodeOffset.Z, 1e-9);
+    }
 }

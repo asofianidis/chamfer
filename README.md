@@ -389,7 +389,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Mate references, SmartMates (drag-to-mate) *(mate references: concentric/coincident faces, applied on insert)*
 - [~] Move and rotate component with collision detection *(numeric move/rotate, optionally stopping at collisions; drag not yet)*
 - [x] Interference detection, clearance verification *(interference volumes; pairs closer than a minimum gap, with their distance)*
-- [~] Exploded views and explode lines *(automatic radial explode)*
+- [x] Exploded views and explode lines *(automatic radial explode, manual explode steps along an axis, dashed explode lines, collapse)*
 - [~] Component patterns, mirror components *(linear and circular component patterns; mirror as an opposite-hand copy or a turned-over symmetric part)*
 - [~] In-context (top-down) design with external references *(sketch on another component's face into a new or existing part, kept up to date as the source changes or moves; lock and break references)*
 - [~] Assembly features: cuts and holes *(assembly cuts: circle or rectangle profiles, through all or to a depth, per component)*
