@@ -30,8 +30,61 @@ public sealed record SheetMetalState(
     /// <summary>How many of <see cref="Regions"/> belong to the base (the rest are flange flaps).</summary>
     public int BaseRegionCount { get; init; }
 
-    /// <summary>Length of the neutral fibre through a bend of <paramref name="angle"/> radians.</summary>
-    public double BendAllowance(double angle) => angle * (BendRadius + (KFactor * Thickness));
+    /// <summary>How bend allowances are worked out (K-factor unless set).</summary>
+    public BendAllowanceMethod Method { get; init; }
+
+    /// <summary>For <see cref="BendAllowanceMethod.BendTable"/>: (angle in degrees, allowance in mm) rows.</summary>
+    public IReadOnlyList<(double Angle, double Allowance)> BendTable { get; init; } = [];
+
+    /// <summary>For <see cref="BendAllowanceMethod.BendDeduction"/>: the deduction for a 90° bend (mm).</summary>
+    public double BendDeduction90 { get; init; }
+
+    /// <summary>The flat length a bend of <paramref name="angle"/> radians takes up, at the sheet's bend radius.</summary>
+    public double BendAllowance(double angle) => BendAllowance(angle, BendRadius);
+
+    /// <summary>The flat length a bend of <paramref name="angle"/> radians and inside radius <paramref name="radius"/> takes up.</summary>
+    public double BendAllowance(double angle, double radius)
+    {
+        var degrees = angle * 180 / Math.PI;
+        switch (Method)
+        {
+            case BendAllowanceMethod.BendTable when BendTable.Count > 0:
+                // Interpolate between the rows either side; past the ends, in proportion to the nearest row.
+                var rows = BendTable.OrderBy(r => r.Angle).ToList();
+                if (degrees <= rows[0].Angle)
+                {
+                    return rows[0].Allowance * degrees / rows[0].Angle;
+                }
+
+                if (degrees >= rows[^1].Angle)
+                {
+                    return rows[^1].Allowance * degrees / rows[^1].Angle;
+                }
+
+                var hi = rows.FindIndex(r => r.Angle >= degrees);
+                var (a0, b0) = rows[hi - 1];
+                var (a1, b1) = rows[hi];
+                return b0 + ((b1 - b0) * (degrees - a0) / (a1 - a0));
+            case BendAllowanceMethod.BendDeduction when degrees < 179: // the setback runs away near a hem
+                // BA = 2 OSSB - BD, with the outside setback OSSB = (r + t) tan(angle / 2), BD scaled by the angle.
+                return (2 * (radius + Thickness) * Math.Tan(angle / 2)) - (BendDeduction90 * degrees / 90);
+            default:
+                return angle * (radius + (KFactor * Thickness));
+        }
+    }
+}
+
+/// <summary>How sheet metal bend allowances are worked out.</summary>
+public enum BendAllowanceMethod
+{
+    /// <summary>The neutral fibre at K x thickness from the inside.</summary>
+    KFactor,
+
+    /// <summary>Allowances by bend angle from a table (for the sheet's thickness, radius and material).</summary>
+    BendTable,
+
+    /// <summary>A bend deduction: the flat is the outside lengths less the deduction.</summary>
+    BendDeduction,
 }
 
 /// <summary>
@@ -52,6 +105,31 @@ public sealed class BaseFlangeFeature : Feature
 
     /// <summary>Neutral-axis position as a fraction of the thickness from the inside (0–0.5).</summary>
     public double KFactor { get; set; } = 0.44;
+
+    public BendAllowanceMethod BendMethod { get; set; }
+
+    /// <summary>Bend table rows as "angle: allowance", one per line, e.g. "90: 3.2".</summary>
+    public string BendTable { get; set; } = "45: 1.6\n90: 3.2\n135: 4.8";
+
+    /// <summary>Bend deduction for a 90° bend.</summary>
+    public double BendDeduction { get; set; } = 2;
+
+    /// <summary>Reads the bend table rows (skipping lines that don't parse).</summary>
+    public IReadOnlyList<(double Angle, double Allowance)> TableRows() =>
+        [.. BendTable.Split('\n').Select(line => line.Split(':', '='))
+            .Where(p => p.Length == 2)
+            .Select(p => (Ok: double.TryParse(p[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var a)
+                & double.TryParse(p[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var b), a, b))
+            .Where(x => x.Ok && x.a > 0)
+            .Select(x => (x.a, x.b))];
+
+    /// <summary>The state's allowance settings from this flange.</summary>
+    private SheetMetalState WithAllowance(SheetMetalState state) => state with
+    {
+        Method = BendMethod,
+        BendTable = TableRows(),
+        BendDeduction90 = BendDeduction,
+    };
 
     /// <summary>Width of a sheet bent from an open profile.</summary>
     public double Depth { get; set; } = 20;
@@ -99,8 +177,8 @@ public sealed class BaseFlangeFeature : Feature
         ctx.AddMaterial(tool, names, merge: true);
 
         static IReadOnlyList<Point2> Poly(ProfileLoop loop) => [.. loop.Polygon.Select(p => new Point2(p.X, p.Y))];
-        ctx.SheetMetal = new SheetMetalState(Thickness, BendRadius, KFactor, sketch.Plane, dir * Thickness,
-            [.. regions.Select(r => Poly(r.Outer))], [.. regions.SelectMany(r => r.Holes).Select(Poly)], [], AcceptsFlanges: true) { BaseToolId = Id, BaseRegionCount = regions.Count };
+        ctx.SheetMetal = WithAllowance(new SheetMetalState(Thickness, BendRadius, KFactor, sketch.Plane, dir * Thickness,
+            [.. regions.Select(r => Poly(r.Outer))], [.. regions.SelectMany(r => r.Holes).Select(Poly)], [], AcceptsFlanges: true) { BaseToolId = Id, BaseRegionCount = regions.Count });
     }
 
     private void Bent(RebuildContext ctx, PlacedSketch sketch, Vec3 dir)
@@ -214,7 +292,7 @@ public sealed class BaseFlangeFeature : Feature
         double u = 0;
         var flatY = Vec3.Dot(dir, flat.YDirection) >= 0 ? 1.0 : -1.0;
         var thicknessDir = Vec3.Cross(sketch.Plane.Normal, x).Normalized() * side;
-        var state = new SheetMetalState(Thickness, BendRadius, KFactor, flat, thicknessDir * Thickness, [], [], [], AcceptsFlanges: false);
+        var state = WithAllowance(new SheetMetalState(Thickness, BendRadius, KFactor, flat, thicknessDir * Thickness, [], [], [], AcceptsFlanges: false));
         for (var i = 0; i < straights.Count; i++)
         {
             u += straights[i];
@@ -352,7 +430,7 @@ public sealed class EdgeFlangeFeature : Feature
             var (e0x, e0y) = sm.FlatPlane.ToLocal(info.Start);
             var (e1x, e1y) = sm.FlatPlane.ToLocal(info.End);
             var out2 = new Point2(Vec3.Dot(u, sm.FlatPlane.XDirection), Vec3.Dot(u, sm.FlatPlane.YDirection)).Normalized();
-            var ba = a * (r + (sm.KFactor * t));
+            var ba = sm.BendAllowance(a, r);
             var e0 = new Point2(e0x, e0y);
             var e1 = new Point2(e1x, e1y);
             regions.Add([e0, e1, e1 + (out2 * (ba + length)), e0 + (out2 * (ba + length))]);

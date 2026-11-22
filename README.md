@@ -423,7 +423,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 7: Specialized Toolsets
 **Sheet Metal**
 - [~] Base flange, edge flange, miter flange, sketched bend, hem, jog *(base flange from closed or open profiles, edge flanges at any angle either way, sketched bends, closed and open hems, tabs)*
-- [~] Bend tables, K-factor, bend allowance and deduction *(K-factor bend allowance)*
+- [x] Bend tables, K-factor, bend allowance and deduction
 - [x] Flat pattern and flat-pattern DXF export
 - [~] Lofted bends, convert to sheet metal, forming tools *(dimple forming tool)*
 
