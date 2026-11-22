@@ -1282,4 +1282,36 @@ public class PartWorkflowTests
         var box = vm.Document.Bodies[0].Shape.Bounds;
         Assert.Equal(box.Size.X, lines.Max(l => Math.Max(l.Start.Position.X, l.End.Position.X)) - lines.Min(l => Math.Min(l.Start.Position.X, l.End.Position.X)), 1e-6);
     }
+
+    [Fact]
+    public void MirrorComponentAndClearanceFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        var plate = new PartDocument();
+        var outline = new Sketch();
+        outline.AddCornerRectangle(new Vec2(5, 0), new Vec2(25, 10));
+        var sf = plate.Add(new SketchFeature { Sketch = outline });
+        plate.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 4 });
+        var seed = vm.InsertPart("plate.chprt", plate);
+        vm.SetSelection([new SelectionItem(SelectionKind.Feature, FeatureId: seed.Id, Label: seed.Name, ComponentId: seed.Id)]);
+        vm.AssemblyCommands.Single(c => c.Label == "Mirror Component").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var asm = vm.AssemblyDoc!;
+        Assert.Equal(2, asm.Components.Count);
+        Assert.EndsWith("-mirror.chprt", asm.Components[1].Path, StringComparison.Ordinal);
+
+        // The copies are 10 mm apart across the YZ plane (x 5 to 25, and -25 to -5).
+        vm.AssemblyCommands.Single(c => c.Label == "Clearance").Command.Execute(null);
+        var min = vm.Editor!.Fields.OfType<NumberField>().Single();
+        min.Text = "12";
+        min.Commit();
+        Assert.Contains(vm.Editor.Fields.OfType<InfoField>(), f => f.Text == "10 mm");
+        min.Text = "8";
+        min.Commit();
+        Assert.Contains(vm.Editor.Fields.OfType<InfoField>(), f => f.Text.StartsWith("Every pair", StringComparison.Ordinal));
+
+        vm.UndoCommand.Execute(null);
+        Assert.Single(vm.AssemblyDoc!.Components);
+    }
 }

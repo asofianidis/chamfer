@@ -57,6 +57,8 @@ public sealed partial class MainViewModel
         new("Fix / Float", "Fix the selected component in place, or let it move", new RelayCommand(ToggleFixed), "⚓"),
         new("Assembly Cut", "Cut a hole or pocket through components in the assembly only", new RelayCommand(StartAssemblyCut), "⊘"),
         new("Interference", "Find overlapping components", new RelayCommand(ShowInterference), "⧉"),
+        new("Clearance", "Find components closer than a minimum gap", new RelayCommand(ShowClearance), "↔"),
+        new("Mirror Component", "Mirror the selected component across a plane", new RelayCommand(StartMirrorComponent), "⇋"),
         new("Motion Study", "Drive a component with a motor and animate the mechanism", new RelayCommand(StartMotionStudy), "▶"),
         new("Bill of Materials", "List parts and quantities", new RelayCommand(ShowBom), "☰"),
         new("Pack and Go", "Copy the assembly and all its parts to one folder", new RelayCommand(StartPackAndGo), "⇪"),
@@ -492,6 +494,120 @@ public sealed partial class MainViewModel
         }
 
         Editor = panel;
+    }
+
+    private void ShowClearance()
+    {
+        if (AssemblyDoc is not { } asm)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var minimum = 1.0;
+        var panel = FeatureEditor.Info("Clearance Verification");
+        var results = new List<InfoField>();
+        void Check()
+        {
+            foreach (var r in results)
+            {
+                panel.Fields.Remove(r);
+            }
+
+            results.Clear();
+            var found = AssemblyTools.Clearances(asm, minimum);
+            var inv = CultureInfo.InvariantCulture;
+            results.Add(new InfoField("Result", found.Count == 0 ? $"Every pair is at least {minimum.ToString("0.###", inv)} mm apart." : $"{found.Count} pair(s) closer than {minimum.ToString("0.###", inv)} mm:"));
+            results.AddRange(found.Select(c => new InfoField($"{c.A.Name} ↔ {c.B.Name}", c.Distance < 1e-9 ? "touching or overlapping" : $"{c.Distance.ToString("0.###", inv)} mm")));
+            foreach (var r in results)
+            {
+                panel.AddInfo(r);
+            }
+        }
+
+        panel.AddInfo(new NumberField("Minimum clearance", "mm", () => minimum, v =>
+        {
+            minimum = v;
+            Check();
+        }, 0));
+        Check();
+        Editor = panel;
+    }
+
+    private void StartMirrorComponent()
+    {
+        if (AssemblyDoc is not { } asm || SelectedComponent() is not { } seed)
+        {
+            MessageText = "Select the component to mirror.";
+            return;
+        }
+
+        CancelEditor();
+        var before = asm.Save();
+        (string Name, Vec3 Normal)[] planes = [("Right plane (YZ)", Vec3.UnitX), ("Top plane (XZ)", Vec3.UnitY), ("Front plane (XY)", Vec3.UnitZ)];
+        var plane = 0;
+        var offset = 0.0;
+        var opposite = true;
+        Component? made = null;
+        void Apply()
+        {
+            if (made is not null)
+            {
+                asm.RemoveComponent(made);
+                made = null;
+            }
+
+            var normal = planes[plane].Normal;
+            var stem = Path.GetFileNameWithoutExtension(seed.Path);
+            var path = $"{stem}-mirror.{PartDocument.FileExtension}";
+            for (var n = 2; opposite && asm.Components.Any(c => c.Path == path); n++)
+            {
+                path = $"{stem}-mirror{n}.{PartDocument.FileExtension}";
+            }
+
+            try
+            {
+                made = asm.MirrorComponent(seed, normal * offset, normal, opposite, path);
+            }
+            catch (InvalidOperationException ex)
+            {
+                MessageText = ex.Message;
+            }
+
+            RebuildAndRefresh();
+        }
+
+        var panel = FeatureEditor.Command($"Mirror {seed.Name}", Apply,
+            accept: () =>
+            {
+                _undo.Push("asm:" + before);
+                _redo.Clear();
+                _dirty = true;
+                if (made is not null && opposite)
+                {
+                    SaveComponentPart(asm, made);
+                }
+
+                UndoCommand.NotifyCanExecuteChanged();
+            },
+            cancel: () => asm.RestoreFrom(before));
+        panel.AddField(new ChoiceField("Mirror plane", [.. planes.Select(p => p.Name)], 0, i =>
+        {
+            plane = i;
+            Apply();
+        }));
+        panel.AddField(new NumberField("Plane offset", "mm", () => offset, v =>
+        {
+            offset = v;
+            Apply();
+        }));
+        panel.AddField(new BoolField("Opposite hand (a mirrored copy of the part)", true, v =>
+        {
+            opposite = v;
+            Apply();
+        }));
+        Editor = panel;
+        Apply();
     }
 
     private void ShowBom()

@@ -388,9 +388,9 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] **Mechanical mates**: gear, rack and pinion, cam, hinge, screw, universal joint, slot *(gear, rack and pinion, screw, hinge, universal joint)*
 - [~] Mate references, SmartMates (drag-to-mate) *(mate references: concentric/coincident faces, applied on insert)*
 - [~] Move and rotate component with collision detection *(numeric move/rotate, optionally stopping at collisions; drag not yet)*
-- [~] Interference detection, clearance verification *(interference volumes)*
+- [x] Interference detection, clearance verification *(interference volumes; pairs closer than a minimum gap, with their distance)*
 - [~] Exploded views and explode lines *(automatic radial explode)*
-- [~] Component patterns, mirror components *(linear and circular component patterns)*
+- [~] Component patterns, mirror components *(linear and circular component patterns; mirror as an opposite-hand copy or a turned-over symmetric part)*
 - [~] In-context (top-down) design with external references *(sketch on another component's face into a new or existing part, kept up to date as the source changes or moves; lock and break references)*
 - [~] Assembly features: cuts and holes *(assembly cuts: circle or rectangle profiles, through all or to a depth, per component)*
 - [x] Bill of Materials data model
