@@ -515,4 +515,40 @@ public class AdvancedMateTests
             File.Delete(path);
         }
     }
+
+    [Fact]
+    public void StepExportKeepsStructureNamesAndColours()
+    {
+        var cube = Block(10, 10, 10);
+        cube.Add(new AppearanceFeature { Color = 0xFF0000 });
+        cube.Rebuild();
+        var pin = Pin(3, 20);
+        var asm = new AssemblyDocument();
+        asm.RegisterPart("cube.chprt", cube);
+        asm.RegisterPart("pin.chprt", pin);
+        asm.AddComponent("cube.chprt");
+        asm.AddComponent("cube.chprt", Transform3.Translation(new Vec3(30, 0, 0)));
+        asm.AddComponent("pin.chprt", Transform3.Translation(new Vec3(0, 30, 0)));
+        var path = Path.Combine(Path.GetTempPath(), $"chamfer-{Guid.NewGuid():N}.step");
+        try
+        {
+            AssemblyTools.Export(asm, path);
+            var text = File.ReadAllText(path);
+            Assert.Contains("NEXT_ASSEMBLY_USAGE_OCCURRENCE", text, StringComparison.Ordinal);
+            Assert.Contains("'cube'", text, StringComparison.Ordinal);
+            Assert.Contains("'pin'", text, StringComparison.Ordinal);
+            Assert.Contains("COLOUR_RGB", text, StringComparison.Ordinal);
+            Assert.Contains("cube<2>", text, StringComparison.Ordinal);
+
+            using var back = Shape.ReadStep(path);
+            Assert.Equal(3, back.SolidCount);
+            var expected = (2 * cube.MassProperties().Volume) + pin.MassProperties().Volume;
+            Assert.Equal(expected, back.MassProperties.Volume, 1e-3);
+            Assert.True(back.Bounds.Max.X > 39); // the second cube is placed
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
 }

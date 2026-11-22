@@ -20,6 +20,7 @@ add_library(chamfer_kernel SHARED
   src/io.cpp
   src/hlr.cpp
   src/heal.cpp
+  src/xcaf.cpp
 )
 
 target_include_directories(chamfer_kernel
@@ -30,7 +31,8 @@ target_compile_definitions(chamfer_kernel PRIVATE CHF_BUILDING)
 target_link_libraries(chamfer_kernel PRIVATE
   TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim
   TKBO TKBool TKFillet TKOffset TKFeat TKMesh TKShHealing TKHLR
-  TKXSBase TKDE TKDESTEP TKDEIGES TKDESTL)
+  TKXSBase TKDE TKDESTEP TKDEIGES TKDESTL
+  TKXCAF TKLCAF TKCAF TKCDF)
 
 if(MSVC)
   target_compile_options(chamfer_kernel PRIVATE /W3 /EHa /utf-8 /permissive-)

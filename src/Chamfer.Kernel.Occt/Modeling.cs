@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Chamfer.Geometry;
 
 namespace Chamfer.Kernel.Occt;
@@ -244,6 +245,61 @@ public static unsafe class Modeling
         ArgumentNullException.ThrowIfNull(s);
         ArgumentNullException.ThrowIfNull(tool);
         return new Operation(Native.chf_split(s.Handle, tool.Handle), "split");
+    }
+
+    /// <summary>
+    /// Writes a STEP file with product structure: each part once (named and coloured 0xRRGGBB),
+    /// placed by named instances.
+    /// </summary>
+    public static void WriteStepAssembly(IReadOnlyList<(Shape Shape, string Name, uint Color)> parts,
+        IReadOnlyList<(int Part, Transform3 Placement, string Name)> instances, string assemblyName, string path)
+    {
+        ArgumentNullException.ThrowIfNull(parts);
+        ArgumentNullException.ThrowIfNull(instances);
+        ArgumentNullException.ThrowIfNull(path);
+        if (instances.Any(i => !i.Placement.IsUsable || i.Part < 0 || i.Part >= parts.Count))
+        {
+            throw new KernelException("An instance has an invalid placement or part.");
+        }
+
+        var strings = new List<IntPtr>();
+        IntPtr Utf8(string s)
+        {
+            var p = Marshal.StringToCoTaskMemUTF8(s);
+            strings.Add(p);
+            return p;
+        }
+
+        try
+        {
+            var partNames = parts.Select(p => Utf8(p.Name)).ToArray();
+            var colors = parts.Select(p => p.Color).ToArray();
+            var which = instances.Select(i => i.Part).ToArray();
+            var matrices = instances.SelectMany(i => i.Placement.ToArray()).ToArray();
+            var instanceNames = instances.Select(i => Utf8(i.Name)).ToArray();
+            var ok = WithHandles([.. parts.Select(p => p.Shape)], (n, handles) =>
+            {
+                fixed (IntPtr* pn = partNames)
+                fixed (uint* pc = colors)
+                fixed (int* pw = which)
+                fixed (double* pm = matrices)
+                fixed (IntPtr* inames = instanceNames)
+                {
+                    return Native.chf_write_step_assembly(n, handles, pn, pc, which.Length, pw, pm, inames, assemblyName, path);
+                }
+            });
+            if (ok == 0)
+            {
+                throw new KernelException($"STEP export failed: {Native.LastError()}");
+            }
+        }
+        finally
+        {
+            foreach (var p in strings)
+            {
+                Marshal.FreeCoTaskMem(p);
+            }
+        }
     }
 
     /// <summary>Intersection curves of a shape with a plane.</summary>

@@ -433,7 +433,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Scale, parting lines, shut-off surfaces, parting surfaces, tooling split, core/cavity *(scale, parting lines, flat-parting tooling split into core and cavity with shrinkage)*
 
 ### Phase 8: Data Exchange & Interop
-- [ ] STEP AP203/AP214/AP242 import and export with colors, names, assembly structure, and PMI where possible
+- [~] STEP AP203/AP214/AP242 import and export with colors, names, assembly structure, and PMI where possible *(export with product structure, names and colours; import as shapes)*
 - [ ] IGES, ACIS (`.sat`), Parasolid (`.x_t`, if a licensing path exists), JT
 - [x] STL, 3MF, OBJ, glTF export (for 3D printing and visualization) *(STL, 3MF, OBJ, glTF binary with instancing)*
 - [~] DXF/DWG import into sketches *(ASCII DXF: lines, arcs, circles, polylines with bulges, splines as polylines, units)*
