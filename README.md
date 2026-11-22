@@ -227,6 +227,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Simulation | The **Simulation** tab: select faces and click **Fixture**, **Force** (normal or along an axis) or **Pressure**, then **Run Study**. The part is shown deformed and coloured by von Mises stress, with max stress, max displacement and factor of safety against the material's yield strength. |
 | Macros | **Macro** opens a C# editor. Scripts get `Api` (sketch builders, `Extrude`, `FilletEdges`, `Variable`, `Link`, queries and export) and `Print`. **Record** captures what you do as a replayable macro; **Open/Save Macro** use `.csx` files. |
 | Plugins | .NET assemblies in `plugins/` next to the app (or `%APPDATA%/Chamfer/plugins`) implementing `IChamferPlugin` can add commands; they appear under a **Plugins** tab. |
+| Weldments | Sketch centre lines, then **Structural Member** (profile and size from the library, rotation). Each line becomes a body and corners are mitred. **Cut List** groups members by profile and length. |
 | Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
 
 ### Assemblies
@@ -413,9 +414,9 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] Lofted bends, convert to sheet metal, forming tools
 
 **Weldments**
-- [ ] Structural members from a profile library
-- [ ] Trim/extend, end caps, gussets, fillet beads
-- [ ] Cut lists with properties
+- [x] Structural members from a profile library *(square/rectangular/round tube, angle, UPN channel, IPE beam, flat bar)*
+- [~] Trim/extend, end caps, gussets, fillet beads *(automatic mitres at corners)*
+- [x] Cut lists with properties
 
 **Mold Tools**
 - [ ] Scale, parting lines, shut-off surfaces, parting surfaces, tooling split, core/cavity
@@ -476,7 +477,7 @@ A high-level tracker against SolidWorks capability areas.
 | Drawings | Views, dimensions, GD&T, BOM, tables | 5 | 🟨 Part and assembly drawings, sections, details, dimensions, BOM, balloons, export |
 | Surfacing | Surface features, knit, trim, analysis | 6 | 🟨 Core surfaces, knit, thicken |
 | Sheet metal | Flanges, bends, flat pattern | 7 | 🟨 Base and edge flanges, flat pattern, DXF |
-| Weldments | Structural members, cut lists | 7 | ⬜ |
+| Weldments | Structural members, cut lists | 7 | 🟨 Members, mitres, cut lists |
 | Mold tools | Parting line/surface, core/cavity | 7 | ⬜ |
 | Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | 🟨 STEP/IGES in and out; STL, 3MF, OBJ out; drawing DXF |
 | Simulation | SimulationXpress-level FEA, frequency, thermal | 9 | 🟨 Linear static stress |
