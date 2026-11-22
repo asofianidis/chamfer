@@ -71,6 +71,18 @@ public enum MateType
     /// moves Value mm along it) from InitialB. Not offered as a user mate.
     /// </summary>
     Drive,
+
+    /// <summary>Axes A and B concentric and, when given, faces C and D touching: a hinge with one rotation left.</summary>
+    Hinge,
+
+    /// <summary>The pin axis A stays centred between the slot faces B and C, free to slide along the slot.</summary>
+    Slot,
+
+    /// <summary>Shaft B follows shaft A's turning through a Cardan joint: tan θB = tan θA · cos β.</summary>
+    UniversalJoint,
+
+    /// <summary>B moves along its direction Value times as far as A moves along its own.</summary>
+    LinearCoupler,
 }
 
 /// <summary>Geometry on a component a mate refers to: a face, an edge, or a reference plane of the part.</summary>
@@ -229,6 +241,7 @@ public sealed partial class AssemblyDocument
 
         // Pick the alignment closest to how the parts sit now, as other CAD tools do.
         mate.Aligned = aligned ?? (type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.Symmetric or MateType.Width
+            or MateType.Slot or MateType.UniversalJoint or MateType.LinearCoupler
             ? false
             : MateSolver.ClosestAlignment(this, mate));
         if (type == MateType.Lock)
@@ -238,7 +251,7 @@ public sealed partial class AssemblyDocument
             mate.Relative = Inverse(ta) * tb;
         }
 
-        if (type is MateType.Gear or MateType.RackPinion or MateType.Screw)
+        if (type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.UniversalJoint or MateType.LinearCoupler)
         {
             mate.InitialA = Find(a.ComponentId)!.Transform;
             mate.InitialB = Find(b.ComponentId)!.Transform;

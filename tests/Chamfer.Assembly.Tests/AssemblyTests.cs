@@ -254,4 +254,106 @@ public class AssemblyTests
         Assert.Empty(InContext.References(asm));
         Assert.Throws<InvalidOperationException>(() => InContext.SketchOnFace(asm, gasket, gasket, top));
     }
+
+    [Fact]
+    public void HingeLeavesOneRotation()
+    {
+        var asm = new AssemblyDocument();
+        var plate = Block(40, 40, 10, holeRadius: 5);
+        var pin = Pin(5, 30);
+        asm.RegisterPart("plate.chprt", plate);
+        asm.RegisterPart("pin.chprt", pin);
+        var p = asm.AddComponent("plate.chprt");
+        p.Fixed = true;
+        var q = asm.AddComponent("pin.chprt", Transform3.Translation(new Vec3(-30, 10, 40)) * Transform3.Rotation(Vec3.Zero, Vec3.UnitX, 0.2));
+        var hinge = asm.AddMate(MateType.Hinge,
+            new MateRef(p.Id, FaceWhere(plate, f => f.Surface == SurfaceKind.Cylinder)),
+            new MateRef(q.Id, FaceWhere(pin, f => f.Surface == SurfaceKind.Cylinder)));
+        hinge.C = new MateRef(p.Id, FaceWhere(plate, f => f.Normal.Z > 0.99));
+        hinge.D = new MateRef(q.Id, FaceWhere(pin, f => f.Normal.Z < -0.99));
+        var result = asm.Solve();
+        Assert.True(result.Converged, $"residual {result.Residual}");
+        Assert.Equal(1, result.DegreesOfFreedom);
+        var axisPoint = q.Transform.Apply(Vec3.Zero);
+        Assert.Equal(20, axisPoint.X, 1e-6);
+        Assert.Equal(20, axisPoint.Y, 1e-6);
+        Assert.Equal(10, axisPoint.Z, 1e-6); // standing on the plate's top face
+    }
+
+    [Fact]
+    public void SlotKeepsThePinCentred()
+    {
+        var asm = new AssemblyDocument();
+        var slotted = new PartDocument();
+        var u = new Sketch();
+        u.AddPolyline([new Vec2(0, 0), new Vec2(40, 0), new Vec2(40, 30), new Vec2(25, 30), new Vec2(25, 10), new Vec2(15, 10), new Vec2(15, 30), new Vec2(0, 30)], closed: true);
+        var sf = slotted.Add(new SketchFeature { Sketch = u });
+        slotted.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        slotted.Rebuild();
+        var pin = Pin(4, 20);
+        asm.RegisterPart("slotted.chprt", slotted);
+        asm.RegisterPart("pin.chprt", pin);
+        var s = asm.AddComponent("slotted.chprt");
+        s.Fixed = true;
+        var q = asm.AddComponent("pin.chprt", Transform3.Translation(new Vec3(17, 18, -5)));
+        var wall1 = FaceWhere(slotted, f => f.Normal.X > 0.99 && Math.Abs(f.Centroid.X - 15) < 1e-6);
+        var wall2 = FaceWhere(slotted, f => f.Normal.X < -0.99 && Math.Abs(f.Centroid.X - 25) < 1e-6);
+        var slot = asm.AddMate(MateType.Slot, new MateRef(q.Id, FaceWhere(pin, f => f.Surface == SurfaceKind.Cylinder)), new MateRef(s.Id, wall1));
+        slot.C = new MateRef(s.Id, wall2);
+        var result = asm.Solve();
+        Assert.True(result.Converged, $"residual {result.Residual}");
+        Assert.Equal(20, q.Transform.Apply(Vec3.Zero).X, 1e-6);
+        Assert.Equal(4, result.DegreesOfFreedom); // slides along and out of the slot, tilts in it, turns
+    }
+
+    [Fact]
+    public void LinearCouplerMovesTheOtherPart()
+    {
+        var asm = new AssemblyDocument();
+        var block = Block(10, 10, 10);
+        asm.RegisterPart("block.chprt", block);
+        var a = asm.AddComponent("block.chprt");
+        var b = asm.AddComponent("block.chprt", Transform3.Translation(new Vec3(50, 0, 0)));
+        asm.AddMate(MateType.LinearCoupler,
+            new MateRef(a.Id, FaceWhere(block, f => f.Normal.X > 0.99)),
+            new MateRef(b.Id, FaceWhere(block, f => f.Normal.Y > 0.99)), value: 2);
+        a.Transform = Transform3.Translation(new Vec3(10, 0, 0));
+        a.Fixed = true;
+        var result = asm.Solve();
+        Assert.True(result.Converged, $"residual {result.Residual}");
+        Assert.Equal(20, b.Transform.Ty, 1e-6);
+    }
+
+    [Fact]
+    public void UniversalJointFollowsTheCardanRelation()
+    {
+        var asm = new AssemblyDocument();
+        var shaft = Pin(3, 40);
+        asm.RegisterPart("shaft.chprt", shaft);
+        var tilt = Transform3.Rotation(Vec3.Zero, Vec3.UnitX, Math.PI / 6); // 30 degrees between the shafts
+        var groundA = asm.AddComponent("shaft.chprt");
+        var groundB = asm.AddComponent("shaft.chprt", tilt);
+        groundA.Fixed = true;
+        groundB.Fixed = true;
+        var a = asm.AddComponent("shaft.chprt");
+        var b = asm.AddComponent("shaft.chprt", tilt);
+        var cyl = FaceWhere(shaft, f => f.Surface == SurfaceKind.Cylinder);
+        asm.AddMate(MateType.Concentric, new MateRef(groundA.Id, cyl), new MateRef(a.Id, cyl));
+        asm.AddMate(MateType.Concentric, new MateRef(groundB.Id, cyl), new MateRef(b.Id, cyl));
+        asm.AddMate(MateType.UniversalJoint, new MateRef(a.Id, cyl), new MateRef(b.Id, cyl));
+        var b0 = b.Transform;
+
+        // Turn shaft A by 0.6 rad and hold it there.
+        a.Transform = Transform3.Rotation(Vec3.Zero, Vec3.UnitZ, 0.6);
+        a.Fixed = true;
+        var result = asm.Solve();
+        Assert.True(result.Converged, $"residual {result.Residual}");
+
+        var axis = tilt.ApplyVector(Vec3.UnitZ);
+        var ref0 = axis.AnyPerpendicular();
+        var turned = (b.Transform * AssemblyDocument.Inverse(b0)).ApplyVector(ref0);
+        turned -= axis * Vec3.Dot(turned, axis);
+        var thetaB = Math.Atan2(Vec3.Dot(Vec3.Cross(ref0, turned), axis), Vec3.Dot(ref0, turned));
+        Assert.Equal(Math.Atan(Math.Tan(0.6) * Math.Cos(Math.PI / 6)), Math.Abs(thetaB), 1e-4);
+    }
 }
