@@ -292,6 +292,11 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Sink into the part", dm.Reverse, v => Set(() => dm.Reverse = v)));
                 break;
 
+            case DeleteFaceFeature df:
+                ed.Add(new SelectionField("Faces to delete", Faces, isNew ? Pre(Faces) : Refs(df.Faces, SelectionKind.Face),
+                    items => Set(() => df.Faces = [.. items.Select(i => i.Ref!)])));
+                break;
+
             case HealFeature hf:
                 ed.Add(Num("Gap tolerance", "mm", hf, nameof(hf.Tolerance), 1e-6));
                 ed.Add(BodyField(doc, feature, "Bodies (empty = all)", hf.Bodies, names => Set(() => hf.Bodies = names)));

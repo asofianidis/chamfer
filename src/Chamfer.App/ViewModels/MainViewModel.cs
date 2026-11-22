@@ -121,6 +121,8 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Combine", "Add, subtract or intersect bodies", new RelayCommand(StartCombine), "⊕", "Bodies"),
             new("Split", "Cut bodies in two with a plane", new RelayCommand(() => StartFeature(new SplitBodyFeature { Plane = SelectedPlane() ?? PlaneRef.Right })), "⫽", "Bodies"),
             new("Move/Copy Body", "Move, rotate or copy bodies", new RelayCommand(() => StartFeature(new MoveCopyBodyFeature { Bodies = SelectedBodyNames() })), "✥", "Bodies"),
+            new("Delete Face", "Remove faces (holes, fillets, bosses) and heal the gap", new RelayCommand(() => StartFeature(new DeleteFaceFeature { Faces = [.. Selection.Where(s => s.Kind == SelectionKind.Face).Select(s => s.Ref!)] })), "⌫", "Surfaces"),
+            new("Recognize Holes", "Turn an imported body's round holes into editable features", new RelayCommand(RecognizeHoles), "⊚", "Bodies"),
             new("Import Diagnostics", "Check bodies for gaps, open edges and bad faces", new RelayCommand(ShowDiagnostics), "✚", "Bodies"),
             new("Heal", "Sew gaps and repair faces (for imported bodies)", new RelayCommand(() => StartFeature(new HealFeature { Bodies = SelectedBodyNames() })), "✚", "Bodies"),
             new("Scale", "Scale bodies uniformly", new RelayCommand(() => StartFeature(new ScaleFeature { Bodies = SelectedBodyNames() })), "⤢", "Bodies"),
@@ -179,6 +181,22 @@ public sealed partial class MainViewModel : ViewModelBase
 
     [ObservableProperty]
     public partial IReadOnlyList<string> CommandTabs { get; set; } = ["Features", "Surfaces", "Sheet Metal", "Weldments", "Mold Tools", "Bodies", "Simulation"];
+
+    private void RecognizeHoles()
+    {
+        var body = Selection.Where(s => s.Ref is not null).Select(s => Document.Bodies.FirstOrDefault(b => b.HasFace(s.Ref!.Name))).FirstOrDefault(b => b is not null)
+            ?? Document.Bodies.FirstOrDefault(b => !b.IsSurface);
+        if (body is null)
+        {
+            MessageText = "There's no solid to recognise holes in.";
+            return;
+        }
+
+        Snapshot();
+        var count = FeatureRecognition.RecognizeHoles(Document, body);
+        RebuildAndRefresh();
+        MessageText = count == 0 ? "No round through holes found." : $"Recognised {count} hole(s) as editable Hole features.";
+    }
 
     /// <summary>Selects the parting-line edges of every solid for a pull along +Z (the Front plane's normal).</summary>
     private void ShowPartingLines()

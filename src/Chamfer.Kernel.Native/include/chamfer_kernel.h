@@ -176,6 +176,8 @@ CHF_API chf_op* chf_chamfer(chf_shape* s, int count, const int* edges, const int
 CHF_API chf_op* chf_shell(chf_shape* s, int count, const int* faces, double thickness);
 /* Draft faces about a neutral plane (origin(3) normal(3)), pull direction = normal. */
 CHF_API chf_op* chf_draft(chf_shape* s, int count, const int* faces, const double* neutral6, double angle);
+/* Removes faces (holes, fillets, bosses) and heals the gap from the neighbouring faces. */
+CHF_API chf_op* chf_defeature(chf_shape* s, int count, const int* faces);
 /* Rigid (or uniformly scaled) transform, m = row-major 3x4. copy != 0 duplicates geometry. */
 CHF_API chf_op* chf_transform(chf_shape* s, const double* m12, int copy);
 /* Mirror about a plane origin(3) normal(3). */

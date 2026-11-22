@@ -96,6 +96,7 @@ public sealed partial class FeatureNode : ObservableObject
         DomeFeature => "◠",
         ToolingSplitFeature => "⊟",
         DimpleFeature => "◉",
+        DeleteFaceFeature => "⌫",
         _ => "•",
     };
 }

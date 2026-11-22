@@ -164,6 +164,18 @@ public static unsafe class Modeling
         }
     }
 
+    /// <summary>Removes faces (holes, fillets, bosses), healing the gap from the faces around them.</summary>
+    public static Operation Defeature(Shape s, IReadOnlyList<int> faces)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        ArgumentNullException.ThrowIfNull(faces);
+        var f = faces.ToArray();
+        fixed (int* pf = f)
+        {
+            return new Operation(Native.chf_defeature(s.Handle, f.Length, pf), "defeature");
+        }
+    }
+
     /// <summary>Applies a rigid transform. Use <see cref="Mirror"/> for reflections.</summary>
     public static Operation Transform(Shape s, Transform3 t, bool copy = true)
     {

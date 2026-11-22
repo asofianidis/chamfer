@@ -1,5 +1,6 @@
 // Modelling operations with history.
 #include "internal.h"
+#include <BRepAlgoAPI_Defeaturing.hxx>
 
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
@@ -252,6 +253,19 @@ chf_op* chf_draft(chf_shape* s, int count, const int* faces, const double* neutr
     }
     algo->Build();
     return chf_make_op(std::move(algo), "draft");
+  });
+}
+
+chf_op* chf_defeature(chf_shape* s, int count, const int* faces) {
+  return chf_guard<chf_op*>(nullptr, [&] {
+    requireShape(s);
+    auto algo = std::make_unique<BRepAlgoAPI_Defeaturing>();
+    algo->SetShape(s->shape);
+    for (int i = 0; i < count; ++i) algo->AddFaceToRemove(sub(s, CHF_FACE, faces[i]));
+    algo->SetToFillHistory(Standard_True);
+    algo->Build();
+    if (!algo->IsDone() || algo->HasErrors()) throw std::runtime_error("these faces can't be removed");
+    return chf_make_op(std::move(algo), "defeature");
   });
 }
 
