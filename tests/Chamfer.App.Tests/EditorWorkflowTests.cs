@@ -197,4 +197,28 @@ public class ToolSwitchTests
         editor.Tool = new SelectTool();
         Assert.Contains(line, editor.Selection);
     }
+
+    [Fact]
+    public void InferenceLinesLineUpWithExistingPoints()
+    {
+        var editor = new SketchEditor { PixelSize = 0.1 };
+        editor.Sketch.AddLine(new Vec2(10, 10), new Vec2(30, 10));
+
+        // Nearly straight above the line's start: snaps across to x = 10 and shows where from.
+        var snap = editor.FindSnap(new Vec2(10.2, 25));
+        Assert.Equal(SnapKind.None, snap.Kind);
+        Assert.Equal(new Vec2(10, 25), snap.Position);
+        Assert.Equal(new Vec2(10, 10), snap.AlignX);
+        Assert.Null(snap.AlignY);
+
+        // Lined up both ways at once: under the line's end and level with a point.
+        editor.Sketch.AddPoint(new Vec2(0, -10));
+        var corner = editor.FindSnap(new Vec2(29.8, -9.8));
+        Assert.Equal(new Vec2(30, -10), corner.Position);
+        Assert.Equal(new Vec2(30, 10), corner.AlignX);
+        Assert.Equal(new Vec2(0, -10), corner.AlignY);
+
+        // Far from everything: no inference.
+        Assert.Null(editor.FindSnap(new Vec2(50, 50)).AlignX);
+    }
 }

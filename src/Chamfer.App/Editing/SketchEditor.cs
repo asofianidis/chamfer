@@ -391,6 +391,20 @@ public sealed class SketchEditor
             return new Snap(kind, curve.e.ClosestPoint(p), curve.e);
         }
 
+        // Inference lines: line up with an existing point across or down (nearest of each).
+        var points = Sketch.AllPoints.Append(Sketch.Origin).Where(Usable).Select(pt => pt.Position).ToList();
+        Vec2? Nearest(Func<Vec2, double> along) => points
+            .Where(q => Math.Abs(along(q) - along(p)) < tol)
+            .OrderBy(q => Vec2.Distance(q, p))
+            .Select(q => (Vec2?)q)
+            .FirstOrDefault();
+        var alignX = Nearest(q => q.X);
+        var alignY = Nearest(q => q.Y);
+        if (alignX is not null || alignY is not null)
+        {
+            return Snap.None(new Vec2(alignX?.X ?? p.X, alignY?.Y ?? p.Y)) with { AlignX = alignX, AlignY = alignY };
+        }
+
         return Snap.None(p);
     }
 
