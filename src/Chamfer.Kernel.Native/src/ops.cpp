@@ -10,6 +10,13 @@
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepLib.hxx>
+#include <BRepBuilderAPI_NurbsConvert.hxx>
+#include <BRep_Builder.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <ShapeFix_Shape.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
+#include <functional>
 #include <Geom_CylindricalSurface.hxx>
 #include <GCE2d_MakeSegment.hxx>
 #include <ShapeFix_Face.hxx>
@@ -58,6 +65,7 @@
 #include <gp_Pln.hxx>
 #include <gp_Trsf.hxx>
 
+#include <algorithm>
 #include <stdexcept>
 #include <vector>
 
@@ -629,6 +637,88 @@ chf_shape* chf_wrap_face(const double* frame9, double radius, int loopCount, con
     ShapeFix_Face fix(face.Face());
     fix.Perform();
     return new chf_shape(fix.Face());
+  });
+}
+
+// Moves every control point of a NURBS copy of the shape through a deformation (after refining
+// the knots so there are enough of them), then fixes tolerances: twist, taper and stretch along an axis.
+chf_shape* chf_flex(chf_shape* s, const double* frame9, int mode, double amount, double length) {
+  return chf_guard<chf_shape*>(nullptr, [&] {
+    requireShape(s);
+    if (length <= 0) throw std::runtime_error("the flex length must be positive");
+    gp_Pnt o(frame9[0], frame9[1], frame9[2]);
+    gp_Dir z(frame9[3], frame9[4], frame9[5]);
+    gp_Dir x(frame9[6], frame9[7], frame9[8]);
+    gp_Dir y = z.Crossed(x);
+    std::function<gp_Pnt(const gp_Pnt&)> deform = [&](const gp_Pnt& p) {
+      gp_Vec d(o, p);
+      double lx = d.Dot(gp_Vec(x)), ly = d.Dot(gp_Vec(y)), lz = d.Dot(gp_Vec(z));
+      double t = std::clamp(lz / length, 0.0, 1.0);
+      switch (mode) {
+        case 0: {  // twist: turn about the axis, amount radians over the length
+          double a = amount * t, c = std::cos(a), sn = std::sin(a);
+          double nx = lx * c - ly * sn, ny = lx * sn + ly * c;
+          lx = nx;
+          ly = ny;
+          break;
+        }
+        case 1: {  // taper: scale across the axis to (1 + amount) at the far end
+          double k = 1 + amount * t;
+          lx *= k;
+          ly *= k;
+          break;
+        }
+        default:  // stretch along the axis by (1 + amount)
+          lz *= 1 + amount;
+          break;
+      }
+      return o.Translated(gp_Vec(x) * lx + gp_Vec(y) * ly + gp_Vec(z) * lz);
+    };
+
+    BRepBuilderAPI_NurbsConvert convert(s->shape, Standard_True);
+    TopoDS_Shape shape = convert.Shape();
+    const int spans = mode == 2 ? 1 : 8;
+    auto refine = [&](double a, double b, const std::function<void(double)>& insert) {
+      for (int k = 1; k < spans; ++k) insert(a + (b - a) * k / spans);
+    };
+
+    TopTools_IndexedMapOfShape faces, edges, vertices;
+    TopExp::MapShapes(shape, TopAbs_FACE, faces);
+    TopExp::MapShapes(shape, TopAbs_EDGE, edges);
+    TopExp::MapShapes(shape, TopAbs_VERTEX, vertices);
+    for (int i = 1; i <= faces.Extent(); ++i) {
+      TopLoc_Location loc;
+      Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(BRep_Tool::Surface(TopoDS::Face(faces(i)), loc));
+      if (bs.IsNull()) continue;
+      double u0, u1, v0, v1;
+      bs->Bounds(u0, u1, v0, v1);
+      if (bs->UDegree() < 2) bs->IncreaseDegree(2, bs->VDegree());
+      if (bs->VDegree() < 2) bs->IncreaseDegree(bs->UDegree(), 2);
+      refine(u0, u1, [&](double u) { bs->InsertUKnot(u, 1, 1e-9); });
+      refine(v0, v1, [&](double v) { bs->InsertVKnot(v, 1, 1e-9); });
+      for (int a = 1; a <= bs->NbUPoles(); ++a)
+        for (int b = 1; b <= bs->NbVPoles(); ++b) bs->SetPole(a, b, deform(bs->Pole(a, b).Transformed(loc.Transformation())).Transformed(loc.Transformation().Inverted()));
+    }
+    for (int i = 1; i <= edges.Extent(); ++i) {
+      TopLoc_Location loc;
+      double f, l;
+      Handle(Geom_BSplineCurve) bc = Handle(Geom_BSplineCurve)::DownCast(BRep_Tool::Curve(TopoDS::Edge(edges(i)), loc, f, l));
+      if (bc.IsNull()) continue;
+      if (bc->Degree() < 2) bc->IncreaseDegree(2);
+      refine(bc->FirstParameter(), bc->LastParameter(), [&](double u) { bc->InsertKnot(u, 1, 1e-9); });
+      for (int a = 1; a <= bc->NbPoles(); ++a) bc->SetPole(a, deform(bc->Pole(a).Transformed(loc.Transformation())).Transformed(loc.Transformation().Inverted()));
+    }
+    BRep_Builder builder;
+    for (int i = 1; i <= vertices.Extent(); ++i) {
+      TopoDS_Vertex v = TopoDS::Vertex(vertices(i));
+      builder.UpdateVertex(v, deform(BRep_Tool::Pnt(v)), BRep_Tool::Tolerance(v));
+    }
+
+    BRepLib::SameParameter(shape, 1e-4, Standard_True);
+    BRepLib::UpdateTolerances(shape);
+    Handle(ShapeFix_Shape) fix = new ShapeFix_Shape(shape);
+    fix->Perform();
+    return new chf_shape(fix->Shape());
   });
 }
 

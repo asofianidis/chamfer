@@ -79,6 +79,10 @@ public sealed partial class MainViewModel : ViewModelBase
                 Vertices = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => new VertexRef(s.Ref!, AtEnd: false))],
             })), "◸"),
             new("Full Round", "Round off a face between two parallel side faces", new RelayCommand(StartFullRound), "◠"),
+            new("Flex", "Twist, taper or stretch bodies along an axis", new RelayCommand(() => StartFeature(new FlexFeature
+            {
+                Axis = Selection.Select(s => s.AsAxis()).FirstOrDefault(a => a is not null) ?? AxisRef.Z,
+            })), "≀"),
             new("Wrap", "Emboss or deboss a sketch onto a cylindrical face", new RelayCommand(() => StartFeature(new WrapFeature
             {
                 SketchId = SelectedSketches().Select(s => s.Id).FirstOrDefault() ?? string.Empty,

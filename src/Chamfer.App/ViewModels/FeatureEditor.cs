@@ -332,6 +332,33 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(BodyField(doc, feature, "Bodies to combine", co.ToolBodies, names => Set(() => co.ToolBodies = names)));
                 break;
 
+            case FlexFeature fx:
+            {
+                var angle = Num("Twist", "°", fx, nameof(fx.Angle));
+                var scale = Num("End size (fraction)", "", fx, nameof(fx.EndScale), 1e-6);
+                var stretch = Num("Stretch by", "mm", fx, nameof(fx.Stretch));
+                void ShowMode()
+                {
+                    angle.IsVisible = fx.Mode == FlexMode.Twisting;
+                    scale.IsVisible = fx.Mode == FlexMode.Tapering;
+                    stretch.IsVisible = fx.Mode == FlexMode.Stretching;
+                }
+
+                ed.Add(new ChoiceField("Type", ["Twisting", "Tapering", "Stretching"], (int)fx.Mode, i => Set(() =>
+                {
+                    fx.Mode = (FlexMode)i;
+                    ShowMode();
+                })));
+                ed.Add(new SelectionField("Axis (starts at its origin)", Axes, [AxisItem(fx.Axis, doc)], items => Set(() => fx.Axis = Last(items)?.AsAxis() ?? AxisRef.Z), max: 1));
+                ed.Add(Num("Length", "mm", fx, nameof(fx.Length), 1e-6));
+                ed.Add(angle);
+                ed.Add(scale);
+                ed.Add(stretch);
+                ed.Add(BodyField(doc, feature, "Bodies (empty = all)", fx.Bodies, names => Set(() => fx.Bodies = names)));
+                ShowMode();
+                break;
+            }
+
             case WrapFeature wr:
                 ed.Add(new SelectionField("Sketch", FeatureKinds, SketchItems(doc, [wr.SketchId]), items => Set(() => wr.SketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
                 ed.Add(new SelectionField("Cylindrical face", Faces, wr.Face is { } wf ? [new SelectionItem(SelectionKind.Face, wf, Label: $"Face <{wf.Name}>")] : [],

@@ -529,6 +529,25 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task TwistedBarRenders()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            var doc = new PartDocument();
+            var s = new Sketch();
+            s.AddCenterRectangle(Vec2.Zero, new Vec2(10, 5));
+            var sf = doc.Add(new SketchFeature { Sketch = s });
+            doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 100 });
+            doc.Add(new FlexFeature { Mode = FlexMode.Twisting, Angle = 120, Length = 100 });
+            vm.LoadFile("twist.chprt", doc.Save());
+            Assert.All(vm.Document.Results.Values, r => Assert.Equal(FeatureStatus.Ok, r.Status));
+            Capture(window, "flex-twist");
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open(string theme)
     {
         Application.Current!.RequestedThemeVariant = theme == "dark" ? ThemeVariant.Dark : ThemeVariant.Light;
