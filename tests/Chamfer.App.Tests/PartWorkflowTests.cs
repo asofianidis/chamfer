@@ -972,4 +972,35 @@ public class PartWorkflowTests
         Assert.True(Vec2.Distance(right.Center, new Vec2(0, -10)) < 1e-12);
         Assert.Null(Chamfer.App.Editing.Tools.TangentArcTool.Solve(Vec2.Zero, new Vec2(1, 0), new Vec2(10, 0)));
     }
+
+    [Fact]
+    public void SketchBlocksFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+        vm.NewSketchCommand.Execute(null);
+        var sketch = vm.Sketch!;
+        var editor = sketch.Editor;
+        editor.BeginChange();
+        var sides = editor.Sketch.AddCornerRectangle(new Vec2(0, 0), new Vec2(20, 10));
+        editor.EndChange(solve: true);
+        foreach (var l in sides)
+        {
+            editor.Select(l, toggle: true);
+        }
+
+        sketch.MakeBlockCommand.Execute(null);
+        Assert.Single(editor.Sketch.Blocks);
+        editor.ClearSelection();
+        editor.Select(sides[0]);
+        Assert.Equal(4, editor.Selection.Count); // the whole block
+
+        sketch.CopyBlockCommand.Execute(null);
+        Assert.Equal(2, editor.Sketch.Blocks.Count);
+        Assert.Equal(8, editor.Sketch.Entities.OfType<Chamfer.Sketching.Entities.SketchLine>().Count());
+
+        editor.Select(sides[0]);
+        sketch.ExplodeBlockCommand.Execute(null);
+        Assert.Single(editor.Sketch.Blocks);
+    }
 }

@@ -29,6 +29,7 @@ public static class SketchSerializer
             Version = FormatVersion,
             Entities = [.. sketch.Entities.Select(ToDto)],
             Constraints = [.. sketch.Constraints.Select(ToDto)],
+            Blocks = sketch.Blocks.Count == 0 ? null : [.. sketch.Blocks.Select(b => new SketchBlock { Name = b.Name, EntityIds = [.. b.EntityIds] })],
         };
         return JsonSerializer.Serialize(doc, Options);
     }
@@ -51,6 +52,15 @@ public static class SketchSerializer
         foreach (var c in doc.Constraints)
         {
             sketch.AddConstraint(FromDto(c, sketch));
+        }
+
+        foreach (var b in doc.Blocks ?? [])
+        {
+            var ids = (b.EntityIds ?? []).Where(id => sketch.FindEntity(id) is { Owner: null }).ToList();
+            if (ids.Count > 0)
+            {
+                sketch.Blocks.Add(new SketchBlock { Name = b.Name ?? "Block", EntityIds = ids });
+            }
         }
 
         return sketch;
@@ -188,6 +198,7 @@ public static class SketchSerializer
         public int Version { get; set; }
         public List<EntityDto> Entities { get; set; } = [];
         public List<ConstraintDto> Constraints { get; set; } = [];
+        public List<SketchBlock>? Blocks { get; set; }
     }
 
     private sealed class EntityDto

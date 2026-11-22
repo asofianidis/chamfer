@@ -333,6 +333,50 @@ public sealed partial class SketchViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void MakeBlock() => Modify(sel =>
+    {
+        if (sel.Count == 0)
+        {
+            return "Select the geometry for the block.";
+        }
+
+        SketchBlocks.Make(Editor.Sketch, $"Block{Editor.Sketch.Blocks.Count + 1}", sel);
+        return null;
+    });
+
+    [RelayCommand]
+    private void CopyBlock() => Modify(sel =>
+    {
+        if (sel.Select(e => SketchBlocks.BlockOf(Editor.Sketch, e)).FirstOrDefault(b => b is not null) is not { } block)
+        {
+            return "Select a block to copy.";
+        }
+
+        // Place the copy beside the original.
+        var pts = SketchBlocks.Entities(Editor.Sketch, block).SelectMany(e => e.Points.Append(e).OfType<SketchPoint>()).Select(p => p.Position).ToList();
+        var width = pts.Count == 0 ? 10 : pts.Max(p => p.X) - pts.Min(p => p.X);
+        SketchBlocks.Copy(Editor.Sketch, block, new Vec2(width + Math.Max(5, width * 0.2), 0));
+        return null;
+    });
+
+    [RelayCommand]
+    private void ExplodeBlock() => Modify(sel =>
+    {
+        var blocks = sel.Select(e => SketchBlocks.BlockOf(Editor.Sketch, e)).OfType<SketchBlock>().Distinct().ToList();
+        if (blocks.Count == 0)
+        {
+            return "Select a block to explode.";
+        }
+
+        foreach (var b in blocks)
+        {
+            SketchBlocks.Explode(Editor.Sketch, b);
+        }
+
+        return null;
+    });
+
+    [RelayCommand]
     private void Offset() => Modify(sel =>
     {
         if (!sel.Any(Curves.IsCurve))

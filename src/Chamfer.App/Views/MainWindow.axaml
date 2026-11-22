@@ -258,6 +258,9 @@
                            FormatString="0" Width="90" ToolTip.Tip="Sketch pattern instances" />
           </StackPanel>
           <Button Classes="tool" Content="Offset" Command="{Binding Sketch.OffsetCommand, FallbackValue={x:Null}}" ToolTip.Tip="Offset the selected curves by Size" />
+          <Button Classes="tool" Content="Make Block" Command="{Binding Sketch.MakeBlockCommand, FallbackValue={x:Null}}" ToolTip.Tip="Group the selection into a block" />
+          <Button Classes="tool" Content="Copy Block" Command="{Binding Sketch.CopyBlockCommand, FallbackValue={x:Null}}" ToolTip.Tip="Copy the selected block beside it" />
+          <Button Classes="tool" Content="Explode Block" Command="{Binding Sketch.ExplodeBlockCommand, FallbackValue={x:Null}}" ToolTip.Tip="Ungroup the selected block" />
           <CheckBox Content="Reverse" IsChecked="{Binding Sketch.OffsetReverse, FallbackValue=False}" FontSize="12" Margin="0,0,6,0" ToolTip.Tip="Offset inward / to the other side" />
           <Button Classes="tool" Content="Mirror" Command="{Binding Sketch.MirrorCommand, FallbackValue={x:Null}}" ToolTip.Tip="Mirror the selection about the selected centerline" />
           <Button Classes="tool" Content="Linear Pattern" Command="{Binding Sketch.LinearPatternCommand, FallbackValue={x:Null}}" ToolTip.Tip="Copy the selection Count times along X, Size apart" />

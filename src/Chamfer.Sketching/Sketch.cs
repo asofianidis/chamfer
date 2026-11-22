@@ -39,6 +39,9 @@ public sealed class Sketch
 
     public IReadOnlyList<SketchConstraint> Constraints => _constraints;
 
+    /// <summary>Named groups of entities (sketch blocks).</summary>
+    public List<SketchBlock> Blocks { get; } = [];
+
     /// <summary>True if the most recent solve or drag could not satisfy every constraint.</summary>
     public bool LastSolveFailed { get; private set; }
 
@@ -115,6 +118,12 @@ public sealed class Sketch
 
         var gone = new HashSet<SketchEntity>(root.Points) { root };
         _constraints.RemoveAll(c => c.References.Any(r => gone.Contains(r)));
+        foreach (var b in Blocks)
+        {
+            b.EntityIds.Remove(root.Id);
+        }
+
+        Blocks.RemoveAll(b => b.EntityIds.Count == 0);
         foreach (var e in gone)
         {
             _byId.Remove(e.Id);
