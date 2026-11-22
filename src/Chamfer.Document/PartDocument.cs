@@ -7,6 +7,16 @@ using Chamfer.Kernel.Occt;
 namespace Chamfer.Document;
 
 /// <summary>A material: density in kg/m³ and, for simulation, elastic modulus and yield strength in MPa and thermal conductivity.</summary>
+/// <summary>A folder in the feature tree grouping features (by id); it doesn't change the model.</summary>
+public sealed class FeatureFolder
+{
+    public string Name { get; set; } = "Folder";
+
+    public List<string> FeatureIds { get; set; } = [];
+
+    public bool Collapsed { get; set; }
+}
+
 public sealed record Material(string Name, double Density)
 {
     /// <summary>Young's modulus, MPa.</summary>
@@ -217,7 +227,47 @@ public sealed class PartDocument
             Features.Remove(f);
         }
 
+        PruneFolders();
         return removed;
+    }
+
+    /// <summary>Feature tree folders.</summary>
+    public List<FeatureFolder> Folders { get; } = [];
+
+    /// <summary>The folder a feature is in, if any.</summary>
+    public FeatureFolder? FolderOf(string featureId) => Folders.Find(f => f.FeatureIds.Contains(featureId));
+
+    /// <summary>Puts features in a new folder (taking them out of any other), in history order.</summary>
+    public FeatureFolder AddFolder(string name, IEnumerable<Feature> features)
+    {
+        ArgumentNullException.ThrowIfNull(features);
+        var ids = features.Select(f => f.Id).ToHashSet();
+        foreach (var other in Folders)
+        {
+            other.FeatureIds.RemoveAll(ids.Contains);
+        }
+
+        var folder = new FeatureFolder
+        {
+            Name = string.IsNullOrWhiteSpace(name) ? $"Folder{Folders.Count + 1}" : name.Trim(),
+            FeatureIds = [.. Features.Where(f => ids.Contains(f.Id)).Select(f => f.Id)],
+        };
+        Folders.Add(folder);
+        PruneFolders();
+        return folder;
+    }
+
+    /// <summary>Removes a folder; its features stay where they are.</summary>
+    public void DissolveFolder(FeatureFolder folder) => Folders.Remove(folder);
+
+    private void PruneFolders()
+    {
+        foreach (var folder in Folders)
+        {
+            folder.FeatureIds.RemoveAll(id => Find(id) is null);
+        }
+
+        Folders.RemoveAll(f => f.FeatureIds.Count == 0);
     }
 
     /// <summary>Re-executes features as needed and updates <see cref="State"/> and <see cref="Results"/>.</summary>
@@ -470,6 +520,7 @@ public sealed class PartDocument
         public List<CustomProperty>? Properties { get; set; }
         public List<MateReference>? MateReferences { get; set; }
         public Geometry.LengthUnit? Units { get; set; }
+        public List<FeatureFolder>? Folders { get; set; }
         public List<Feature> Features { get; set; } = [];
     }
 
@@ -485,6 +536,7 @@ public sealed class PartDocument
         Properties = Properties.Count > 0 ? Properties : null,
         MateReferences = MateReferences.Count > 0 ? MateReferences : null,
         Units = Units == Geometry.LengthUnit.Millimeter ? null : Units,
+        Folders = Folders.Count > 0 ? Folders : null,
         Features = Features,
     }, Options);
 
@@ -506,6 +558,8 @@ public sealed class PartDocument
         doc.Properties.AddRange(dto.Properties ?? []);
         doc.MateReferences.AddRange(dto.MateReferences ?? []);
         doc.Units = dto.Units ?? Geometry.LengthUnit.Millimeter;
+        doc.Folders.AddRange(dto.Folders ?? []);
+        doc.PruneFolders();
         if (dto.Configurations is { Count: > 0 } configs)
         {
             doc.Configurations.Clear();

@@ -346,7 +346,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 2: Core Part Modeling
 *Goal: model the typical machined part end to end.*
 
-- [~] Feature tree panel with rollback bar, suppress/unsuppress, reorder, rename, and folders *(all but folders)*
+- [x] Feature tree panel with rollback bar, suppress/unsuppress, reorder, rename, and folders
 - [x] Property panel framework for every feature, with live preview
 - [x] **Extruded Boss/Base** and **Extruded Cut**: blind, through all, up to vertex, surface, or offset, mid-plane, two-direction, draft, thin feature *(up to vertex stops at a reference point's parallel plane)*
 - [x] **Revolved Boss** and **Revolved Cut** *(one direction and mid-plane)*

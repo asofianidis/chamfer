@@ -1235,4 +1235,34 @@ public class PartWorkflowTests
             dir.Delete(recursive: true);
         }
     }
+
+    [Fact]
+    public void FeatureTreeFolders()
+    {
+        var vm = BlockOnFront();
+        var extrude = vm.Document.Features.OfType<ExtrudeFeature>().Single();
+        var sketch = vm.Document.Features.OfType<SketchFeature>().Single();
+        vm.SetSelection([SelectionItem.ForFeature(sketch), SelectionItem.ForFeature(extrude)]);
+        vm.AddToFolderCommand.Execute(null);
+        vm.Editor!.Fields.OfType<TextField>().Single().Text = "Base";
+        vm.AcceptEditorCommand.Execute(null);
+
+        var folder = Assert.Single(vm.Document.Folders);
+        Assert.Equal("Base", folder.Name);
+        Assert.Equal([sketch.Id, extrude.Id], folder.FeatureIds);
+        var node = vm.Tree.Single(n => n.Tag == folder);
+        Assert.Equal("▾", node.Glyph);
+        Assert.True(vm.Tree.Single(n => n.Feature == extrude).Indent.Left > 0);
+
+        vm.ToggleFolder(folder);
+        Assert.DoesNotContain(vm.Tree, n => n.Feature == extrude);
+        Assert.Single(PartDocument.Load(vm.Document.Save()).Folders);
+
+        // Deleting the features empties the folder, which goes too; undo brings both back.
+        vm.SetSelection([SelectionItem.ForFeature(sketch)]);
+        vm.DeleteSelectedCommand.Execute(null);
+        Assert.Empty(vm.Document.Folders);
+        vm.UndoCommand.Execute(null);
+        Assert.Single(vm.Document.Folders);
+    }
 }
