@@ -217,6 +217,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Render | **Render** path-traces the current view: metals glossy, wood matte, other materials as coated plastic, with a soft sun, sky light and a shadow-catching floor. Pick the quality, then **Render** and **Save PNG**. Click the view to return to the live model. |
 | Analysis | **Section** cuts the part with the Front, Top or Right plane (offset, flip) and shows the cut faces. **Draft Analysis** colours faces green, red or yellow by draft against a pull direction. **Zebra** shows stripes for judging surface smoothness. |
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
+| Templates and library | **Templates** saves the current part (units, material, properties, features) as a template and starts new parts from templates. **Library** lists the parts in the design library folder: open them in part mode, or insert them in an assembly; add the current part to it by name. |
 | Units | **Units** switches the part between MMGS, CGS, MKS and IPS. Lengths show in that unit everywhere (fields, sketch and drawing dimensions); type a bare number in the document unit or add a unit (25mm, 1in, 2.5cm). |
 | Properties | **Properties** holds custom properties as Name = value; values can use {Mass}, {Volume}, {Material}, {Configuration}, other properties and global variables. Description and PartNumber show in assembly BOMs and drawing title blocks. |
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
@@ -448,7 +449,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] **Public C# API** (`Chamfer.Api`) and plugin loading via `AssemblyLoadContext`
 - [x] Macro recording and playback (Roslyn scripting)
 - [~] Toolbox: standard fasteners, bearings, and hardware libraries (ANSI and ISO) *(ISO socket head cap screws, hex bolts, hex nuts and washers, M3 to M20)*
-- [ ] Design Library, favorites, templates
+- [~] Design Library, favorites, templates *(part templates; design library folders to open or insert from)*
 - [~] Custom properties, property tab builder *(custom properties with {Mass}/{Material}/variable tokens, used by BOMs and title blocks)*
 - [~] Photorealistic rendering (path tracer, PBR materials, HDRI environments) *(CPU path tracer: BVH, plastic/metal/matte finishes from the material, soft sun shadows, sky, floor, PNG output)*
 - [ ] Model-Based Definition (3D PMI)

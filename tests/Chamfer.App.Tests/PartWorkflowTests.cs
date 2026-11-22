@@ -760,4 +760,57 @@ public class PartWorkflowTests
         Assert.True(vm.BucklingResult.Modes[0].LoadFactor > 1);
         Assert.Equal("Buckling Study", vm.Editor!.Title);
     }
+
+    [Fact]
+    public void TemplatesAndDesignLibrary()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"chamfer-lib-{Guid.NewGuid():N}");
+        try
+        {
+            // A template: inch units, ABS and a company property.
+            var vm = new MainViewModel { TemplateFolder = Path.Combine(root, "templates") };
+            vm.LibraryFolders[0] = Path.Combine(root, "library");
+            vm.Document.Units = Geometry.LengthUnit.Inch;
+            vm.Document.Material = Material.Abs;
+            PropertyEvaluator.Set(vm.Document, "Company", "Acme");
+            Assert.NotNull(vm.SaveAsTemplate("Plastic Inch"));
+
+            var fresh = new MainViewModel { TemplateFolder = vm.TemplateFolder };
+            fresh.ShowTemplatesCommand.Execute(null);
+            fresh.Editor!.Fields.OfType<ButtonField>().Single(f => f.Label == "New part from Plastic Inch").Command.Execute(null);
+            Assert.Equal(Geometry.LengthUnit.Inch, fresh.Document.Units);
+            Assert.Equal("ABS", fresh.Document.Material.Name);
+            Assert.Equal("Acme", PropertyEvaluator.Get(fresh.Document, "Company"));
+            Assert.Null(fresh.FilePath);
+
+            // The design library: add a part, then insert it into an assembly.
+            vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+            vm.NewSketchCommand.Execute(null);
+            var editor = vm.Sketch!.Editor;
+            editor.BeginChange();
+            editor.Sketch.AddCircle(Vec2.Zero, 5);
+            editor.EndChange(solve: true);
+            vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+            vm.AcceptEditorCommand.Execute(null);
+            vm.ShowDesignLibraryCommand.Execute(null);
+            var add = vm.Editor!.Fields.OfType<TextField>().Single();
+            add.Text = "Spacer";
+            add.Commit();
+            Assert.Single(vm.LibraryParts());
+
+            var asm = new MainViewModel();
+            asm.LibraryFolders[0] = vm.LibraryFolders[0];
+            asm.NewAssemblyCommand.Execute(null);
+            asm.AssemblyCommands.Single(c => c.Label == "Design Library").Command.Execute(null);
+            asm.Editor!.Fields.OfType<ButtonField>().Single(f => f.Label == "Insert Spacer").Command.Execute(null);
+            Assert.Equal("Spacer<1>", Assert.Single(asm.AssemblyDoc!.Components).Name);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
 }
