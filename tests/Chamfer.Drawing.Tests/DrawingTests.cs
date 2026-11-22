@@ -333,6 +333,43 @@ public class DrawingTests
     }
 
     [Fact]
+    public void CosmeticThreadsOnAShaft()
+    {
+        // A 10 mm shaft, 30 long along Z, threaded M10 for its first 15 mm.
+        var part = new PartDocument();
+        var s = new Sketch();
+        s.AddCircle(Vec2.Zero, 5);
+        var sf = part.Add(new SketchFeature { Sketch = s });
+        part.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 30 });
+        part.Rebuild();
+        var body = part.Bodies[0];
+        var side = body.FaceRef(Enumerable.Range(1, body.FaceCount).Single(i => body.Face(i).Surface == SurfaceKind.Cylinder));
+        var thread = part.Add(new CosmeticThreadFeature { Face = side, Designation = "M10x1.5", Diameter = 8.376, Length = 15 });
+        part.Rebuild();
+        Assert.True(part.Results[thread.Id].Status == FeatureStatus.Ok, part.Results[thread.Id].Message);
+        var t = thread.Resolve(part.Bodies);
+        Assert.False(t.Internal);
+        Assert.Equal(15, t.To - t.From, 1e-6);
+
+        // Side-on, two thin lines at the root diameter, 15 long.
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        var top = drawing.Add(sheet, ViewKind.Top, 100, 100);
+        var renderer = new DrawingRenderer(drawing);
+        var g = renderer.Render(sheet);
+        var lines = g.Items.OfType<PolylinePrimitive>().Where(p => p.Pen == Pen.Thin && p.Points.Count == 2 && g.Owners.TryGetValue(p, out var o) && o == top.Id).ToList();
+        Assert.Equal(2, lines.Count);
+        var scale = renderer.Geometry(sheet, top).Scale;
+        Assert.All(lines, l => Assert.Equal(15 * scale, Point2.Distance(l.Points[0], l.Points[1]), 1e-6));
+        Assert.Equal(8.376 * scale, Math.Abs(lines[0].Points[0].X - lines[1].Points[0].X), 1e-6);
+
+        // A thread root bigger than the shaft is refused.
+        thread.Diameter = 12;
+        part.Rebuild();
+        Assert.Equal(FeatureStatus.Error, part.Results[thread.Id].Status);
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();

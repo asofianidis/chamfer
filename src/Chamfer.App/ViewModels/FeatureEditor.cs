@@ -264,6 +264,14 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(Num("Gap tolerance", "mm", kn, nameof(kn.Tolerance), 1e-6));
                 break;
 
+            case CosmeticThreadFeature ct:
+                ed.Add(new SelectionField("Cylindrical face", Faces, ct.Face is { } ctFace ? [new SelectionItem(SelectionKind.Face, ctFace, Label: $"Face <{ctFace.Name}>")] : [],
+                    items => Set(() => ct.Face = Last(items)?.Ref), max: 1));
+                ed.Add(new TextField("Designation", ct.Designation, v => Set(() => ct.Designation = v.Trim())));
+                ed.Add(Num("Thread diameter (0: automatic)", "mm", ct, nameof(ct.Diameter), 0));
+                ed.Add(Num("Length (0: the whole face)", "mm", ct, nameof(ct.Length), 0));
+                break;
+
             case VertexChamferFeature vc:
                 ed.Add(new SelectionField("Edges ending at the corners", [SelectionKind.Edge], vc.Vertices.Select(v => new SelectionItem(SelectionKind.Edge, v.Edge, Label: $"Edge <{v.Edge.Name}>")),
                     items => Set(() => vc.Vertices = [.. items.Select(i => new VertexRef(i.Ref!, vc.Vertices.FirstOrDefault()?.AtEnd ?? false))])));

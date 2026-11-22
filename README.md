@@ -374,7 +374,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] **Configurations**, then **design tables** (spreadsheet-driven configurations)
 - [~] Curve-driven, sketch-driven, table-driven, fill, and variable patterns *(curve-driven with alignment, sketch-driven, table-driven, fill with square or staggered grid)*
 - [~] Wrap, dome, flex, deform, indent *(dome)*
-- [~] Cosmetic threads, thread feature *(modelled ISO metric threads, external and internal)*
+- [x] Cosmetic threads, thread feature *(cosmetic threads on shafts and holes, shown in drawings and the 3D view; modelled ISO metric threads, external and internal)*
 - [x] Library features *(save sketches and the features on them; insert onto any face or plane)*
 - [~] Appearances, decals, scenes *(body colours)*
 - [x] Section view, display states *(section view with capped cut faces; hide/show components and named display states in assemblies)*
