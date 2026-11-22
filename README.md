@@ -387,7 +387,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] In-context (top-down) design with external references
 - [~] Assembly features: cuts and holes *(assembly cuts: circle or rectangle profiles, through all or to a depth, per component)*
 - [x] Bill of Materials data model
-- [ ] Large-assembly mode: lightweight components, LOD, instancing, frustum culling
+- [~] Large-assembly mode: lightweight components, LOD, instancing, frustum culling *(instanced component meshes, frustum culling)*
 - [x] Pack and Go *(copy an assembly and its parts to one folder with prefix/suffix, optional zip)*
 
 ### Phase 5: Drawings

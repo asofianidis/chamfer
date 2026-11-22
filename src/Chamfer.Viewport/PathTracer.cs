@@ -118,9 +118,9 @@ public sealed class PathTracer
             for (var t = 0; t < mesh.TriangleCount; t++)
             {
                 var (i0, i1, i2) = (mesh.Triangles[3 * t], mesh.Triangles[(3 * t) + 1], mesh.Triangles[(3 * t) + 2]);
-                var (a, b, c) = (mesh.Vertex(i0), mesh.Vertex(i1), mesh.Vertex(i2));
+                var (a, b, c) = (item.WorldVertex(i0), item.WorldVertex(i1), item.WorldVertex(i2));
                 var color = item.VertexColors is { } vc ? (Linear(vc[i0]) + Linear(vc[i1]) + Linear(vc[i2])) / 3 : baseColor;
-                _tris.Add(new Tri(a, b - a, c - a, Normal(mesh, i0), Normal(mesh, i1), Normal(mesh, i2), color, finish));
+                _tris.Add(new Tri(a, b - a, c - a, item.WorldNormal(i0), item.WorldNormal(i1), item.WorldNormal(i2), color, finish));
                 bounds = bounds.Include(a).Include(b).Include(c);
             }
         }
@@ -135,8 +135,6 @@ public sealed class PathTracer
 
         _nodes = [.. nodes];
     }
-
-    private static Vec3 Normal(TriangleMesh mesh, int i) => new(mesh.Normals[3 * i], mesh.Normals[(3 * i) + 1], mesh.Normals[(3 * i) + 2]);
 
     private int BuildNode(List<Node> nodes, int start, int count)
     {

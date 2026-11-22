@@ -12,7 +12,6 @@ namespace Chamfer.App.Part;
 public sealed class AssemblyScene : IPickSource
 {
     private readonly List<PickTarget> _targets = [];
-    private readonly Dictionary<(object Body, Transform3 T), TriangleMesh> _meshes = [];
 
     private static readonly Rgba[] Tints =
     [
@@ -28,10 +27,6 @@ public sealed class AssemblyScene : IPickSource
         ArgumentNullException.ThrowIfNull(selection);
         ArgumentNullException.ThrowIfNull(palette);
         _targets.Clear();
-        if (_meshes.Count > 512)
-        {
-            _meshes.Clear();
-        }
 
         var scene = new Scene { Style = style, BackgroundTop = palette.Top, BackgroundBottom = palette.Bottom };
         var paths = asm.Components.Select(c => c.Path).Distinct().ToList();
@@ -42,15 +37,11 @@ public sealed class AssemblyScene : IPickSource
             var componentSelected = selection.Any(s => s.Kind == SelectionKind.Feature && s.FeatureId == c.Id);
             foreach (var body in asm.BodiesOf(c))
             {
-                if (!_meshes.TryGetValue((body, placement), out var mesh))
-                {
-                    mesh = body.Mesh.Transformed(placement);
-                    _meshes[(body, placement)] = mesh;
-                }
-
+                // Instanced: every copy of a part shares its body's mesh, placed by a transform.
                 var item = new MeshItem
                 {
-                    Mesh = mesh,
+                    Mesh = body.Mesh,
+                    Transform = placement,
                     Color = componentSelected ? Rgba.Lerp(tint, palette.Selected, 0.45) : tint,
                     EdgeColor = palette.Edge,
                     FacePickBase = _targets.Count + 1,
