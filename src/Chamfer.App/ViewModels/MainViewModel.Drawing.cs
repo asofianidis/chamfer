@@ -47,6 +47,7 @@ public sealed partial class MainViewModel
         new("Crop View", "Show only a rectangle of the selected view", new RelayCommand(StartCropView), "⬚"),
         new("Break View", "Shorten a long view by leaving out its middle", new RelayCommand(StartBreakView), "≈"),
         new("Auto Dimension", "Overall sizes and hole diameters in the selected view", new RelayCommand(AutoDimension), "↔"),
+        new("Dimension Properties", "Text, tolerance and fit of the selected dimension", new RelayCommand(StartDimensionProperties), "±"),
         new("Dimension Set", "Baseline, chain or ordinate dimensions to the holes of the selected view", new RelayCommand(StartDimensionSet), "⊢"),
         new("Note", "Add a text note", new RelayCommand(StartNote), "✎"),
         new("Geometric Tolerance", "Feature control frame with a leader (GD&T)", new RelayCommand(StartGeometricTolerance), "⌖"),

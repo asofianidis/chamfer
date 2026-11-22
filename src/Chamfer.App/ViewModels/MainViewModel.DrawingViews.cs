@@ -43,6 +43,56 @@ public sealed partial class MainViewModel
         }
     }
 
+    private void StartDimensionProperties()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet ||
+            sheet.Dimensions.Find(x => DrawingSelection.Contains(x.Id)) is not { } dim)
+        {
+            MessageText = "Select a dimension.";
+            return;
+        }
+
+        CancelEditor();
+        var text = new TextField("Text (blank: the measured value)", dim.Text ?? string.Empty, _ => { });
+        var tolerance = new TextField("Tolerance (e.g. ±0.1)", dim.Tolerance ?? string.Empty, _ => { });
+        string[] fits = ["None", .. Fits.Common];
+        var fit = Math.Max(0, Array.IndexOf(fits, dim.Fit ?? "None"));
+        var limits = dim.ShowLimits;
+        void Apply()
+        {
+            dim.Text = string.IsNullOrWhiteSpace(text.Text) ? null : text.Text.Trim();
+            dim.Tolerance = string.IsNullOrWhiteSpace(tolerance.Text) ? null : tolerance.Text.Trim();
+            dim.Fit = fit == 0 ? null : fits[fit];
+            dim.ShowLimits = limits;
+            RefreshDrawing();
+        }
+
+        var before = d.Save();
+        var panel = FeatureEditor.Command("Dimension", Apply,
+            accept: () =>
+            {
+                Apply(); // typed text counts even without Enter
+                _undo.Push("drw:" + before);
+                _dirty = true;
+                UndoCommand.NotifyCanExecuteChanged();
+            },
+            cancel: () => RestoreDrawing(before));
+        panel.AddInfo(new InfoField("Measured", Units.Format(_drawingRenderer!.Measure(sheet, dim), d.LengthUnit)));
+        panel.AddField(text);
+        panel.AddField(tolerance);
+        panel.AddField(new ChoiceField("Fit (ISO 286)", fits, fit, i =>
+        {
+            fit = i;
+            Apply();
+        }));
+        panel.AddField(new BoolField("Show the fit's limits", limits, v =>
+        {
+            limits = v;
+            Apply();
+        }));
+        Editor = panel;
+    }
+
     private void StartDimensionSet()
     {
         if (DrawingDoc is not { } d || CurrentSheet is not { } sheet || SelectedView() is not { } view || _drawingRenderer is null)

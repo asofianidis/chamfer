@@ -92,6 +92,12 @@ public sealed class DrawingDimension
 
     /// <summary>Tolerance text appended to the value, e.g. "±0.1".</summary>
     public string? Tolerance { get; set; }
+
+    /// <summary>An ISO 286 fit shown after the value, e.g. "H7" or "H7/g6".</summary>
+    public string? Fit { get; set; }
+
+    /// <summary>Also show the fit's limits, e.g. "(+0.015/0)".</summary>
+    public bool ShowLimits { get; set; }
 }
 
 /// <summary>A named drawing layer: annotations on it share a colour and can be hidden together.</summary>

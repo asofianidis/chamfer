@@ -402,7 +402,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Hidden-line-removal (HLR) projection engine *(OCCT exact HLR: visible, tangent, silhouette and hidden edges)*
 - [~] Standard 3 views, projected, auxiliary, section, detail, broken-out section, break, crop, and alternate-position views *(standard, isometric, projected, auxiliary, section with hatching, detail, break, crop)*
 - [~] Model items import (dimensions from the model), reference dimensions *(auto overall and hole dimensions anchored to model edges)*
-- [~] Ordinate, baseline, and chain dimensions; tolerances and fits *(horizontal, vertical, aligned, diameter, radius; baseline, chain and ordinate sets to hole centres; tolerance text; fits not yet)*
+- [x] Ordinate, baseline, and chain dimensions; tolerances and fits *(horizontal, vertical, aligned, diameter, radius; baseline, chain and ordinate sets to hole centres; tolerance text; ISO 286 fits with limits)*
 - [~] Annotations: notes, balloons, surface finish, weld symbols, datum feature, datum target *(notes, auto balloons, surface finish, datum feature)*
 - [x] **GD&T** feature control frames (ASME Y14.5 / ISO 1101) *(all 14 characteristics, Ø zones, MMC/LMC, datum references, datum feature symbols)*
 - [~] Centerlines, center marks, cosmetic threads in drawings *(automatic centre marks)*
