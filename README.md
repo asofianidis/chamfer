@@ -336,7 +336,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Degrees-of-freedom display: under-, fully, and over-defined coloring
 - [~] Inference lines and automatic relations while drawing *(snap relations and horizontal/vertical inference done; dotted alignment inference lines not yet)*
 - [x] Trim, extend, offset, mirror, fillet, chamfer, linear and circular sketch patterns
-- [~] Convert entities, intersection curves *(convert model edges and face outlines as fixed geometry; intersection curves not yet)*
+- [x] Convert entities, intersection curves *(model edges, face outlines, and where the sketch plane cuts the model, as fixed geometry)*
 - [x] Construction geometry
 - [x] Sketch blocks *(make, select as one, copy with their relations, explode; saved with the sketch)*
 - [~] Units, document properties, and dimension display settings *(MMGS/CGS/MKS/IPS per part; values typed with any unit suffix)*

@@ -1233,6 +1233,45 @@ public sealed partial class MainViewModel : ViewModelBase
         editor.EndChange(solve: true);
     }
 
+    /// <summary>Adds the curves where the sketch plane cuts the model, as fixed geometry (Intersection Curve).</summary>
+    [RelayCommand]
+    private void IntersectionCurves()
+    {
+        if (Sketch is null || EditingPlane is not { } plane)
+        {
+            return;
+        }
+
+        var editor = Sketch.Editor;
+        editor.BeginChange();
+        var made = 0;
+        foreach (var body in Document.Bodies)
+        {
+            try
+            {
+                using var section = Modeling.Section(body.Shape, plane.Origin, plane.Normal);
+                var cut = new Body(section, []);
+                for (var e = 1; e <= cut.EdgeCount; e++)
+                {
+                    made += EdgeProjection.Project(editor.Sketch, cut, e, plane).Count;
+                }
+            }
+            catch (KernelException)
+            {
+                // A body the plane misses (or can't be cut) adds nothing.
+            }
+        }
+
+        if (made == 0)
+        {
+            editor.CancelChange();
+            MessageText = "The sketch plane doesn't cut the model.";
+            return;
+        }
+
+        editor.EndChange(solve: true);
+    }
+
     /// <summary>Adds the 2D geometry of a DXF file to the sketch being edited.</summary>
     [RelayCommand]
     private async Task ImportDxf()
