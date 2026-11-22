@@ -120,6 +120,19 @@ public sealed class RenderTests
         Assert.Equal("A", Assert.Single(sheet.Datums).Label);
         Assert.Single(sheet.Finishes);
 
+        // A hole table for the front view, and a first revision.
+        vm.OnSheetClick(new Geometry.Point2(front.X, front.Y), front.Id, add: false);
+        vm.DrawingCommands.Single(c => c.Label == "Hole Table").Command.Execute(null);
+        vm.OnSheetClick(new Geometry.Point2(305, 150), null, add: false);
+        Assert.Single(vm.CurrentSheet!.HoleTables);
+        vm.DrawingCommands.Single(c => c.Label == "Add Revision").Command.Execute(null);
+        var description = vm.Editor!.Fields.OfType<TextField>().Single(f => f.Label == "Description");
+        description.Text = "First release";
+        description.Commit();
+        Assert.Equal("A", vm.CurrentSheet!.Revisions!.Rows.Single().Rev);
+        Assert.Contains(vm.SheetGraphics!.Items.OfType<Chamfer.Drawing.TextPrimitive>(), t => t.Text == "A1");
+        vm.OnSheetClick(new Geometry.Point2(2, 2), null, add: false); // clear the selection for the screenshot
+
         window.FindControl<Controls.DrawingCanvas>("Sheet")!.Fit();
         Capture(window, $"drawing-{theme}");
         vm.CloseDrawingCommand.Execute(null);

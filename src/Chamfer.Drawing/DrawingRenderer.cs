@@ -388,6 +388,25 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             AnnotationGraphics.Draw(g, f);
         }
 
+        foreach (var table in sheet.HoleTables)
+        {
+            if (sheet.Views.Find(v => v.Id == table.ViewId) is { } view)
+            {
+                try
+                {
+                    DrawingTables.DrawHoleTable(g, table, DrawingTables.Holes(doc.Bodies, Geometry(sheet, view)));
+                }
+                catch (Exception ex) when (ex is KernelException or InvalidOperationException)
+                {
+                }
+            }
+        }
+
+        if (sheet.Revisions is { } revisions)
+        {
+            DrawingTables.DrawRevisionTable(g, revisions);
+        }
+
         foreach (var n in sheet.Notes)
         {
             var lines = n.Text.Split('\n');
