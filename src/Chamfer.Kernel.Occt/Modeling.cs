@@ -248,6 +248,18 @@ public static unsafe class Modeling
         }
     }
 
+    /// <summary>
+    /// Flexes a shape along an axis from <paramref name="origin"/> over <paramref name="length"/>:
+    /// mode 0 twists by <paramref name="amount"/> radians, 1 tapers to (1 + amount) times the size,
+    /// 2 stretches by (1 + amount). Curved deformations are approximated through refined NURBS.
+    /// </summary>
+    public static Shape Flex(Shape s, Vec3 origin, Vec3 axis, Vec3 xDirection, int mode, double amount, double length)
+    {
+        ArgumentNullException.ThrowIfNull(s);
+        var frame = stackalloc double[9] { origin.X, origin.Y, origin.Z, axis.X, axis.Y, axis.Z, xDirection.X, xDirection.Y, xDirection.Z };
+        return Shape.Wrap(Native.chf_flex(s.Handle, frame, mode, amount, length), "flex");
+    }
+
     /// <summary>Joins curves end to end into one wire.</summary>
     public static Shape JoinCurves(IReadOnlyList<Shape> curves)
     {

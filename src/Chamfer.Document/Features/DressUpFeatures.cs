@@ -592,3 +592,87 @@ public sealed class WrapFeature : Feature
     }
 }
 
+/// <summary>How Flex deforms the bodies.</summary>
+public enum FlexMode
+{
+    Twisting,
+    Tapering,
+    Stretching,
+}
+
+/// <summary>
+/// Flex: twists, tapers or stretches bodies along an axis, from where the axis starts over a length
+/// (beyond it the change holds, before it nothing moves).
+/// </summary>
+public sealed class FlexFeature : Feature
+{
+    public override string DefaultName => "Flex";
+
+    /// <summary>Bodies to flex; empty flexes every solid body.</summary>
+    public List<string> Bodies { get; set; } = [];
+
+    public FlexMode Mode { get; set; }
+
+    /// <summary>The flex axis; its origin is where the flexing starts.</summary>
+    public AxisRef Axis { get; set; } = AxisRef.Z;
+
+    public double Length { get; set; } = 100;
+
+    /// <summary>Twist angle in degrees.</summary>
+    public double Angle { get; set; } = 90;
+
+    /// <summary>Taper: the size at the far end, as a fraction of the start (0.5 is half size).</summary>
+    public double EndScale { get; set; } = 0.5;
+
+    /// <summary>Stretch: how much longer the flexed length gets, in mm.</summary>
+    public double Stretch { get; set; } = 10;
+
+    public override IEnumerable<string> Dependencies => new[] { Axis.AxisId, Axis.SketchId }.OfType<string>();
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        if (Length <= 0)
+        {
+            throw new FeatureException("The flex length must be greater than zero.");
+        }
+
+        if (Mode == FlexMode.Tapering && EndScale <= 0)
+        {
+            throw new FeatureException("The end size must be greater than zero.");
+        }
+
+        var (origin, direction) = ctx.ResolveAxis(Axis);
+        direction = direction.Normalized();
+        var (mode, amount) = Mode switch
+        {
+            FlexMode.Twisting => (0, Angle * Math.PI / 180),
+            FlexMode.Tapering => (1, EndScale - 1),
+            _ => (2, Stretch / Length),
+        };
+        var targets = Bodies.Count == 0 ? ctx.Bodies.Where(b => !b.IsSurface).ToList() : Bodies.Select(ctx.FindBody).ToList();
+        foreach (var body in targets)
+        {
+            Shape flexed;
+            try
+            {
+                flexed = Modeling.Flex(body.Shape, origin, direction, direction.AnyPerpendicular(), mode, amount, Length);
+            }
+            catch (KernelException ex)
+            {
+                throw new FeatureException($"The body can't be flexed that way: {ex.Message}");
+            }
+
+            if (flexed.SolidCount == 0 || !flexed.IsValid)
+            {
+                flexed.Dispose();
+                throw new FeatureException("Flexing left an invalid body; try a gentler amount.");
+            }
+
+            // The topology is unchanged, so the faces keep their names.
+            var names = flexed.FaceCount == body.FaceCount ? [.. body.FaceNames] : Naming.Finish(flexed, new string?[flexed.FaceCount], Id);
+            ctx.Bodies[ctx.Bodies.IndexOf(body)] = new Body(flexed, names, body.Name, body.Color);
+        }
+    }
+}
+

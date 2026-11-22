@@ -211,6 +211,9 @@ CHF_API chf_op* chf_split_line(chf_shape* s, chf_shape* tool);
 CHF_API chf_shape* chf_project_curve(chf_shape* curve, chf_shape* target, const double* dir3);
 /* Joins curves end to end into one wire. */
 CHF_API chf_shape* chf_join_curves(int count, chf_shape* const* curves);
+/* Flex along an axis (frame: origin, axis, x direction) over a length: mode 0 twists by amount
+   radians, 1 tapers to (1 + amount) times the size, 2 stretches by (1 + amount). */
+CHF_API chf_shape* chf_flex(chf_shape* s, const double* frame9, int mode, double amount, double length);
 /* A face on a cylinder (frame: origin, axis, angle-zero direction; radius) bounded by polygons given in
    (angle, height) pairs: the first loop is the outline, the rest holes. */
 CHF_API chf_shape* chf_wrap_face(const double* frame9, double radius, int loopCount, const int* loopSizes, const double* angleHeight);

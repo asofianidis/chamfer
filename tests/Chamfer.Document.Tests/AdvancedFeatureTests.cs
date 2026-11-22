@@ -551,6 +551,43 @@ public class AdvancedFeatureTests
     }
 
     [Fact]
+    public void FlexTwistsTapersAndStretches()
+    {
+        // A 20 x 10 bar, 100 long up Z, centred on the axis.
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCenterRectangle(Vec2.Zero, new Vec2(10, 5));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 100 });
+        var flex = doc.Add(new FlexFeature { Mode = FlexMode.Twisting, Angle = 90, Length = 100 });
+        doc.Rebuild();
+        AssertOk(doc);
+
+        // A quarter turn keeps the volume; the far end now lies 10 across X and 20 across Y.
+        Assert.Equal(20000, Volume(doc), 20000 * 0.01);
+        var shape = doc.Bodies[0].Shape;
+        var end = Enumerable.Range(1, shape.FaceCount).Single(i => shape.Face(i).Normal.Z > 0.99 && shape.Face(i).Centroid.Z > 99);
+        var pts = shape.EdgesOfFace(end).SelectMany(e => shape.SampleEdge(e)).ToList();
+        Assert.Equal(10, pts.Max(p => p.X) - pts.Min(p => p.X), 0.1);
+        Assert.Equal(20, pts.Max(p => p.Y) - pts.Min(p => p.Y), 0.1);
+
+        // Tapering to half size: the area shrinks with the square of the size, (1 - t/2)^2 integrated.
+        flex.Mode = FlexMode.Tapering;
+        flex.EndScale = 0.5;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(200 * 100 * (1 - 0.5 + (0.25 / 3)), Volume(doc), 200 * 100 * 0.01);
+
+        // Stretching by 50 mm: exactly half as long again.
+        flex.Mode = FlexMode.Stretching;
+        flex.Stretch = 50;
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Equal(30000, Volume(doc), 1);
+        Assert.Equal(150, doc.Bodies[0].Shape.Bounds.Size.Z, 1e-3);
+    }
+
+    [Fact]
     public void RibFillsTheCornerOfAnLBracket()
     {
         var doc = new PartDocument();
