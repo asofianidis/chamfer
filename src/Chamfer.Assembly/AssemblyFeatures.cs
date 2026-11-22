@@ -158,6 +158,49 @@ public sealed partial class AssemblyDocument
         return bodies;
     }
 
+    /// <summary>
+    /// Mates a newly inserted component through its part's mate references: each reference is matched
+    /// to another component whose part has a reference of the same name with faces not yet mated, and
+    /// their entities are mated pairwise (concentric, or coincident with the faces touching).
+    /// </summary>
+    public IReadOnlyList<Mate> ApplyMateReferences(Component component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        var added = new List<Mate>();
+        foreach (var reference in PartOf(component).MateReferences.Where(r => r.Entities.Count > 0))
+        {
+            foreach (var other in Components.Where(c => c != component && !c.Suppressed))
+            {
+                var match = PartOf(other).MateReferences.Find(r => r.Name == reference.Name && r.Entities.Count == reference.Entities.Count);
+                if (match is null || match.Entities.Any(e => Mates.Any(m => Uses(m, other.Id, e.Face))))
+                {
+                    continue;
+                }
+
+                for (var i = 0; i < reference.Entities.Count; i++)
+                {
+                    var mine = reference.Entities[i];
+                    var theirs = match.Entities[i];
+                    var type = mine.Kind == "concentric" ? MateType.Concentric : MateType.Coincident;
+                    added.Add(AddMate(type, new MateRef(other.Id, theirs.Face), new MateRef(component.Id, mine.Face),
+                        aligned: type == MateType.Coincident ? false : null));
+                }
+
+                break;
+            }
+        }
+
+        if (added.Count > 0)
+        {
+            Solve();
+        }
+
+        return added;
+    }
+
+    private static bool Uses(Mate m, string componentId, TopoRef face) =>
+        (m.A.ComponentId == componentId && m.A.Face == face) || (m.B.ComponentId == componentId && m.B.Face == face);
+
     /// <summary>A key that changes whenever any component's cut result could change.</summary>
     public string FeaturesFingerprint() => string.Join(";", Features.Select(f => f.Fingerprint()));
 

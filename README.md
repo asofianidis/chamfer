@@ -238,6 +238,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 |---|---|
 | Start | **New Assembly**, then **Insert Component** for saved parts. The first component is fixed. |
 | Mate | Select a face or edge on each of two components, then **Mate**. The panel suggests a type (coincident, concentric, distance, angle, parallel, perpendicular, tangent, lock) and alignment, and previews live. Advanced types: **Symmetric** (third entity is the symmetry plane), **Width** (tab faces first, slot faces third and fourth), **Limit Distance/Angle** (minimum and maximum), **Gear** (ratio), **Rack Pinion** (mm per radian) and **Screw** (pitch). The status bar shows the remaining degrees of freedom. |
+| Mate references | In a part, select faces and click **Mate Reference** (name it; cylinders mate concentric, flat faces coincident). Inserting a part into an assembly mates it to a component with a reference of the same name whose faces aren't mated yet. |
 | Assembly features | **Assembly Cut** removes a circle or rectangle profile (on an assembly origin plane, through all or to a depth) from the chosen components, in the assembly only; the part files don't change. It appears under Assembly Features in the tree, where it can be suppressed or deleted. |
 | Patterns | Select a component, then **Linear Pattern** (direction, spacing, instances) or **Circular Pattern** (axis, instances). Copies are locked to the seed. |
 | Move | **Move** translates or rotates the selected component; **Fix / Float** toggles whether it can move. |
@@ -377,7 +378,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] **Standard mates**: coincident, parallel, perpendicular, tangent, concentric, lock, distance, angle
 - [~] **Advanced mates**: limit distance and angle, width, symmetric, path, linear/linear coupler *(limit distance/angle, width, symmetric)*
 - [~] **Mechanical mates**: gear, rack and pinion, cam, hinge, screw, universal joint, slot *(gear, rack and pinion, screw)*
-- [ ] Mate references, SmartMates (drag-to-mate)
+- [~] Mate references, SmartMates (drag-to-mate) *(mate references: concentric/coincident faces, applied on insert)*
 - [~] Move and rotate component with collision detection *(numeric move/rotate; drag and collision detection not yet)*
 - [~] Interference detection, clearance verification *(interference volumes)*
 - [~] Exploded views and explode lines *(automatic radial explode)*

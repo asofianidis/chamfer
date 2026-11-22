@@ -654,4 +654,46 @@ public class PartWorkflowTests
         Assert.Equal(vm.ThermalResult.MinTemperature, vm.StudyResult!.MinStress, 1e-9);
         Assert.Equal("Thermal Study", vm.Editor!.Title);
     }
+
+    [Fact]
+    public void MateReferencesFromTheUiMateOnInsert()
+    {
+        PartDocument MakePart(Action<Sketch> sketch, double depth)
+        {
+            var vm = new MainViewModel();
+            var s = new Sketch();
+            sketch(s);
+            var sf = vm.Document.Add(new SketchFeature { Sketch = s });
+            vm.Document.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = depth });
+            vm.RebuildAndRefresh();
+            var body = vm.Document.Bodies[0];
+            int Face(Func<Kernel.Occt.FaceInfo, bool> pick) => Enumerable.Range(1, body.FaceCount).First(i => pick(body.Face(i)));
+            vm.SetSelection([SelectionItem.Face(body, Face(f => f.Surface == Kernel.Occt.SurfaceKind.Cylinder))]);
+            vm.FeatureCommands.Single(c => c.Label == "Mate Reference").Command.Execute(null);
+            var name = vm.Editor!.Fields.OfType<TextField>().Single();
+            name.Text = "Pin";
+            name.Commit();
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.Equal("concentric", Assert.Single(vm.Document.MateReferences).Entities.Single().Kind);
+            return vm.Document;
+        }
+
+        var plate = MakePart(s =>
+        {
+            s.AddCornerRectangle(new Vec2(0, 0), new Vec2(60, 40));
+            s.AddCircle(new Vec2(30, 20), 6);
+        }, 10);
+        var pin = MakePart(s => s.AddCircle(Vec2.Zero, 6), 35);
+
+        var asmVm = new MainViewModel();
+        asmVm.NewAssemblyCommand.Execute(null);
+        asmVm.InsertPart("plate.chprt", plate);
+        var c = asmVm.InsertPart("pin.chprt", pin);
+        var mate = Assert.Single(asmVm.AssemblyDoc!.Mates);
+        Assert.Equal(Chamfer.Assembly.MateType.Concentric, mate.Type);
+        Assert.Contains("mate references", asmVm.MessageText, StringComparison.Ordinal);
+        var box = asmVm.AssemblyDoc.PlacedBodies(c).Single().Placed.Bounds;
+        Assert.Equal(30, box.Center.X, 1e-6);
+        Assert.Equal(20, box.Center.Y, 1e-6);
+    }
 }
