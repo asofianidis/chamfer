@@ -126,6 +126,7 @@
           <Button Classes="tool" Content="Section" Command="{Binding ToggleSectionCommand}" Classes.active="{Binding SectionView}" IsVisible="{Binding IsPartMode}" ToolTip.Tip="Cut the part with a plane to see inside" />
           <Button Classes="tool" Content="Draft Analysis" Command="{Binding ToggleDraftAnalysisCommand}" Classes.active="{Binding DraftAnalysis}" IsVisible="{Binding IsPartMode}" ToolTip.Tip="Colour faces by draft angle against the pull direction" />
           <Button Classes="tool" Content="Zebra" Command="{Binding ToggleZebraCommand}" Classes.active="{Binding ZebraStripes}" IsVisible="{Binding IsPartMode}" ToolTip.Tip="Zebra stripes to judge surface smoothness" />
+          <Button Classes="tool" Content="Render" Command="{Binding StartRenderCommand}" IsVisible="{Binding IsModelMode}" ToolTip.Tip="Photorealistic render of the current view" />
         </WrapPanel>
 
         <!-- Drawing commands -->

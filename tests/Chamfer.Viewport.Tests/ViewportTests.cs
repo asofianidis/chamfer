@@ -200,4 +200,60 @@ public class ViewportTests
         Assert.Contains(lums, l => l < 80);
         Assert.Contains(lums, l => l > 180);
     }
+
+    [Fact]
+    public void PathTracerLightsShadowsAndFinishes()
+    {
+        using var sphere = Modeling.Sphere(20);
+        var scene = new Scene();
+        scene.Meshes.Add(new MeshItem { Mesh = sphere.Tessellate(), Color = Rgba.FromHex(0xC03030) });
+        var cam = new Camera();
+        cam.SetView(StandardView.Isometric);
+        cam.Fit(scene.Bounds, 120, 120);
+        cam.ViewHeight *= 2.5; // room for the floor and shadow
+        var settings = new RenderSettings { Samples = 16, SunDirection = new Vec3(1, 1, -0.3).Normalized() };
+        var tracer = new PathTracer();
+        var pixels = tracer.Render(scene, cam, 120, 120, settings, cancel: TestContext.Current.CancellationToken);
+        if (Environment.GetEnvironmentVariable("CHAMFER_SCREENSHOT_DIR") is { Length: > 0 } dir)
+        {
+            PngWriter.Write(Path.Combine(dir, "pathtrace.png"), pixels, 120, 120);
+        }
+
+        static double Lum(uint p) => (((p >> 16) & 0xFF) + ((p >> 8) & 0xFF) + (p & 0xFF)) / 3.0;
+        uint At(Vec3 p)
+        {
+            var s = cam.Project(p, 120, 120);
+            return pixels[((int)s.Y * 120) + (int)s.X];
+        }
+
+        // The sphere is red (averaged over a patch: the clear coat adds sparkle).
+        var patch = Enumerable.Range(-1, 3).SelectMany(i => Enumerable.Range(-1, 3).Select(j => At(new Vec3(i, j, 20)))).ToList();
+        var red = patch.Average(p => (double)((p >> 16) & 0xFF));
+        var green = patch.Average(p => (double)((p >> 8) & 0xFF));
+        Assert.True(red > green + 40, $"red {red} green {green}");
+        var toSun = settings.SunDirection;
+
+        // The shadow falls on the floor away from the sun, darker than open floor toward it.
+        var floorY = -20.05;
+        var shadow = new Vec3(-toSun.X, 0, -toSun.Z).Normalized() * 30;
+        Assert.True(Lum(At(new Vec3(shadow.X, floorY, shadow.Z))) + 15 < Lum(At(new Vec3(-shadow.X, floorY, -shadow.Z))),
+            $"shadow {Lum(At(new Vec3(shadow.X, floorY, shadow.Z)))} open {Lum(At(new Vec3(-shadow.X, floorY, -shadow.Z)))}");
+
+        // On a grey sphere, the side facing the sun is brighter than the side facing away.
+        scene.Meshes[0] = new MeshItem { Mesh = scene.Meshes[0].Mesh, Color = Rgba.FromHex(0x808080) };
+        var grey = tracer.Render(scene, cam, 120, 120, settings, cancel: TestContext.Current.CancellationToken);
+        double Around(Vec3 n) => Enumerable.Range(-1, 3).SelectMany(i => Enumerable.Range(-1, 3).Select(j =>
+        {
+            var s = cam.Project((n * 20) + new Vec3(i * 0.8, j * 0.8, 0), 120, 120);
+            return Lum(grey[((int)s.Y * 120) + (int)s.X]);
+        })).Average();
+        var lit = Around(new Vec3(0.6, 0.6, 0.53).Normalized());
+        var unlit = Around(new Vec3(-0.3, 0.2, 0.93).Normalized()); // faces the camera, not the sun
+        Assert.True(lit > unlit + 25, $"{lit} vs {unlit}");
+
+        // Metal reflects the environment: a different look from the same colour in plastic.
+        settings.Finishes[0] = Finish.Metal;
+        var metal = tracer.Render(scene, cam, 120, 120, settings, cancel: TestContext.Current.CancellationToken);
+        Assert.NotEqual(pixels[(60 * 120) + 60], metal[(60 * 120) + 60]);
+    }
 }
