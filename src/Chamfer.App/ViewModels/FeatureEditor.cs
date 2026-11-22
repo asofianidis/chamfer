@@ -268,6 +268,7 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(BodyField(doc, feature, "Surface", th.Body.Length > 0 ? [th.Body] : [], names => Set(() => th.Body = names.FirstOrDefault() ?? string.Empty), 1));
                 ed.Add(Num("Thickness", "mm", th, nameof(th.Thickness), 1e-6));
                 ed.Add(new BoolField("Reverse side", th.Reverse, v => Set(() => th.Reverse = v)));
+                ed.Add(new BoolField("Cut (remove material)", th.IsCut, v => Set(() => th.IsCut = v)));
                 ed.Add(new BoolField("Merge result", th.Merge, v => Set(() => th.Merge = v)));
                 break;
 

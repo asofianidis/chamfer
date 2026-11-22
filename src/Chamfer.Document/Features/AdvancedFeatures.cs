@@ -101,11 +101,14 @@ public sealed class SweepFeature : Feature
 /// <summary>Lofts through the closed profiles of two or more sketches, in order.</summary>
 public sealed class LoftFeature : Feature
 {
-    public override string DefaultName => IsCut ? "Cut-Loft" : "Loft";
+    public override string DefaultName => IsSurface ? "Surface-Loft" : IsCut ? "Cut-Loft" : "Loft";
 
     public List<string> SectionSketchIds { get; set; } = [];
 
     public bool IsCut { get; set; }
+
+    /// <summary>An open surface through the profiles' outlines instead of a solid (Lofted Surface).</summary>
+    public bool IsSurface { get; set; }
 
     public bool Merge { get; set; } = true;
 
@@ -165,8 +168,14 @@ public sealed class LoftFeature : Feature
                 sections.Insert(sections.Count - 1, BoundaryFeature.Offset((faces[^1], normals[^1], faces[^1].Bounds.Center), faces[^2].Bounds.Center, EndTangentLength, guides));
             }
 
-            using var op = SweepFeature.Run(() => Modeling.Loft(sections, solid: true, ruled: Ruled),
-                "The loft can't be built. Profiles should be similar shapes, in order, and not intersect.");
+            using var op = SweepFeature.Run(() => Modeling.Loft(sections, solid: !IsSurface, ruled: Ruled),
+                "The loft can't be built. Profiles should be similar shapes, in order, and not intersect.", requireSolid: !IsSurface);
+            if (IsSurface)
+            {
+                Surfaces.AddBody(ctx, op.Result, Id);
+                return;
+            }
+
             var solid = op.Result;
             var names = ProfileShapes.NameSweep(op, solid, faces[0], firstMap!, Id, "loft", key);
             AdvancedShapes.Apply(ctx, Id, [(solid, names)], IsCut, Merge);
