@@ -51,6 +51,7 @@ public sealed partial class MainViewModel
         new("Insert Component", "Insert a saved part", new AsyncRelayCommand(InsertComponent), "⊕"),
         new("Toolbox", "Insert standard screws, bolts, nuts and washers", new RelayCommand(StartToolbox), "⚙"),
         new("Mate", "Mate two faces or edges", new RelayCommand(StartMate), "⫘"),
+        new("Quick Mate", "Mate the two selected faces or edges the obvious way at once", new RelayCommand(QuickMate), "⚡"),
         new("Linear Pattern", "Copy the selected component along an axis", new RelayCommand(() => StartComponentPattern(circular: false)), "⋯"),
         new("Circular Pattern", "Copy the selected component around an axis", new RelayCommand(() => StartComponentPattern(circular: true)), "⟳"),
         new("Move", "Move or rotate the selected component", new RelayCommand(StartMove), "✥"),
@@ -440,6 +441,50 @@ public sealed partial class MainViewModel
         }
 
         Editor = panel;
+    }
+
+    /// <summary>
+    /// SmartMates-style: mates the two selected entities with the first sensible type (coincident for
+    /// flat faces, concentric for cylinders...), aligned the way they already sit, and solves.
+    /// </summary>
+    private void QuickMate()
+    {
+        if (AssemblyDoc is not { } asm)
+        {
+            return;
+        }
+
+        var refs = Selection.Select(ToMateRef).OfType<MateRef>().ToList();
+        if (refs.Count != 2 || refs[0].ComponentId == refs[1].ComponentId)
+        {
+            MessageText = "Select two faces or edges on different components.";
+            return;
+        }
+
+        MateEntity a, b;
+        try
+        {
+            (a, b) = (MateSolver.Resolve(asm, refs[0]), MateSolver.Resolve(asm, refs[1]));
+        }
+        catch (InvalidOperationException ex)
+        {
+            MessageText = ex.Message;
+            return;
+        }
+
+        var type = MateSolver.Applicable(a.Kind, b.Kind)[0];
+        SnapshotAssembly();
+        var mate = asm.AddMate(type, refs[0], refs[1]);
+        RebuildAndRefresh();
+        if (_lastSolve is { Converged: false })
+        {
+            asm.Mates.Remove(mate);
+            UndoCommand.Execute(null);
+            MessageText = $"A {type} mate here conflicts with the other mates.";
+            return;
+        }
+
+        MessageText = $"Added a {type} mate.";
     }
 
     private void StartComponentPattern(bool circular)
