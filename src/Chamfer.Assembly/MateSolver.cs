@@ -125,9 +125,9 @@ public static class MateSolver
     /// <summary>Which types of mate make sense between two entities.</summary>
     public static IReadOnlyList<MateType> Applicable(MateEntityKind a, MateEntityKind b) => (a, b) switch
     {
-        (MateEntityKind.Plane, MateEntityKind.Plane) => [MateType.Coincident, MateType.Parallel, MateType.Perpendicular, MateType.Distance, MateType.Angle, MateType.Lock, MateType.Symmetric, MateType.Width, MateType.LimitDistance, MateType.LimitAngle],
-        (MateEntityKind.Axis, MateEntityKind.Axis) => [MateType.Concentric, MateType.Parallel, MateType.Perpendicular, MateType.Angle, MateType.Coincident, MateType.Distance, MateType.Lock, MateType.Gear, MateType.Screw, MateType.RackPinion, MateType.Symmetric, MateType.LimitDistance],
-        (MateEntityKind.Plane, MateEntityKind.Axis) or (MateEntityKind.Axis, MateEntityKind.Plane) => [MateType.Tangent, MateType.Coincident, MateType.Parallel, MateType.Perpendicular, MateType.Distance, MateType.Lock],
+        (MateEntityKind.Plane, MateEntityKind.Plane) => [MateType.Coincident, MateType.Parallel, MateType.Perpendicular, MateType.Distance, MateType.Angle, MateType.Lock, MateType.Symmetric, MateType.Width, MateType.LimitDistance, MateType.LimitAngle, MateType.LinearCoupler],
+        (MateEntityKind.Axis, MateEntityKind.Axis) => [MateType.Concentric, MateType.Parallel, MateType.Perpendicular, MateType.Angle, MateType.Coincident, MateType.Distance, MateType.Lock, MateType.Gear, MateType.Screw, MateType.RackPinion, MateType.Symmetric, MateType.LimitDistance, MateType.Hinge, MateType.UniversalJoint, MateType.LinearCoupler],
+        (MateEntityKind.Plane, MateEntityKind.Axis) or (MateEntityKind.Axis, MateEntityKind.Plane) => [MateType.Tangent, MateType.Coincident, MateType.Parallel, MateType.Perpendicular, MateType.Distance, MateType.Lock, MateType.Slot, MateType.LinearCoupler],
         _ => [MateType.Coincident, MateType.Distance, MateType.Lock],
     };
 
@@ -149,7 +149,8 @@ public static class MateSolver
 
     private static void Residuals(Mate m, MateEntity a, MateEntity b, Transform3 ta, Transform3 tb, List<double> r, MateEntity? c = null, MateEntity? d = null)
     {
-        var mechanical = m.Type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.Symmetric or MateType.Width or MateType.Drive;
+        var mechanical = m.Type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.Symmetric or MateType.Width or MateType.Drive
+            or MateType.Hinge or MateType.Slot or MateType.UniversalJoint or MateType.LinearCoupler;
         var s = m.Aligned ? -1.0 : 1.0; // anti-aligned: dA = -dB  →  dA + dB = 0
         void Vec(Vec3 v)
         {
@@ -339,6 +340,46 @@ public static class MateSolver
                 var spin = TurnAbout(tb, m.InitialB, a.Direction);
                 r.Add(advance - ((m.Aligned ? -1 : 1) * m.Value * spin / (2 * Math.PI)));
                 break;
+
+            case MateType.Hinge:
+                Parallel();
+                Vec(Vec3.Cross(b.Origin - a.Origin, a.Direction));
+                if (c is { } hc && d is { } hd)
+                {
+                    // The faces touch: opposed normals, no gap.
+                    Vec(hc.Direction + hd.Direction);
+                    r.Add(Vec3.Dot(hd.Origin - hc.Origin, hc.Direction));
+                }
+
+                break;
+
+            case MateType.Slot when c is { } wall:
+                {
+                    // A is the pin's axis (swap if the slot face came first); B and C are the slot walls.
+                    var (pin, side) = a.Kind == MateEntityKind.Axis ? (a, b) : (b, a);
+                    r.Add(Vec3.Dot(pin.Direction, side.Direction));
+                    r.Add(Vec3.Dot(pin.Origin - ((side.Origin + wall.Origin) * 0.5), side.Direction));
+                    break;
+                }
+
+            case MateType.UniversalJoint:
+                {
+                    var thA = TurnAbout(ta, m.InitialA, a.Direction);
+                    var thB = TurnAbout(tb, m.InitialB, b.Direction);
+                    var cosBeta = Math.Abs(Vec3.Dot(a.Direction, b.Direction));
+                    var sense = m.Aligned ? -1 : 1;
+                    r.Add(((Math.Sin(thB) * Math.Cos(thA)) - (sense * Math.Cos(thB) * Math.Sin(thA) * cosBeta)) * 10);
+                    break;
+                }
+
+            case MateType.LinearCoupler:
+                {
+                    var moveA = m.InitialA is { } la ? Vec3.Dot(new Vec3(ta.Tx - la.Tx, ta.Ty - la.Ty, ta.Tz - la.Tz), a.Direction) : 0;
+                    var moveB = m.InitialB is { } lb ? Vec3.Dot(new Vec3(tb.Tx - lb.Tx, tb.Ty - lb.Ty, tb.Tz - lb.Tz), b.Direction) : 0;
+                    var coupling = m.Value != 0 ? m.Value : 1;
+                    r.Add(moveB - ((m.Aligned ? -1 : 1) * coupling * moveA));
+                    break;
+                }
 
             case MateType.Lock:
                 var expected = ta * (m.Relative ?? Transform3.Identity);

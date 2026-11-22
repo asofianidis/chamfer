@@ -231,14 +231,23 @@ public sealed partial class MainViewModel
 
             var c = fc.Items.Count > 0 ? ToMateRef(fc.Items[0]) : null;
             var d = fd.Items.Count > 0 ? ToMateRef(fd.Items[0]) : null;
-            if ((mate.Type == MateType.Symmetric && c is null) || (mate.Type == MateType.Width && (c is null || d is null)))
+            var missing = mate.Type switch
             {
-                panel.Message = mate.Type == MateType.Symmetric ? "Pick the symmetry plane as the third entity." : "Pick the two slot faces as the third and fourth entities.";
+                MateType.Symmetric when c is null => "Pick the symmetry plane as the third entity.",
+                MateType.Width when c is null || d is null => "Pick the two slot faces as the third and fourth entities.",
+                MateType.Slot when c is null => "Pick the pin and one slot wall, then the other slot wall as the third entity.",
+                MateType.Hinge when (c is null) != (d is null) => "For a hinge, pick both touching faces (third and fourth), or neither.",
+                _ => null,
+            };
+            if (missing is not null)
+            {
+                panel.Message = missing;
                 RebuildAndRefresh();
                 return;
             }
 
-            var added = asm.AddMate(mate.Type, a, b, mate.Value, mate.Type is MateType.Gear or MateType.RackPinion or MateType.Screw ? !mate.Aligned : mate.Aligned);
+            var added = asm.AddMate(mate.Type, a, b, mate.Value,
+                mate.Type is MateType.Gear or MateType.RackPinion or MateType.Screw or MateType.UniversalJoint or MateType.LinearCoupler ? !mate.Aligned : mate.Aligned);
             added.C = c;
             added.D = d;
             added.Value2 = Math.Max(mate.Value, mate.Value2);
@@ -284,8 +293,8 @@ public sealed partial class MainViewModel
         var kinds = new[] { SelectionKind.Face, SelectionKind.Edge };
         var first = panel.AddField(new SelectionField("First entity", kinds, picks.Take(1), _ => Preview(), max: 1));
         var second = panel.AddField(new SelectionField("Second entity", kinds, picks.Skip(1).Take(1), _ => Preview(), max: 1));
-        panel.AddField(new SelectionField("Symmetry plane / slot face", kinds, picks.Skip(2).Take(1), _ => Preview(), max: 1));
-        panel.AddField(new SelectionField("Second slot face", kinds, picks.Skip(3).Take(1), _ => Preview(), max: 1));
+        panel.AddField(new SelectionField("Third: symmetry plane, slot wall or hinge face", kinds, picks.Skip(2).Take(1), _ => Preview(), max: 1));
+        panel.AddField(new SelectionField("Fourth: second slot face or hinge face", kinds, picks.Skip(3).Take(1), _ => Preview(), max: 1));
 
         // Pre-pick the alignment and the closest sensible type for the current selection.
         if (picks.Count >= 2 && ToMateRef(picks[0]) is { } ra && ToMateRef(picks[1]) is { } rb)
