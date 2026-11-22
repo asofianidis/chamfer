@@ -113,6 +113,7 @@ public sealed class SketchCanvas : Control
     private static IEnumerable<Vec2> SamplePoints(SketchEntity e) => e switch
     {
         SketchCircle c => [c.Center.Position - new Vec2(c.Radius, c.Radius), c.Center.Position + new Vec2(c.Radius, c.Radius)],
+        SketchEllipse el => el.Sample(16),
         SketchArc a => [a.Start.Position, a.End.Position, a.Midpoint],
         SketchLine l => [l.Start.Position, l.End.Position],
         SketchPoint p => [p.Position],
@@ -402,6 +403,22 @@ public sealed class SketchCanvas : Control
             case SketchArc a:
                 DrawArc(context, pen, a.Center.Position, a.Radius, a.StartAngle, a.Sweep);
                 break;
+            case SketchEllipse el:
+                var geometry = new StreamGeometry();
+                using (var g = geometry.Open())
+                {
+                    var pts = el.Sample(ArcSegments).ToList();
+                    g.BeginFigure(ToScreen(pts[0]), false);
+                    foreach (var q in pts.Skip(1))
+                    {
+                        g.LineTo(ToScreen(q));
+                    }
+
+                    g.EndFigure(true);
+                }
+
+                context.DrawGeometry(null, pen, geometry);
+                break;
         }
     }
 
@@ -553,6 +570,7 @@ public sealed class SketchCanvas : Control
     {
         SketchLine l => l.Midpoint,
         SketchCircle c => c.Center.Position + new Vec2(0, c.Radius),
+        SketchEllipse el => el.PointAt(Math.PI / 2),
         SketchArc a => a.Midpoint,
         SketchPoint p => p.Position,
         _ => Vec2.Zero,

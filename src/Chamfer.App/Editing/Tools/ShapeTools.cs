@@ -133,6 +133,46 @@ public sealed class CircleTool : ClickTool
     }
 }
 
+public sealed class EllipseTool : ClickTool
+{
+    public override string Id => "ellipse";
+    protected override int ClicksNeeded => 3;
+    protected override IReadOnlyList<string> Steps => ["Click the center.", "Click the end of the major axis.", "Click to set the minor axis."];
+
+    protected override IEnumerable<PreviewItem> ShapePreview(IReadOnlyList<Vec2> p)
+    {
+        if (p.Count == 2)
+        {
+            return [new PreviewLine(p[0], p[1], true)];
+        }
+
+        var el = new Chamfer.Sketching.Entities.SketchEllipse(p[0], p[1], Minor(p));
+        var pts = el.Sample(72).ToList();
+        return [.. pts.Select((q, i) => (PreviewItem)new PreviewLine(q, pts[(i + 1) % pts.Count]))];
+    }
+
+    /// <summary>The minor semi-axis: the third click's distance from the major axis line.</summary>
+    private static double Minor(IReadOnlyList<Vec2> p)
+    {
+        var axis = (p[1] - p[0]).Normalized();
+        var d = p[2] - p[0];
+        return Math.Abs((axis.X * d.Y) - (axis.Y * d.X));
+    }
+
+    protected override void Create(IReadOnlyList<Snap> clicks)
+    {
+        var p = clicks.Select(c => c.Position).ToList();
+        var minor = Minor(p);
+        if (Vec2.Distance(p[0], p[1]) < 1e-9 || minor < 1e-9)
+        {
+            throw new ArgumentException("An ellipse needs two axes.");
+        }
+
+        var ellipse = Editor.Sketch.AddEllipse(p[0], p[1], minor);
+        RelateClicks(ellipse, [clicks[0]]);
+    }
+}
+
 public sealed class ThreePointArcTool : ClickTool
 {
     public override string Id => "arc-3pt";

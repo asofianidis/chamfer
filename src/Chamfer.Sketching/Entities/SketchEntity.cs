@@ -6,6 +6,7 @@ public enum EntityKind
     Line,
     Circle,
     Arc,
+    Ellipse,
 }
 
 /// <summary>Base class for all sketch geometry.</summary>

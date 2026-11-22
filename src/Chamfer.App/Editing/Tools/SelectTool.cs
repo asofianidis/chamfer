@@ -221,6 +221,10 @@ public sealed class SelectTool : SketchTool
                 // Grabbing the rim resizes the circle.
                 targets.Add((circle.RadiusParam, Vec2.Distance(world, circle.Center.Position)));
                 break;
+            case SketchEllipse ellipse:
+                Translate(ellipse.Center);
+                Translate(ellipse.MajorEnd);
+                break;
             case SketchArc arc:
                 Translate(arc.Center);
                 Translate(arc.Start);
