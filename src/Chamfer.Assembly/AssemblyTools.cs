@@ -8,7 +8,7 @@ namespace Chamfer.Assembly;
 public sealed record Interference(Component A, Component B, double Volume);
 
 /// <summary>A bill-of-materials line.</summary>
-public sealed record BomItem(int Item, string PartName, string? Configuration, int Quantity, string Material, double MassEach);
+public sealed record BomItem(int Item, string PartName, string? Configuration, int Quantity, string Material, double MassEach, string Description = "");
 
 /// <summary>Interference detection, bills of materials and exploded views.</summary>
 public static class AssemblyTools
@@ -66,8 +66,10 @@ public static class AssemblyTools
             var first = group.First();
             var part = asm.PartOf(first);
             var name = Toolbox.IsToolboxPath(first.Path) ? FastenerSpec.Parse(first.Path)!.Description : Path.GetFileNameWithoutExtension(first.Path);
-            lines.Add(new BomItem(lines.Count + 1, name, group.Key.Configuration,
-                group.Count(), part.Material.Name, part.MassProperties().Mass));
+            var number = PropertyEvaluator.Get(part, PropertyEvaluator.PartNumber);
+            var description = PropertyEvaluator.Get(part, PropertyEvaluator.Description) ?? string.Empty;
+            lines.Add(new BomItem(lines.Count + 1, string.IsNullOrWhiteSpace(number) ? name : number, group.Key.Configuration,
+                group.Count(), part.Material.Name, part.MassProperties().Mass, description));
         }
 
         return lines;

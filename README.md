@@ -216,6 +216,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Feature tree | Double-click to edit. **Suppress**, **Delete** (with dependents), **Roll Here** and **Roll Forward** act on the selected feature. Errors are red, warnings amber. |
 | Analysis | **Section** cuts the part with the Front, Top or Right plane (offset, flip) and shows the cut faces. **Draft Analysis** colours faces green, red or yellow by draft against a pull direction. **Zebra** shows stripes for judging surface smoothness. |
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
+| Properties | **Properties** holds custom properties as Name = value; values can use {Mass}, {Volume}, {Material}, {Configuration}, other properties and global variables. Description and PartNumber show in assembly BOMs and drawing title blocks. |
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
 | Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES, STL, 3MF or OBJ. |
 | Sketch tools | **Trim** (click the piece to remove), **Extend**, **Fillet** and **Chamfer** (click a corner; Size sets the radius or distance), **Offset** (selected curves, by Size; Reverse flips the side), **Mirror** (selection about a selected centerline), **Linear/Circular Pattern** (Count copies), **Convert Entities** (click model edges behind the sketch), **Convert Face** (outline of the sketch face) and **Import DXF** (lines, arcs, circles and polylines from a DXF file, converted to mm). |
@@ -239,7 +240,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Patterns | Select a component, then **Linear Pattern** (direction, spacing, instances) or **Circular Pattern** (axis, instances). Copies are locked to the seed. |
 | Move | **Move** translates or rotates the selected component; **Fix / Float** toggles whether it can move. |
 | Motion | **Motion Study**: pick a face or edge on the component to drive, choose a rotary (rpm) or linear (mm/s) motor and a duration, then **Calculate**. Scrub with **Time** or **Play** the animation; **Detect collisions** reports the first new contact. |
-| Evaluate | **Interference** lists overlapping components and volumes; **Bill of Materials** lists parts, quantities and masses; **Explode** spreads the components apart. |
+| Evaluate | **Interference** lists overlapping components and volumes; **Bill of Materials** lists parts (by PartNumber and Description when set), quantities and masses; **Pack and Go** copies the assembly and its parts to one folder; **Explode** spreads the components apart. |
 | Edit parts | **Open Part** edits the selected component's part; **Back to Assembly** returns. |
 | Toolbox | **Toolbox** inserts ISO socket head cap screws, hex bolts, nuts and washers (M3 to M20, standard lengths). They're generated parts, and the BOM lists them by standard. |
 
@@ -383,7 +384,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] Assembly features: cuts and holes
 - [x] Bill of Materials data model
 - [ ] Large-assembly mode: lightweight components, LOD, instancing, frustum culling
-- [ ] Pack and Go
+- [x] Pack and Go *(copy an assembly and its parts to one folder with prefix/suffix, optional zip)*
 
 ### Phase 5: Drawings
 - [x] Drawing document (`.chdrw`), sheets, sheet formats, title blocks *(A4–A0, Letter, Tabloid; multiple sheets; editable title block fields; part and assembly drawings)*
@@ -444,7 +445,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Macro recording and playback (Roslyn scripting)
 - [~] Toolbox: standard fasteners, bearings, and hardware libraries (ANSI and ISO) *(ISO socket head cap screws, hex bolts, hex nuts and washers, M3 to M20)*
 - [ ] Design Library, favorites, templates
-- [ ] Custom properties, property tab builder
+- [~] Custom properties, property tab builder *(custom properties with {Mass}/{Material}/variable tokens, used by BOMs and title blocks)*
 - [ ] Photorealistic rendering (path tracer, PBR materials, HDRI environments)
 - [ ] Model-Based Definition (3D PMI)
 - [ ] Routing: piping, tubing, electrical harnesses

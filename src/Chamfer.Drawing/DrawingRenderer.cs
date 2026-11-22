@@ -682,8 +682,8 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         }
 
         var lines = AssemblyTools.BillOfMaterials(asm);
-        double[] widths = [14, 70, 34, 14];
-        string[] header = ["ITEM", "PART NUMBER", "MATERIAL", "QTY"];
+        double[] widths = [12, 50, 60, 34, 12];
+        string[] header = ["ITEM", "PART NUMBER", "DESCRIPTION", "MATERIAL", "QTY"];
         const double rowH = 7;
         var x0 = table.X;
         var y = table.Y;
@@ -699,7 +699,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
                     g.Line(Pen.Thin, new Point2(x, y), new Point2(x, y - rowH), "bom");
                 }
 
-                var anchor = c == 1 ? TextAnchor.Left : TextAnchor.Center;
+                var anchor = c is 1 or 2 ? TextAnchor.Left : TextAnchor.Center;
                 var at = anchor == TextAnchor.Left ? new Point2(x + 2, y - rowH + 2) : new Point2(x + (widths[c] / 2), y - rowH + 2);
                 g.Text(at, cells[c], bold ? 3 : 2.8, anchor, owner: "bom");
                 x += widths[c];
@@ -711,7 +711,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         Row(header, bold: true);
         foreach (var l in lines)
         {
-            Row([l.Item.ToString(CultureInfo.InvariantCulture), l.PartName, l.Material, l.Quantity.ToString(CultureInfo.InvariantCulture)], bold: false);
+            Row([l.Item.ToString(CultureInfo.InvariantCulture), l.PartName, l.Description, l.Material, l.Quantity.ToString(CultureInfo.InvariantCulture)], bold: false);
         }
     }
 
@@ -732,7 +732,15 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         g.Line(Pen.Thin, new Point2(x0 + (tw * 0.6), y0), new Point2(x0 + (tw * 0.6), y0 + 16));
         g.Line(Pen.Thin, new Point2(x0 + (tw * 0.8), y0), new Point2(x0 + (tw * 0.8), y0 + 16));
 
-        string P(string key, string fallback) => doc.Properties.TryGetValue(key, out var v) && v.Length > 0 ? v : fallback;
+        // Drawing properties first, then (part drawings) the model's custom properties.
+        string? FromModel(string key) => doc.IsAssembly ? null : key switch
+        {
+            "Title" => PropertyEvaluator.Get(doc.Model, "Title") ?? PropertyEvaluator.Get(doc.Model, PropertyEvaluator.Description),
+            "Number" => PropertyEvaluator.Get(doc.Model, PropertyEvaluator.PartNumber),
+            _ => PropertyEvaluator.Get(doc.Model, key),
+        };
+        string P(string key, string fallback) => doc.Properties.TryGetValue(key, out var v) && v.Length > 0 ? v
+            : FromModel(key) is { Length: > 0 } m ? m : fallback;
         var title = P("Title", Path.GetFileNameWithoutExtension(doc.ModelPath));
         g.Text(new Point2(x0 + 3, y0 + 23), title, 6);
         g.Text(new Point2(x0 + tw - 3, y0 + 26), P("Company", string.Empty), 3, TextAnchor.Right);

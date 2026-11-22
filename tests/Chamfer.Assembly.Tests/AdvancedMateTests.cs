@@ -268,4 +268,49 @@ public class AdvancedMateTests
         Assert.InRange(hit.FirstCollisionTime!.Value, 0.7, 0.9); // 40 mm gap at 50 mm/s
         Assert.Contains(stop.Name, hit.CollidingPair!, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void BomUsesPropertiesAndPackAndGoCopiesEverything()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"chamfer-pg-{Guid.NewGuid():N}");
+        try
+        {
+            // Two parts with the same file name in different folders, plus a toolbox screw.
+            Directory.CreateDirectory(Path.Combine(root, "src", "a"));
+            Directory.CreateDirectory(Path.Combine(root, "src", "b"));
+            var plate = Block(60, 40, 10);
+            PropertyEvaluator.Set(plate, PropertyEvaluator.PartNumber, "PL-001");
+            PropertyEvaluator.Set(plate, PropertyEvaluator.Description, "Base plate");
+            File.WriteAllText(Path.Combine(root, "src", "a", "part.chprt"), plate.Save());
+            File.WriteAllText(Path.Combine(root, "src", "b", "part.chprt"), Pin(4, 20).Save());
+            var asm = new AssemblyDocument { Directory = Path.Combine(root, "src") };
+            asm.AddComponent("a/part.chprt");
+            asm.AddComponent("b/part.chprt", Transform3.Translation(new Vec3(10, 10, 10)));
+            asm.AddComponent("toolbox:ISO4762 M6x16");
+
+            var bom = AssemblyTools.BillOfMaterials(asm);
+            Assert.Equal("PL-001", bom[0].PartName);
+            Assert.Equal("Base plate", bom[0].Description);
+            Assert.Equal("part", bom[1].PartName);
+
+            var target = Path.Combine(root, "out");
+            var result = PackAndGo.Run(asm, "Fixture", target, prefix: "X-", zip: true);
+            Assert.Equal(3, result.Files.Count);
+            Assert.EndsWith("X-Fixture.chasm", result.AssemblyPath, StringComparison.Ordinal);
+            Assert.True(File.Exists(Path.Combine(target, "X-part.chprt")));
+            Assert.True(File.Exists(Path.Combine(target, "X-part (2).chprt")));
+
+            var copy = AssemblyDocument.Load(File.ReadAllText(result.AssemblyPath), target);
+            Assert.Equal(["X-part.chprt", "X-part (2).chprt", "toolbox:ISO4762 M6x16"], copy.Components.Select(c => c.Path));
+            Assert.Equal("PL-001", AssemblyTools.BillOfMaterials(copy)[0].PartName);
+            Assert.Equal(3, copy.Components.Count(c => copy.PartOf(c).Bodies.Count > 0));
+
+            using var zip = System.IO.Compression.ZipFile.OpenRead(result.ZipPath!);
+            Assert.Equal(3, zip.Entries.Count);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 }
