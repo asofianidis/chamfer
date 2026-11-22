@@ -217,6 +217,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Render | **Render** path-traces the current view: metals glossy, wood matte, other materials as coated plastic, with a soft sun, sky light and a shadow-catching floor. Pick the quality, then **Render** and **Save PNG**. Click the view to return to the live model. |
 | Analysis | **Section** cuts the part with the Front, Top or Right plane (offset, flip) and shows the cut faces. **Draft Analysis** colours faces green, red or yellow by draft against a pull direction. **Zebra** shows stripes for judging surface smoothness. |
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
+| Units | **Units** switches the part between MMGS, CGS, MKS and IPS. Lengths show in that unit everywhere (fields, sketch and drawing dimensions); type a bare number in the document unit or add a unit (25mm, 1in, 2.5cm). |
 | Properties | **Properties** holds custom properties as Name = value; values can use {Mass}, {Volume}, {Material}, {Configuration}, other properties and global variables. Description and PartNumber show in assembly BOMs and drawing title blocks. |
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
 | Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES, STL, 3MF or OBJ. |
@@ -331,7 +332,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Convert entities, intersection curves *(convert model edges and face outlines as fixed geometry; intersection curves not yet)*
 - [x] Construction geometry
 - [ ] Sketch blocks
-- [ ] Units, document properties, and dimension display settings
+- [~] Units, document properties, and dimension display settings *(MMGS/CGS/MKS/IPS per part; values typed with any unit suffix)*
 
 **How the sketcher works.** Each entity is a set of parameters (coordinates and radii). Each relation or dimension is one or more equations with exact derivatives, and every derivative is checked against finite differences in the tests. A Levenberg–Marquardt solver takes minimum-norm steps, so geometry the constraints don't pin down stays where you left it. Dragging uses a weighted version of the same step, so the dragged point gives way last. The status (under-, fully, or over-defined) comes from the rank of the constraint Jacobian, computed with Gram–Schmidt orthogonalization in the order relations were added. That pinpoints which relation made the sketch redundant and which parameters are still free.
 

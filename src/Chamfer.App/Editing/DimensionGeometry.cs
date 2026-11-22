@@ -33,9 +33,9 @@ public static class DimensionGeometry
         var text = dim switch
         {
             AngleConstraint => (v * 180 / Math.PI).ToString("0.##", CultureInfo.InvariantCulture) + "°",
-            RadialDimensionConstraint { IsDiameter: true } => "⌀" + v.ToString("0.###", CultureInfo.InvariantCulture),
-            RadialDimensionConstraint => "R" + v.ToString("0.###", CultureInfo.InvariantCulture),
-            _ => v.ToString("0.###", CultureInfo.InvariantCulture),
+            RadialDimensionConstraint { IsDiameter: true } => "⌀" + DisplayUnits.Format(v),
+            RadialDimensionConstraint => "R" + DisplayUnits.Format(v),
+            _ => DisplayUnits.Format(v),
         };
         return dim.IsDriving ? text : $"({text})";
     }

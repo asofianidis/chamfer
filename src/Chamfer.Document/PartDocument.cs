@@ -73,6 +73,9 @@ public sealed class PartDocument
     /// <summary>Mate references used to mate this part automatically when it's inserted into an assembly.</summary>
     public List<MateReference> MateReferences { get; } = [];
 
+    /// <summary>The length unit the part is shown and edited in (geometry is always millimetres).</summary>
+    public Geometry.LengthUnit Units { get; set; } = Geometry.LengthUnit.Millimeter;
+
     /// <summary>Global variables, usable in equations for feature parameters and sketch dimensions.</summary>
     public List<GlobalVariable> Variables { get; } = [];
 
@@ -429,6 +432,7 @@ public sealed class PartDocument
         public string? ActiveConfiguration { get; set; }
         public List<CustomProperty>? Properties { get; set; }
         public List<MateReference>? MateReferences { get; set; }
+        public Geometry.LengthUnit? Units { get; set; }
         public List<Feature> Features { get; set; } = [];
     }
 
@@ -443,6 +447,7 @@ public sealed class PartDocument
         ActiveConfiguration = ActiveConfiguration == "Default" ? null : ActiveConfiguration,
         Properties = Properties.Count > 0 ? Properties : null,
         MateReferences = MateReferences.Count > 0 ? MateReferences : null,
+        Units = Units == Geometry.LengthUnit.Millimeter ? null : Units,
         Features = Features,
     }, Options);
 
@@ -463,6 +468,7 @@ public sealed class PartDocument
         doc.Variables.AddRange(dto.Variables ?? []);
         doc.Properties.AddRange(dto.Properties ?? []);
         doc.MateReferences.AddRange(dto.MateReferences ?? []);
+        doc.Units = dto.Units ?? Geometry.LengthUnit.Millimeter;
         if (dto.Configurations is { Count: > 0 } configs)
         {
             doc.Configurations.Clear();

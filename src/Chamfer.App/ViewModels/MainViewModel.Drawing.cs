@@ -162,6 +162,8 @@ public sealed partial class MainViewModel
             return;
         }
 
+        Chamfer.App.Editing.DisplayUnits.Length = drawing.LengthUnit;
+
         try
         {
             SheetGraphics = _drawingRenderer.Render(sheet);

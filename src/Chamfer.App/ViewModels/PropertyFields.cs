@@ -28,7 +28,7 @@ public sealed partial class NumberField : PropertyField
         Func<string?>? getLink = null, Action<string?>? setLink = null)
         : base(label)
     {
-        Unit = unit;
+        _baseUnit = unit;
         _read = read;
         _apply = apply;
         _getLink = getLink;
@@ -42,7 +42,12 @@ public sealed partial class NumberField : PropertyField
     /// <summary>True when the value comes from an equation.</summary>
     public bool IsLinked => _getLink?.Invoke() is not null;
 
-    public string Unit { get; }
+    private readonly string _baseUnit;
+
+    /// <summary>Lengths (given in mm) show in the document's unit.</summary>
+    private bool IsLength => _baseUnit == "mm";
+
+    public string Unit => IsLength ? DisplayUnits.Suffix : _baseUnit;
     public double Min { get; }
     public bool IsInteger { get; }
     public IRelayCommand CommitCommand { get; }
@@ -53,7 +58,7 @@ public sealed partial class NumberField : PropertyField
     [ObservableProperty]
     public partial bool HasError { get; set; }
 
-    private string Format(double v) => v.ToString(IsInteger ? "0" : "0.####", CultureInfo.InvariantCulture);
+    private string Format(double v) => IsLength ? DisplayUnits.Format(v) : v.ToString(IsInteger ? "0" : "0.####", CultureInfo.InvariantCulture);
 
     /// <summary>Parses the text and applies it; restores the old value if it doesn't parse.</summary>
     public void Commit()
@@ -95,7 +100,7 @@ public sealed partial class NumberField : PropertyField
                 return;
             }
         }
-        else if (!ValueParser.TryParse(Text, out value))
+        else if (IsLength ? !DisplayUnits.TryParse(Text, out value) : !ValueParser.TryParse(Text, out value))
         {
             HasError = true;
             return;

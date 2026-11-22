@@ -300,6 +300,9 @@ public sealed class DrawingDocument
         }
     }
 
+    /// <summary>Units for dimension values: the part's units (assemblies use millimetres).</summary>
+    public LengthUnit LengthUnit => IsAssembly ? LengthUnit.Millimeter : Model.Units;
+
     /// <summary>The material shown in the title block.</summary>
     public string MaterialName => IsAssembly ? "See BOM" : Model.Material.Name;
 

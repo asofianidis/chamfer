@@ -696,4 +696,37 @@ public class PartWorkflowTests
         Assert.Equal(30, box.Center.X, 1e-6);
         Assert.Equal(20, box.Center.Y, 1e-6);
     }
+
+    [Fact]
+    public void InchUnitsForEntryAndDisplay()
+    {
+        var vm = new MainViewModel();
+        vm.ShowUnitsCommand.Execute(null);
+        vm.Editor!.Fields.OfType<ChoiceField>().Single().Index = 3; // IPS
+        Assert.Equal(Geometry.LengthUnit.Inch, vm.Document.Units);
+        Assert.StartsWith("IPS", vm.StatusText, StringComparison.Ordinal);
+
+        vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+        vm.NewSketchCommand.Execute(null);
+        var editor = vm.Sketch!.Editor;
+        editor.BeginChange();
+        var sides = editor.Sketch.AddCornerRectangle(new Vec2(0, 0), new Vec2(50.8, 25.4));
+        var width = editor.Sketch.AddConstraint(new Chamfer.Sketching.Constraints.DistanceConstraint(sides[0], 50.8));
+        editor.EndChange(solve: true);
+        Assert.Equal("2", Chamfer.App.Editing.DimensionGeometry.FormatValue(width)); // 50.8 mm shows as 2 in
+
+        vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+        var depth = vm.Editor!.Fields.OfType<NumberField>().Single(f => f.Label == "Depth");
+        Assert.Equal("in", depth.Unit);
+        depth.Text = "0.5";
+        depth.Commit();
+        Assert.Equal(12.7, ((ExtrudeFeature)vm.Editor.Feature!).Depth, 1e-9);
+        Assert.Equal("0.5", depth.Text);
+        depth.Text = "10mm";
+        depth.Commit();
+        Assert.Equal(10, ((ExtrudeFeature)vm.Editor.Feature!).Depth, 1e-9);
+        Assert.Equal("0.3937", depth.Text);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(50.8 * 25.4 * 10, vm.Document.MassProperties().Volume, 0.1); // the height is undimensioned
+    }
 }

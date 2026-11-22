@@ -217,6 +217,7 @@
           <Button Classes="command" Content="Measure" Command="{Binding MeasureCommand}" />
           <Button Classes="command" Content="Equations" Command="{Binding ShowEquationsCommand}" ToolTip.Tip="Global variables and equations" />
           <Button Classes="command" Content="Properties" Command="{Binding ShowPropertiesCommand}" ToolTip.Tip="Custom properties: description, part number and more" />
+          <Button Classes="command" Content="Units" Command="{Binding ShowUnitsCommand}" ToolTip.Tip="Document units: millimetres, centimetres, metres or inches" />
           <Button Classes="command" Content="Configurations" Command="{Binding ShowConfigurationsCommand}" ToolTip.Tip="Configurations and design tables" />
           <Button Classes="command" Content="Macro" Command="{Binding ShowMacrosCommand}" ToolTip.Tip="Run, record and save C# macros" />
         </WrapPanel>
