@@ -94,6 +94,7 @@ public sealed partial class SketchViewModel : ViewModelBase
             MakeTool("spline", "Spline", "S", "Smooth curve through points: click points, double-click to finish", () => new SplineTool()),
             MakeTool("arc-3pt", "3-Pt Arc", "A", "Arc through start, end and a third point", () => new ThreePointArcTool()),
             MakeTool("arc-center", "Center Arc", "", "Arc from center, start and end", () => new CenterArcTool()),
+            MakeTool("arc-tangent", "Tangent Arc", "", "Arc leaving the end of a line or arc tangentially", () => new TangentArcTool()),
             MakeTool("polygon", "Polygon", "G", "Regular polygon", () => new PolygonTool(() => PolygonSides)),
             MakeTool("slot", "Slot", "T", "Straight slot", () => new SlotTool()),
             MakeTool("point", "Point", "P", "Sketch point", () => new PointTool()),

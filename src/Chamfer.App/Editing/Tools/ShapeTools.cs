@@ -431,3 +431,74 @@ public sealed class SplineTool : SketchTool
         Editor.Invalidate();
     }
 }
+
+/// <summary>Tangent arc: starts at the end of a line or arc and leaves tangent to it.</summary>
+public sealed class TangentArcTool : ClickTool
+{
+    public override string Id => "arc-tangent";
+    protected override int ClicksNeeded => 2;
+    protected override IReadOnlyList<string> Steps => ["Click the end of a line or arc.", "Click the end of the arc."];
+
+    /// <summary>The curve the arc continues, and its direction leaving the start point.</summary>
+    private static (SketchEntity Curve, Vec2 Direction)? Leaving(Snap start)
+    {
+        if (start is not { Kind: SnapKind.Point, Target: SketchPoint p } || p.Owner is not { } owner)
+        {
+            return null;
+        }
+
+        return owner switch
+        {
+            SketchLine l when ReferenceEquals(p, l.End) => (l, (l.End.Position - l.Start.Position).Normalized()),
+            SketchLine l when ReferenceEquals(p, l.Start) => (l, (l.Start.Position - l.End.Position).Normalized()),
+            SketchArc a when ReferenceEquals(p, a.End) => (a, (a.End.Position - a.Center.Position).Perp().Normalized()),
+            SketchArc a when ReferenceEquals(p, a.Start) => (a, (a.Start.Position - a.Center.Position).Perp().Normalized() * -1),
+            _ => null,
+        };
+    }
+
+    /// <summary>The arc's centre for a start, its tangent there and an end; null when the end is straight ahead.</summary>
+    public static (Vec2 Center, bool Ccw)? Solve(Vec2 s, Vec2 dir, Vec2 e)
+    {
+        var n = new Vec2(-dir.Y, dir.X); // left of the direction of travel
+        var se = s - e;
+        var denom = 2 * Vec2.Dot(n, se);
+        if (Math.Abs(denom) < 1e-12)
+        {
+            return null;
+        }
+
+        var r = -Vec2.Dot(se, se) / denom;
+        return (s + (n * r), r > 0); // centre on the left: counter-clockwise
+    }
+
+    protected override IEnumerable<PreviewItem> ShapePreview(IReadOnlyList<Vec2> p)
+    {
+        if (Clicks.Count == 0 || Leaving(Clicks[0]) is not { } leaving || Solve(p[0], leaving.Direction, p[1]) is not { } arc)
+        {
+            return [new PreviewLine(p[0], p[1])];
+        }
+
+        var a0 = (p[0] - arc.Center).Angle;
+        var a1 = (p[1] - arc.Center).Angle;
+        var sweep = arc.Ccw ? ((a1 - a0) % (2 * Math.PI) + (2 * Math.PI)) % (2 * Math.PI) : -(((a0 - a1) % (2 * Math.PI) + (2 * Math.PI)) % (2 * Math.PI));
+        var r = Vec2.Distance(p[0], arc.Center);
+        var pts = Enumerable.Range(0, 33).Select(k => arc.Center + Vec2.FromAngle(a0 + (sweep * k / 32), r)).ToList();
+        return [.. pts.Zip(pts.Skip(1), (a, b) => (PreviewItem)new PreviewLine(a, b))];
+    }
+
+    protected override void Create(IReadOnlyList<Snap> clicks)
+    {
+        var leaving = Leaving(clicks[0]) ?? throw new ArgumentException("Start a tangent arc on the end of a line or arc.");
+        var (s, e) = (clicks[0].Position, clicks[1].Position);
+        var solved = Solve(s, leaving.Direction, e) ?? throw new ArgumentException("That end is straight ahead; use a line.");
+        var arc = solved.Ccw ? new SketchArc(solved.Center, s, e) : new SketchArc(solved.Center, e, s);
+        Editor.Sketch.Add(arc);
+        var start = solved.Ccw ? arc.Start : arc.End;
+        Editor.AddAutoRelations([new CoincidentConstraint((SketchPoint)clicks[0].Target!, start), new TangentConstraint(leaving.Curve, arc)]);
+        if (clicks[1] is { Kind: SnapKind.Point, Target: SketchPoint endPoint })
+        {
+            Editor.AddAutoRelations([new CoincidentConstraint(endPoint, solved.Ccw ? arc.End : arc.Start)]);
+        }
+    }
+}

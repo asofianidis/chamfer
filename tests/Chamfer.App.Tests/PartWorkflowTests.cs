@@ -960,4 +960,16 @@ public class PartWorkflowTests
             }
         }
     }
+
+    [Fact]
+    public void TangentArcGeometry()
+    {
+        var left = Chamfer.App.Editing.Tools.TangentArcTool.Solve(Vec2.Zero, new Vec2(1, 0), new Vec2(10, 10))!.Value;
+        Assert.True(left.Ccw);
+        Assert.True(Vec2.Distance(left.Center, new Vec2(0, 10)) < 1e-12);
+        var right = Chamfer.App.Editing.Tools.TangentArcTool.Solve(Vec2.Zero, new Vec2(1, 0), new Vec2(10, -10))!.Value;
+        Assert.False(right.Ccw);
+        Assert.True(Vec2.Distance(right.Center, new Vec2(0, -10)) < 1e-12);
+        Assert.Null(Chamfer.App.Editing.Tools.TangentArcTool.Solve(Vec2.Zero, new Vec2(1, 0), new Vec2(10, 0)));
+    }
 }
