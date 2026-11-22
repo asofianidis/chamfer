@@ -391,7 +391,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Interference detection, clearance verification *(interference volumes)*
 - [~] Exploded views and explode lines *(automatic radial explode)*
 - [~] Component patterns, mirror components *(linear and circular component patterns)*
-- [ ] In-context (top-down) design with external references
+- [~] In-context (top-down) design with external references *(sketch on another component's face into a new or existing part, kept up to date as the source changes or moves; lock and break references)*
 - [~] Assembly features: cuts and holes *(assembly cuts: circle or rectangle profiles, through all or to a depth, per component)*
 - [x] Bill of Materials data model
 - [~] Large-assembly mode: lightweight components, LOD, instancing, frustum culling *(instanced component meshes, frustum culling)*

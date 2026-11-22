@@ -1,11 +1,10 @@
-using Chamfer.Document;
 using Chamfer.Geometry;
 using Chamfer.Kernel.Occt;
 using Chamfer.Sketching;
 using Chamfer.Sketching.Constraints;
 using Chamfer.Sketching.Entities;
 
-namespace Chamfer.App.Part;
+namespace Chamfer.Document;
 
 /// <summary>Projects model edges onto a sketch plane as fixed sketch geometry (Convert Entities).</summary>
 public static class EdgeProjection

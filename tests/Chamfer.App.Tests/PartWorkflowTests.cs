@@ -1075,4 +1075,44 @@ public class PartWorkflowTests
         Assert.Null(vm.Editor!.Message);
         vm.AcceptEditorCommand.Execute(null);
     }
+
+    [Fact]
+    public void InContextPartFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        var plate = new PartDocument();
+        var outline = new Sketch();
+        outline.AddCornerRectangle(new Vec2(0, 0), new Vec2(30, 20));
+        var sf = plate.Add(new SketchFeature { Sketch = outline });
+        plate.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 5 });
+        var source = vm.InsertPart("plate.chprt", plate);
+        var asm = vm.AssemblyDoc!;
+        var body = asm.PartOf(source).Bodies[0];
+        var top = Enumerable.Range(1, body.FaceCount).First(i => body.Face(i).Normal.Z > 0.99);
+        vm.SetSelection([new SelectionItem(SelectionKind.Face, body.FaceRef(top), Label: "Face", ComponentId: source.Id)]);
+
+        vm.AssemblyCommands.Single(c => c.Label == "Sketch in Context").Command.Execute(null);
+        vm.AcceptEditorCommand.Execute(null);
+        var made = Assert.Single(asm.Components, c => c.Id != source.Id);
+        Assert.Equal(30 * 20 * 2, asm.PartOf(made).Bodies[0].Shape.MassProperties.Volume, 1e-6);
+
+        // Moving the source updates the new part.
+        if (source.Fixed)
+        {
+            vm.SetSelection([new SelectionItem(SelectionKind.Feature, FeatureId: source.Id, Label: source.Name, ComponentId: source.Id)]);
+            vm.AssemblyCommands.Single(c => c.Label == "Fix / Float").Command.Execute(null);
+        }
+
+        vm.SetSelection([new SelectionItem(SelectionKind.Feature, FeatureId: source.Id, Label: source.Name, ComponentId: source.Id)]);
+        vm.AssemblyCommands.Single(c => c.Label == "Move").Command.Execute(null);
+        var moveZ = vm.Editor!.Fields.OfType<NumberField>().Single(f => f.Label == "Move Z");
+        moveZ.Text = "7";
+        moveZ.Commit();
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(12, asm.PlacedBodies(made).Single().Placed.Bounds.Min.Z, 1e-6);
+
+        vm.AssemblyCommands.Single(c => c.Label == "External References").Command.Execute(null);
+        Assert.Single(vm.Editor!.Fields.OfType<BoolField>(), f => f.Label.StartsWith("Lock ", StringComparison.Ordinal));
+    }
 }

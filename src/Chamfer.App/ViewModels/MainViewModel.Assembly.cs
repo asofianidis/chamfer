@@ -64,6 +64,8 @@ public sealed partial class MainViewModel
         new("Import STEP", "Open a STEP assembly as parts and an assembly", new AsyncRelayCommand(ImportStepAssemblyAsync), "⇩"),
         new("Explode", "Spread the components apart (toggle)", new RelayCommand(() => Exploded = !Exploded), "✳"),
         new("Open Part", "Edit the selected component's part", new RelayCommand(OpenSelectedPart), "↗"),
+        new("Sketch in Context", "Build a part from the selected face of another component", new RelayCommand(StartSketchInContext), "⇢"),
+        new("External References", "In-context references between parts: lock or break them", new RelayCommand(ShowExternalReferences), "⛓"),
     ];
 
     private IReadOnlyList<CommandItem>? _assemblyCommands;
@@ -562,6 +564,7 @@ public sealed partial class MainViewModel
         var asm = AssemblyDoc!;
         DisplayUnits.Length = LengthUnit.Millimeter;
         _lastSolve = asm.Solve();
+        UpdateInContext(asm);
         var selectedTag = SelectedNode?.Tag;
         Tree.Clear();
         foreach (var c in asm.Components)
