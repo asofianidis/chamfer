@@ -126,4 +126,32 @@ public class ReferenceGeometryTests
         doc.Rebuild();
         Assert.Equal(FeatureStatus.Error, doc.Results[boss.Id].Status);
     }
+
+    [Fact]
+    public void WallThicknessAndUndercuts()
+    {
+        // A 40 x 40 x 10 block with a pocket 8 deep: the floor under it is 2 mm.
+        var doc = Box(40, 40, 10);
+        var body = doc.Bodies[0];
+        var top = body.FaceRef(Enumerable.Range(1, body.FaceCount).First(i => body.Face(i).Normal.Z > 0.99));
+        var pocket = new Sketch();
+        pocket.AddCenterRectangle(Vec2.Zero, new Vec2(10, 10));
+        var pf = doc.Add(new SketchFeature { Plane = new PlaneRef(Face: top), Sketch = pocket });
+        doc.Add(new ExtrudeFeature { SketchId = pf.Id, IsCut = true, Depth = 8 });
+        doc.Rebuild();
+        AssertOk(doc);
+        var thickness = MeshAnalysis.Thickness(doc.Bodies[0].Mesh);
+        Assert.Equal(2, thickness.Where(double.IsFinite).Min(), 1e-3);
+        Assert.Equal(40, thickness.Where(double.IsFinite).Max(), 1e-3);
+
+        // Pulled along Z, the pocket is fine; a hole drilled across (along X) is an undercut.
+        Assert.DoesNotContain(true, MeshAnalysis.Undercuts(doc.Bodies[0].Mesh, Vec3.UnitZ));
+        var cross = new Sketch();
+        cross.AddCircle(new Vec2(-5, 20), 2); // on the Right plane (u, v) is (-z, y): z = 5 (half height), y = 20
+        var cf = doc.Add(new SketchFeature { Plane = PlaneRef.Right, Sketch = cross });
+        doc.Add(new ExtrudeFeature { SketchId = cf.Id, IsCut = true, EndCondition = EndCondition.ThroughAll, HasDirection2 = true, EndCondition2 = EndCondition.ThroughAll });
+        doc.Rebuild();
+        AssertOk(doc);
+        Assert.Contains(true, MeshAnalysis.Undercuts(doc.Bodies[0].Mesh, Vec3.UnitZ));
+    }
 }

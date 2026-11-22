@@ -1400,4 +1400,24 @@ public class PartWorkflowTests
         vm.AcceptEditorCommand.Execute(null);
         Assert.Equal("toolbox:Bearing 6204", Assert.Single(vm.AssemblyDoc!.Components).Path);
     }
+
+    [Fact]
+    public void ThicknessAndUndercutAnalysis()
+    {
+        var vm = BlockOnFront(40, 20, 3); // a 3 mm plate
+        vm.ToggleThicknessAnalysisCommand.Execute(null);
+        Assert.Equal("3 mm", vm.Editor!.Fields.OfType<InfoField>().Single(f => f.Label == "Thinnest wall").Text);
+        var scene = vm.BuildScene();
+        Assert.All(scene.Meshes, m => Assert.NotNull(m.VertexColors)); // 3 mm against 2: green
+
+        var min = vm.Editor.Fields.OfType<NumberField>().Single();
+        min.Text = "5";
+        min.Commit();
+        var red = Chamfer.Viewport.Rgba.FromHex(0xEF4444);
+        Assert.Contains(vm.BuildScene().Meshes.SelectMany(m => m.VertexColors!), c => c == red);
+
+        vm.ToggleUndercutAnalysisCommand.Execute(null);
+        Assert.False(vm.ThicknessAnalysis);
+        Assert.DoesNotContain(vm.BuildScene().Meshes.SelectMany(m => m.VertexColors!), c => c == red); // a plate has no undercuts
+    }
 }
