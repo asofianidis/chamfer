@@ -214,6 +214,21 @@ public sealed class RenderTests
         viewport.SetView(StandardView.Isometric);
         Capture(window, $"assembly-{theme}");
 
+        // An assembly drawing with a BOM and balloons, then back to the assembly.
+        vm.NewDrawingCommand.Execute(null);
+        Assert.True(vm.IsDrawingMode);
+        vm.DrawingCommands.Single(c => c.Label == "BOM Table").Command.Execute(null);
+        vm.DrawingCommands.Single(c => c.Label == "Auto Balloon").Command.Execute(null);
+        Assert.Equal(2, vm.CurrentSheet!.Balloons.Count);
+        Assert.Contains(vm.SheetGraphics!.Items.OfType<Chamfer.Drawing.TextPrimitive>(), t => t.Text == "PART NUMBER");
+        window.FindControl<Controls.DrawingCanvas>("Sheet")!.Fit();
+        Capture(window, $"assembly-drawing-{theme}");
+        vm.DrawingCommands.Single(c => c.Label == "Add Sheet").Command.Execute(null);
+        Assert.Equal(2, vm.DrawingDoc!.Sheets.Count);
+        Assert.Equal(1, vm.SheetIndex);
+        vm.CloseDrawingCommand.Execute(null);
+        Assert.True(vm.IsAssemblyMode);
+
         // Edit the pin's part in place and come back.
         vm.SelectedNode = vm.Tree.First(n => n.Tag == pin);
         vm.AssemblyCommands.Single(c => c.Label == "Open Part").Command.Execute(null);

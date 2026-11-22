@@ -1,4 +1,5 @@
 using System.Globalization;
+using Chamfer.Assembly;
 using Chamfer.Document;
 using Chamfer.Geometry;
 using Chamfer.Kernel.Occt;
@@ -67,7 +68,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
     {
         ArgumentNullException.ThrowIfNull(sheet);
         ArgumentNullException.ThrowIfNull(view);
-        var bodies = doc.Model.Bodies;
+        var bodies = doc.Bodies;
         if (!ReferenceEquals(bodies, _bodies))
         {
             _cache.Clear();
@@ -94,7 +95,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
 
     private Shape? Compound()
     {
-        var bodies = doc.Model.Bodies;
+        var bodies = doc.Bodies;
         return bodies.Count == 0 ? null : bodies.Count == 1 ? bodies[0].Shape : Modeling.Compound([.. bodies.Select(b => b.Shape)]);
     }
 
@@ -367,6 +368,11 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             }
         }
 
+        if (doc.IsAssembly)
+        {
+            BomAndBalloons(g, sheet);
+        }
+
         foreach (var n in sheet.Notes)
         {
             var lines = n.Text.Split('\n');
@@ -429,7 +435,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
     private void CenterMarks(SheetGraphics g, ViewGeometry vg)
     {
         var done = new List<Point2>();
-        foreach (var body in doc.Model.Bodies)
+        foreach (var body in doc.Bodies)
         {
             for (var i = 1; i <= body.EdgeCount; i++)
             {
@@ -465,7 +471,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         ArgumentNullException.ThrowIfNull(anchor);
         if (anchor.Edge is { } r)
         {
-            foreach (var body in doc.Model.Bodies)
+            foreach (var body in doc.Bodies)
             {
                 if (!body.HasEdge(r.Name))
                 {
@@ -605,6 +611,95 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         g.Text(textAt, Label(value), textHeight, TextAnchor.Center, angle, owner);
     }
 
+    /// <summary>Item numbers by component id: one number per distinct part and configuration, in BOM order.</summary>
+    public IReadOnlyDictionary<string, int> ItemNumbers()
+    {
+        var asm = doc.Assembly;
+        var bom = AssemblyTools.BillOfMaterials(asm);
+        var groups = asm.Components.Where(c => !c.Suppressed).GroupBy(c => (c.Path, c.Configuration)).ToList();
+        var numbers = new Dictionary<string, int>();
+        for (var i = 0; i < groups.Count && i < bom.Count; i++)
+        {
+            foreach (var c in groups[i])
+            {
+                numbers[c.Id] = bom[i].Item;
+            }
+        }
+
+        return numbers;
+    }
+
+    /// <summary>The point a balloon's leader attaches to: the component's centre in the view.</summary>
+    public Point2 BalloonAnchor(Sheet sheet, Balloon b)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(b);
+        var view = sheet.Views.Find(v => v.Id == b.ViewId) ?? throw new InvalidOperationException("Balloon view missing.");
+        var vg = Geometry(sheet, view);
+        var box = doc.Bodies.Where(x => x.Name == b.ComponentId).Aggregate(Box3.Empty, (acc, x) => acc.Union(x.Shape.Bounds));
+        return vg.ToSheet(box.IsEmpty ? Vec3.Zero : box.Center);
+    }
+
+    private void BomAndBalloons(SheetGraphics g, Sheet sheet)
+    {
+        var asm = doc.Assembly;
+        var numbers = ItemNumbers();
+        foreach (var b in sheet.Balloons)
+        {
+            if (!numbers.TryGetValue(b.ComponentId, out var item) || sheet.Views.Find(v => v.Id == b.ViewId) is null)
+            {
+                continue;
+            }
+
+            const double r = 4.5;
+            var center = new Point2(b.X, b.Y);
+            var anchor = BalloonAnchor(sheet, b);
+            var dir = (anchor - center).Normalized();
+            g.Line(Pen.Thin, center + (dir * r), anchor, b.ComponentId);
+            g.Circle(Pen.Thin, anchor, 0.5, b.ComponentId, 12);
+            g.Circle(Pen.Thin, center, r, b.ComponentId);
+            g.Text(center - new Point2(0, 1.6), item.ToString(CultureInfo.InvariantCulture), 3.5, TextAnchor.Center, owner: b.ComponentId);
+        }
+
+        if (sheet.Bom is not { } table)
+        {
+            return;
+        }
+
+        var lines = AssemblyTools.BillOfMaterials(asm);
+        double[] widths = [14, 70, 34, 14];
+        string[] header = ["ITEM", "PART NUMBER", "MATERIAL", "QTY"];
+        const double rowH = 7;
+        var x0 = table.X;
+        var y = table.Y;
+        var total = widths.Sum();
+        void Row(IReadOnlyList<string> cells, bool bold)
+        {
+            g.Polyline(Pen.Thin, [new(x0, y), new(x0 + total, y), new(x0 + total, y - rowH), new(x0, y - rowH)], closed: true, owner: "bom");
+            var x = x0;
+            for (var c = 0; c < cells.Count; c++)
+            {
+                if (c > 0)
+                {
+                    g.Line(Pen.Thin, new Point2(x, y), new Point2(x, y - rowH), "bom");
+                }
+
+                var anchor = c == 1 ? TextAnchor.Left : TextAnchor.Center;
+                var at = anchor == TextAnchor.Left ? new Point2(x + 2, y - rowH + 2) : new Point2(x + (widths[c] / 2), y - rowH + 2);
+                g.Text(at, cells[c], bold ? 3 : 2.8, anchor, owner: "bom");
+                x += widths[c];
+            }
+
+            y -= rowH;
+        }
+
+        Row(header, bold: true);
+        foreach (var l in lines)
+        {
+            Row([l.Item.ToString(CultureInfo.InvariantCulture), l.PartName, l.Material, l.Quantity.ToString(CultureInfo.InvariantCulture)], bold: false);
+        }
+    }
+
     /// <summary>Border, zone ticks and title block.</summary>
     private void Frame(SheetGraphics g, Sheet sheet)
     {
@@ -627,7 +722,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
         g.Text(new Point2(x0 + 3, y0 + 23), title, 6);
         g.Text(new Point2(x0 + tw - 3, y0 + 26), P("Company", string.Empty), 3, TextAnchor.Right);
         g.Text(new Point2(x0 + tw - 3, y0 + 20), P("Number", string.Empty), 3.5, TextAnchor.Right);
-        g.Text(new Point2(x0 + 3, y0 + 10), $"MATERIAL: {P("Material", doc.Model.Material.Name)}", 2.5);
+        g.Text(new Point2(x0 + 3, y0 + 10), $"MATERIAL: {P("Material", doc.MaterialName)}", 2.5);
         g.Text(new Point2(x0 + 3, y0 + 4), $"DRAWN: {P("Author", string.Empty)}  {P("Date", DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))}", 2.5);
         g.Text(new Point2(x0 + (tw * 0.6) + 2, y0 + 10), "SCALE", 2);
         g.Text(new Point2(x0 + (tw * 0.6) + 2, y0 + 4), Scales.Format(sheet.Scale), 3);

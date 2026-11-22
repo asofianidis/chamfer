@@ -220,4 +220,36 @@ public class DrawingTests
         var dxf = Exporters.Dxf(g);
         Assert.Contains("CENTER", dxf, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void AssemblyDrawingWithBomAndBalloons()
+    {
+        var asm = new Chamfer.Assembly.AssemblyDocument();
+        var (plate, _) = Part();
+        asm.RegisterPart("plate.chprt", plate);
+        asm.AddComponent("plate.chprt");
+        asm.AddComponent("toolbox:ISO4762 M10x30", Transform3.Translation(new Vec3(40, 25, 20)));
+        asm.AddComponent("toolbox:ISO7089 M10", Transform3.Translation(new Vec3(40, 25, 20)));
+        asm.AddComponent("toolbox:ISO7089 M10", Transform3.Translation(new Vec3(40, 25, -2)));
+
+        var drawing = new DrawingDocument { ModelPath = "bracket.chasm" };
+        drawing.SetAssembly(asm);
+        Assert.True(drawing.IsAssembly);
+        var sheet = drawing.Sheets[0];
+        var views = drawing.AddStandardViews(sheet);
+        var renderer = new DrawingRenderer(drawing);
+        sheet.Bom = new BomTable { X = 30, Y = 280 };
+        var balloons = drawing.AutoBalloon(sheet, views[^1], renderer);
+        Assert.Equal(3, balloons.Count); // plate, screw, washer (two washers share an item)
+
+        var numbers = renderer.ItemNumbers();
+        Assert.Equal(numbers[asm.Components[2].Id], numbers[asm.Components[3].Id]);
+        var g = renderer.Render(sheet);
+        var texts = g.Items.OfType<TextPrimitive>().Select(t => t.Text).ToList();
+        Assert.Contains("PART NUMBER", texts);
+        Assert.Contains("ISO 4762 M10x30", texts);
+        Assert.Contains("ISO 7089 M10", texts);
+        Assert.Contains("2", texts); // washer quantity
+        Assert.Contains("MATERIAL: See BOM", texts);
+    }
 }

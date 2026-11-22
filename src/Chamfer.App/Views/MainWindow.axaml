@@ -100,7 +100,7 @@
         <WrapPanel Orientation="Horizontal">
           <Button Classes="tool" Content="New Part" Command="{Binding NewCommand}" ToolTip.Tip="New part (Ctrl+N)" />
           <Button Classes="tool" Content="New Assembly" Command="{Binding NewAssemblyCommand}" ToolTip.Tip="New assembly" />
-          <Button Classes="tool" Content="New Drawing" Command="{Binding NewDrawingCommand}" ToolTip.Tip="New drawing of the current part" IsVisible="{Binding IsPartMode}" />
+          <Button Classes="tool" Content="New Drawing" Command="{Binding NewDrawingCommand}" ToolTip.Tip="New drawing of the current part or assembly" IsVisible="{Binding IsModelMode}" />
           <Button Classes="tool" Content="Close Drawing" Command="{Binding CloseDrawingCommand}" ToolTip.Tip="Back to the part" IsVisible="{Binding IsDrawingMode}" />
           <Button Classes="tool" Content="Open" Command="{Binding OpenCommand}" ToolTip.Tip="Open a part (Ctrl+O)" />
           <Button Classes="tool" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save (Ctrl+S)" />

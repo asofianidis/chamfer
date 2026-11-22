@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Chamfer.Assembly;
 using Chamfer.Document;
 using Chamfer.Geometry;
 
@@ -119,6 +120,28 @@ public sealed class DrawingView
     public string Label { get; set; } = string.Empty;
 }
 
+/// <summary>A bill of materials table on a sheet (assembly drawings).</summary>
+public sealed class BomTable
+{
+    /// <summary>Top-left corner on the sheet (mm).</summary>
+    public double X { get; set; }
+
+    public double Y { get; set; }
+}
+
+/// <summary>A numbered balloon pointing at a component in a view.</summary>
+public sealed class Balloon
+{
+    public string ViewId { get; set; } = string.Empty;
+
+    public string ComponentId { get; set; } = string.Empty;
+
+    /// <summary>Balloon centre on the sheet (mm).</summary>
+    public double X { get; set; }
+
+    public double Y { get; set; }
+}
+
 /// <summary>One sheet of a drawing.</summary>
 public sealed class Sheet
 {
@@ -136,6 +159,10 @@ public sealed class Sheet
     public List<DrawingDimension> Dimensions { get; set; } = [];
 
     public List<Note> Notes { get; set; } = [];
+
+    public BomTable? Bom { get; set; }
+
+    public List<Balloon> Balloons { get; set; } = [];
 
     public (double Width, double Height) Dimensions2D
     {
@@ -198,7 +225,75 @@ public sealed class DrawingDocument
             Path.IsPathRooted(path) || Directory is null ? path : Path.GetFullPath(Path.Combine(Directory, path))));
     }
 
-    /// <summary>The rebuilt model.</summary>
+    /// <summary>True when the drawing shows an assembly (.chasm).</summary>
+    public bool IsAssembly => ModelPath.EndsWith("." + AssemblyDocument.FileExtension, StringComparison.OrdinalIgnoreCase) || _assembly is not null;
+
+    private AssemblyDocument? _assembly;
+    private (string Key, IReadOnlyList<Body> Bodies)? _assemblyBodies;
+
+    /// <summary>The assembly shown, for assembly drawings.</summary>
+    public AssemblyDocument Assembly
+    {
+        get
+        {
+            if (_assembly is null)
+            {
+                var path = Path.IsPathRooted(ModelPath) || Directory is null ? ModelPath : Path.GetFullPath(Path.Combine(Directory, ModelPath));
+                _assembly = AssemblyDocument.Load(File.ReadAllText(path), Path.GetDirectoryName(path));
+                _assembly.Solve();
+            }
+
+            return _assembly;
+        }
+    }
+
+    /// <summary>Uses an in-memory assembly.</summary>
+    public void SetAssembly(AssemblyDocument assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        _assembly = assembly;
+        _assemblyBodies = null;
+    }
+
+    /// <summary>
+    /// The solids the views show: the part's bodies, or every visible
+    /// component's bodies placed in the assembly (named after the component).
+    /// </summary>
+    public IReadOnlyList<Body> Bodies
+    {
+        get
+        {
+            if (!IsAssembly)
+            {
+                return Model.Bodies;
+            }
+
+            var asm = Assembly;
+            var visible = asm.Components.Where(c => !c.Suppressed && !c.Hidden).ToList();
+            var key = string.Join(';', visible.Select(c => $"{c.Id}:{c.Transform.GetHashCode()}:{asm.PartOf(c).State.GetHashCode()}"));
+            if (_assemblyBodies is { } cached && cached.Key == key)
+            {
+                return cached.Bodies;
+            }
+
+            var bodies = new List<Body>();
+            foreach (var c in visible)
+            {
+                foreach (var (body, placed) in asm.PlacedBodies(c))
+                {
+                    bodies.Add(new Body(placed, body.FaceNames, c.Id));
+                }
+            }
+
+            _assemblyBodies = (key, bodies);
+            return bodies;
+        }
+    }
+
+    /// <summary>The material shown in the title block.</summary>
+    public string MaterialName => IsAssembly ? "See BOM" : Model.Material.Name;
+
+    /// <summary>The rebuilt model (part drawings).</summary>
     public PartDocument Model
     {
         get
@@ -236,7 +331,7 @@ public sealed class DrawingDocument
     {
         ArgumentNullException.ThrowIfNull(sheet);
         var (w, h) = sheet.Dimensions2D;
-        var box = Model.Bodies.Aggregate(Box3.Empty, (b, x) => b.Union(x.Shape.Bounds));
+        var box = Bodies.Aggregate(Box3.Empty, (b, x) => b.Union(x.Shape.Bounds));
         var size = box.IsEmpty ? new Vec3(50, 50, 50) : box.Size;
 
         // Pick a standard scale that fits three views with margins.
@@ -303,6 +398,50 @@ public sealed class DrawingDocument
         (view.Ax, view.Ay, view.Radius) = (center.X, center.Y, radius);
         view.Scale = (parent.Scale ?? sheet.Scale) * magnification;
         return view;
+    }
+
+    /// <summary>
+    /// Adds one balloon per distinct part visible in a view, placed around the
+    /// view's outline in the direction of each component.
+    /// </summary>
+    public IReadOnlyList<Balloon> AutoBalloon(Sheet sheet, DrawingView view, DrawingRenderer renderer)
+    {
+        ArgumentNullException.ThrowIfNull(sheet);
+        ArgumentNullException.ThrowIfNull(view);
+        ArgumentNullException.ThrowIfNull(renderer);
+        var vg = renderer.Geometry(sheet, view);
+        var (min, max) = vg.SheetBounds;
+        var center = (min + max) * 0.5;
+        var radius = (Point2.Distance(min, max) / 2) + 18;
+        var added = new List<Balloon>();
+        var seen = new HashSet<(string, string?)>();
+        foreach (var c in Assembly.Components.Where(c => !c.Suppressed && !c.Hidden))
+        {
+            if (!seen.Add((c.Path, c.Configuration)))
+            {
+                continue;
+            }
+
+            var b = new Balloon { ViewId = view.Id, ComponentId = c.Id };
+            var anchor = renderer.BalloonAnchor(sheet, b);
+            var dir = anchor - center;
+            dir = dir.Length < 1e-6 ? new Point2(1, 1).Normalized() : dir.Normalized();
+
+            // Keep inside the frame, and spread balloons that would land on top of each other.
+            var (sw, sh) = sheet.Dimensions2D;
+            var at = center + (dir * radius);
+            at = new Point2(Math.Clamp(at.X, 18, sw - 18), Math.Clamp(at.Y, 18, sh - 18));
+            while (sheet.Balloons.Concat(added).Any(o => Point2.Distance(new Point2(o.X, o.Y), at) < 11))
+            {
+                at += dir.Perp() * 11;
+            }
+
+            (b.X, b.Y) = (at.X, at.Y);
+            added.Add(b);
+        }
+
+        sheet.Balloons.AddRange(added);
+        return added;
     }
 
     public DrawingDimension AddDimension(Sheet sheet, DrawingView view, DimensionKind kind, DimensionAnchor a, DimensionAnchor? b = null, double offset = 10)
