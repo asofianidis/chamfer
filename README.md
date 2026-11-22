@@ -4,7 +4,9 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **Status:** Pre-alpha. Planning and scaffolding. Nothing is usable yet. See the [Roadmap](#roadmap).
+> **Status:** Pre-alpha. The 2D sketcher (Phase 1) works: you can draw, constrain, dimension, and save sketches. There's no 3D modeling yet. See the [Roadmap](#roadmap).
+
+![The Chamfer sketcher: a fully defined, dimensioned rectangle (white) alongside under-defined geometry (blue), with the relations panel on the left](docs/images/sketcher-dark.png)
 
 > **Name:** A *chamfer* is a beveled edge, one of the first features every CAD user learns. The name is short, it's a real CAD term, and it doesn't borrow anyone's trademark.
 
@@ -91,7 +93,7 @@ They're Windows-only. Avalonia gives us one XAML-based UI that runs natively on 
 └───────┬──────────────────┬────────────────────┬──────────────────────┘
         │                  │                    │
 ┌───────▼───────┐  ┌───────▼────────┐  ┌────────▼────────┐  ┌──────────────────┐
-│ Chamfer.Sketch│  │ Chamfer.Features│ │ Chamfer.Assembly│  │ Chamfer.Drawing  │
+│Chamfer.Sketching│ Chamfer.Features│ │ Chamfer.Assembly│  │ Chamfer.Drawing  │
 │ 2D entities   │  │ Extrude, Revolve│ │ Mates, solver,  │  │ Views, HLR, dims,│
 │ Constraint    │  │ Fillet, Shell,  │ │ components, BOM │  │ annotations, BOM │
 │ solver        │  │ Patterns, ...   │ │                 │  │                  │
@@ -123,17 +125,17 @@ They're Windows-only. Avalonia gives us one XAML-based UI that runs natively on 
 
 ## Solution Layout
 
-Planned layout. Not all of it is scaffolded yet.
+Planned layout. Projects marked ✅ exist today; the rest arrive with later phases.
 
 ```
 chamfer/
 ├── src/
-│   ├── Chamfer.App/              # Avalonia desktop app (entry point)
+│   ├── Chamfer.App/              # Avalonia desktop app (entry point) ✅
 │   ├── Chamfer.UI/               # Reusable controls, themes, icons, ribbon
 │   ├── Chamfer.Viewport/         # 3D viewport, camera, picking, render backends
 │   ├── Chamfer.Commands/         # Interactive tools & undoable commands
 │   ├── Chamfer.Document/         # Document model, feature tree, rebuild engine
-│   ├── Chamfer.Sketch/           # 2D sketch entities + constraint solver
+│   ├── Chamfer.Sketching/        # 2D sketch entities + constraint solver ✅
 │   ├── Chamfer.Features/         # Part features (extrude, revolve, fillet, ...)
 │   ├── Chamfer.Assembly/         # Components, mates, assembly solver
 │   ├── Chamfer.Drawing/          # 2D drawings, views, annotations
@@ -143,16 +145,16 @@ chamfer/
 │   ├── Chamfer.IO/               # STEP, IGES, STL, 3MF, DXF, PDF, native format
 │   └── Chamfer.Api/              # Public plugin / scripting API
 ├── tests/
-│   ├── Chamfer.Sketch.Tests/
+│   ├── Chamfer.Sketching.Tests/   ✅
 │   ├── Chamfer.Features.Tests/
 │   ├── Chamfer.Document.Tests/
 │   ├── Chamfer.IO.Tests/
-│   └── Chamfer.App.Tests/        # Avalonia.Headless UI tests
+│   └── Chamfer.App.Tests/        # Avalonia.Headless UI tests ✅
 ├── samples/                      # Example parts, assemblies, drawings
-├── docs/                         # Architecture decision records, specs
+├── docs/                         # Architecture decision records, specs, images
 ├── build/                        # Packaging scripts (MSIX, DMG, notarization)
-├── .github/workflows/            # CI for Windows + macOS
-└── Chamfer.sln
+├── .github/workflows/            # CI for Windows + macOS ✅
+└── Chamfer.slnx
 ```
 
 ---
@@ -164,31 +166,15 @@ chamfer/
 | | Windows | macOS |
 |---|---|---|
 | .NET SDK | 10.0+ | 10.0+ |
-| C++ toolchain (native shim) | Visual Studio 2022+ with "Desktop development with C++" | Xcode Command Line Tools |
-| CMake | 3.27+ | 3.27+ (`brew install cmake`) |
-| OCCT | 7.8+ (via vcpkg) | 7.8+ (`brew install opencascade` or vcpkg) |
 | IDE (suggested) | Rider, Visual Studio, or VS Code + C# Dev Kit | Rider or VS Code + C# Dev Kit |
 
-Install the Avalonia templates:
-
-```bash
-dotnet new install Avalonia.Templates
-```
+The 3D phases will also need a C++ toolchain, CMake 3.27+, and OCCT 7.8+ for the native kernel shim. Nothing native is needed yet.
 
 ### Build & run
-
-These steps will work once the solution is scaffolded.
 
 ```bash
 git clone https://github.com/asofianidis/chamfer.git
 cd chamfer
-
-# Build the native OCCT shim
-cmake -S src/Chamfer.Kernel.Native -B build/native -DCMAKE_BUILD_TYPE=Release
-cmake --build build/native --config Release
-
-# Build & run the app
-dotnet build
 dotnet run --project src/Chamfer.App
 ```
 
@@ -197,6 +183,22 @@ dotnet run --project src/Chamfer.App
 ```bash
 dotnet test
 ```
+
+The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opted in via `global.json`). `Chamfer.App.Tests` renders the main window headlessly. Set `CHAMFER_SCREENSHOT_DIR` to a folder to save PNG screenshots of it.
+
+### Using the sketcher
+
+| Action | How |
+|---|---|
+| Draw | Pick a tool from the toolbar: **L** line, **R** corner rectangle, **C** circle, **A** 3-point arc, **G** polygon, **T** slot, **P** point. Click to place points; click-drag-release also works. |
+| End a line chain or cancel | **Esc** cancels and returns to Select. **Enter** or right-click finishes a line chain. |
+| Automatic relations | Snapping to points, midpoints, lines, and circles adds coincident, midpoint, and on-curve relations. Lines within 3° of horizontal or vertical snap to it. |
+| Dimension | **D** (Smart Dimension): pick one or two entities, then click to place. For a line or two points, placing the label above or below gives a horizontal dimension, left or right a vertical one, anywhere else an aligned one. Type a value or an expression (`25.4*2`, `1in`) and press Enter. Double-click a dimension to edit it. |
+| Add relations | Select entities, then use **Add Relation** in the side panel. Only relations that fit the selection are enabled. |
+| Edit | Drag geometry to move it; the solver keeps every relation. **X** toggles construction, **Delete** deletes, **Ctrl/⌘+Z** undoes. |
+| Navigate | Mouse wheel zooms (on macOS, scroll pans and pinch zooms). Middle- or right-drag pans. **F** fits the sketch in view. |
+| Status | Blue = under-defined, black/white = fully defined, red = over-defined. The status bar shows the remaining degrees of freedom. |
+| Files | Sketches save as `.chsk` (JSON). |
 
 ---
 
@@ -234,31 +236,33 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 0: Foundations
 *Goal: an empty app that opens on both platforms with a working 3D viewport and a geometry kernel wired up.*
 
-- [ ] Solution scaffolding, `Directory.Build.props`, central package management, `.editorconfig`, analyzers
-- [ ] CI on GitHub Actions: build and test on Windows and macOS
+- [x] Solution scaffolding, `Directory.Build.props`, central package management, `.editorconfig`, analyzers
+- [x] CI on GitHub Actions: build and test on Windows and macOS
 - [ ] Native shim (`Chamfer.Kernel.Native`) with CMake, building OCCT bindings for win-x64, win-arm64, osx-arm64, and osx-x64
 - [ ] P/Invoke layer with `SafeHandle` lifetime management; smoke test that makes a box and reads its volume
-- [ ] Avalonia shell: main window, docking layout, ribbon placeholder, dark/light themes
+- [~] Avalonia shell: main window, docking layout, ribbon placeholder, dark/light themes *(main window, toolbar, side panel and themes done; docking not yet)*
 - [ ] 3D viewport: GL context in Avalonia, camera (orbit, pan, zoom, zoom-to-fit), grid, view cube, standard views
 - [ ] Tessellation pipeline: B-rep → mesh → GPU buffers; shaded, shaded-with-edges, wireframe, and hidden-lines-removed modes
 - [ ] Picking: GPU ID buffer for faces, edges, and vertices; hover highlight; selection set
-- [ ] Undo/redo transaction framework
+- [~] Undo/redo transaction framework *(snapshot-based undo for sketches)*
 - [ ] Architecture decision records (ADRs) for the kernel, renderer, and topological naming
 
 ### Phase 1: Sketcher (MVP)
 *Goal: fully constrained 2D sketches on a plane, at the level of the SolidWorks sketcher.*
 
-- [ ] Sketch on standard planes and on planar faces
-- [ ] Entities: line, centerline, rectangle (corner, center, 3-point), circle, arc (center, tangent, 3-point), polygon, slot, ellipse, spline, point
-- [ ] Constraint solver: coincident, horizontal, vertical, parallel, perpendicular, tangent, concentric, equal, midpoint, symmetric, fix, collinear, coradial
-- [ ] Smart Dimension: linear, angular, radial, diameter, driven/driving
-- [ ] Degrees-of-freedom display: under-, fully, and over-defined coloring
-- [ ] Inference lines and automatic relations while drawing
+- [ ] Sketch on standard planes and on planar faces *(needs the Phase 0 3D viewport; sketches are edited in a 2D view for now)*
+- [~] Entities: line, centerline, rectangle (corner, center, 3-point), circle, arc (center, tangent, 3-point), polygon, slot, ellipse, spline, point *(all done except tangent arc, ellipse, and spline)*
+- [x] Constraint solver: coincident, horizontal, vertical, parallel, perpendicular, tangent, concentric, equal, midpoint, symmetric, fix, collinear, coradial
+- [x] Smart Dimension: linear, angular, radial, diameter, driven/driving
+- [x] Degrees-of-freedom display: under-, fully, and over-defined coloring
+- [~] Inference lines and automatic relations while drawing *(snap relations and horizontal/vertical inference done; dotted alignment inference lines not yet)*
 - [ ] Trim, extend, offset, mirror, fillet, chamfer, linear and circular sketch patterns
 - [ ] Convert entities, intersection curves
-- [ ] Construction geometry
+- [x] Construction geometry
 - [ ] Sketch blocks
 - [ ] Units, document properties, and dimension display settings
+
+**How the sketcher works.** Each entity is a set of parameters (coordinates and radii). Each relation or dimension is one or more equations with exact derivatives, and every derivative is checked against finite differences in the tests. A Levenberg–Marquardt solver takes minimum-norm steps, so geometry the constraints don't pin down stays where you left it. Dragging uses a weighted version of the same step, so the dragged point gives way last. The status (under-, fully, or over-defined) comes from the rank of the constraint Jacobian, computed with Gram–Schmidt orthogonalization in the order relations were added. That pinpoints which relation made the sketch redundant and which parameters are still free.
 
 ### Phase 2: Core Part Modeling
 *Goal: model the typical machined part end to end.*
@@ -399,7 +403,7 @@ A high-level tracker against SolidWorks capability areas.
 
 | Area | SolidWorks capability | Chamfer phase | Status |
 |---|---|---|---|
-| Sketching | 2D/3D sketch, relations, dimensions | 1, 3 | ⬜ Not started |
+| Sketching | 2D/3D sketch, relations, dimensions | 1, 3 | 🟨 2D sketcher core done |
 | Part features | Extrude, revolve, fillet, chamfer, shell, hole wizard, patterns | 2 | ⬜ |
 | Advanced part | Sweep, loft, boundary, multibody, curves | 3 | ⬜ |
 | Parametrics | Equations, global variables, configurations, design tables | 3 | ⬜ |
