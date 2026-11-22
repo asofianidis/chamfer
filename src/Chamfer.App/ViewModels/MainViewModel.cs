@@ -106,6 +106,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Edge Flange", "Bend a flange up from straight edges", new RelayCommand(() => StartFeature(new EdgeFlangeFeature { Edges = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => s.Ref!)] })), "⌐", "Sheet Metal"),
             new("Hem", "Fold edges back on themselves (closed or open)", new RelayCommand(() => StartFeature(new HemFeature { Edges = [.. Selection.Where(s => s.Kind == SelectionKind.Edge).Select(s => s.Ref!)] })), "⊃", "Sheet Metal"),
             new("Sketched Bend", "Fold the sheet along a sketched line", new RelayCommand(() => StartSketchFeature(sf => new SketchedBendFeature { SketchId = sf.Id })), "⌒", "Sheet Metal"),
+            new("Dimple", "Forming tool: round dimples at sketch points", new RelayCommand(() => StartSketchFeature(sf => new DimpleFeature { SketchId = sf.Id })), "◉", "Sheet Metal"),
             new("Tab", "Add flat sheet from a sketch on the sheet face", new RelayCommand(() => StartSketchFeature(sf => new TabFeature { SketchId = sf.Id })), "⊓", "Sheet Metal"),
             new("Flatten", "Show the flat pattern (toggle)", new RelayCommand(ToggleFlat), "▭", "Sheet Metal"),
             new("Export Flat DXF", "Save the flat pattern for cutting", new AsyncRelayCommand(ExportFlatDxf), "⇩", "Sheet Metal"),

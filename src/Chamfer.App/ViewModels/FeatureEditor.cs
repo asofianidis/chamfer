@@ -351,6 +351,13 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Fold the other way", hm.Reverse, v => Set(() => hm.Reverse = v)));
                 break;
 
+            case DimpleFeature dp:
+                ed.Add(Num("Diameter", "mm", dp, nameof(dp.Diameter), 1e-3));
+                ed.Add(Num("Height", "mm", dp, nameof(dp.Height), 1e-3));
+                ed.Add(new BoolField("Press the other way", dp.Reverse, v => Set(() => dp.Reverse = v)));
+                ed.Add(new InfoField("Centres", "One dimple at each sketch point on the sheet face."));
+                break;
+
             case SketchedBendFeature sb:
                 ed.Add(Num("Bend angle", "°", sb, nameof(sb.Angle), 1e-3));
                 ed.Add(new BoolField("Fold the other side", sb.FlipSide, v => Set(() => sb.FlipSide = v)));

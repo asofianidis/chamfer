@@ -624,6 +624,81 @@ public sealed class SketchedBendFeature : Feature
     }
 }
 
+/// <summary>
+/// A forming tool: round dimples pressed into the sheet at each sketch point (a spherical bump on
+/// the sketch face, hollow behind). Formed features don't flatten; the flat pattern ignores them.
+/// </summary>
+public sealed class DimpleFeature : Feature
+{
+    public override string DefaultName => "Dimple";
+
+    /// <summary>A sketch on a sheet face; each sketch point is a dimple centre.</summary>
+    public string SketchId { get; set; } = string.Empty;
+
+    public double Diameter { get; set; } = 10;
+
+    public double Height { get; set; } = 2;
+
+    /// <summary>Press toward the other side of the sheet.</summary>
+    public bool Reverse { get; set; }
+
+    public override IEnumerable<string> Dependencies => [SketchId];
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var sm = ctx.SheetMetal ?? throw new FeatureException("Add a base flange first.");
+        if (Diameter <= 0 || Height <= 0 || Height > Diameter / 2)
+        {
+            throw new FeatureException("The diameter must be positive and the height at most half of it.");
+        }
+
+        var sketch = ctx.Sketch(SketchId);
+        var points = sketch.Sketch.Entities.OfType<SketchPoint>().Where(p => p.Owner is null && !ReferenceEquals(p, sketch.Sketch.Origin)).ToList();
+        if (points.Count == 0)
+        {
+            throw new FeatureException("Put sketch points where the dimples go.");
+        }
+
+        // The sheet's two faces along its thickness direction; the bump rises from the sketch face.
+        var n = sm.FlatExtrusion.Normalized();
+        var t = sm.Thickness;
+        var bottom = sm.FlatPlane.Origin;
+        var r = Diameter / 2;
+        var radius = ((r * r) + (Height * Height)) / (2 * Height);
+        foreach (var p in points)
+        {
+            var at = sketch.Plane.ToWorld(p.X, p.Y);
+            var onTop = Math.Abs(Vec3.Dot(at - bottom, n) - t) < Math.Abs(Vec3.Dot(at - bottom, n));
+            var up = (onTop ? n : -n) * (Reverse ? -1 : 1);
+
+            // Faces the bump grows from (front) and the cavity starts at (back).
+            var frontLevel = Reverse ? !onTop : onTop;
+            var center2 = at - (n * Vec3.Dot(at - bottom, n));
+            var front = center2 + (frontLevel ? n * t : Vec3.Zero);
+            var back = center2 + (frontLevel ? Vec3.Zero : n * t);
+            using var outer = Cap(front, up, r, Height, radius);
+            using var inner = Cap(back, up, r, Height, radius);
+            var outerNames = Naming.Finish(outer, new string?[outer.FaceCount], Id);
+            ctx.AddMaterial(outer, outerNames, merge: true);
+            var innerNames = Naming.Finish(inner, new string?[inner.FaceCount], Id + ":in");
+            ctx.RemoveMaterial(inner, innerNames);
+        }
+    }
+
+    /// <summary>A spherical cap of base radius r and height h on a plane through <paramref name="at"/>, rising along <paramref name="up"/>.</summary>
+    private static Shape Cap(Vec3 at, Vec3 up, double r, double h, double sphereRadius)
+    {
+        using var sphere = Modeling.Sphere(sphereRadius);
+        using var placed = Modeling.Transform(sphere, Transform3.Translation(at + (up * (h - sphereRadius))));
+        var plane = new Plane3(at, up, up.AnyPerpendicular());
+        using var disc = Modeling.Face(plane, [[ProfileSegment.Circle(0, 0, r)]]);
+        using var prism = Modeling.Extrude(disc, up * h);
+        using var cap = Modeling.Boolean(placed.Result, prism.Result, BooleanKind.Common);
+        return cap.Result;
+    }
+}
+
 /// <summary>Builds the flat pattern of a sheet metal part.</summary>
 public static class FlatPattern
 {
