@@ -1472,4 +1472,33 @@ public class PartWorkflowTests
         vm.UndoCommand.Execute(null);
         Assert.Equal(start, vm.AssemblyDoc!.Components[1].Transform.Tx, 1e-6);
     }
+
+    [Fact]
+    public void QuickMatePicksTheObviousMate()
+    {
+        var vm = new MainViewModel();
+        vm.NewAssemblyCommand.Execute(null);
+        var block = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(30, 30));
+        var sf = block.Add(new SketchFeature { Sketch = s });
+        block.Add(new ExtrudeFeature { SketchId = sf.Id, Depth = 10 });
+        var a = vm.InsertPart("a.chprt", block);
+        var b = vm.InsertPart("b.chprt", block.Clone());
+        a.Fixed = true;
+        b.Fixed = false;
+        var asm = vm.AssemblyDoc!;
+        SelectionItem Face(Chamfer.Assembly.Component c, Func<Chamfer.Geometry.Vec3, bool> normal)
+        {
+            var body = asm.PartOf(c).Bodies[0];
+            var i = Enumerable.Range(1, body.FaceCount).Single(f => normal(body.Face(f).Normal));
+            return new SelectionItem(SelectionKind.Face, body.FaceRef(i), Label: "Face", ComponentId: c.Id);
+        }
+
+        vm.SetSelection([Face(a, n => n.Z > 0.99), Face(b, n => n.Z < -0.99)]);
+        vm.AssemblyCommands.Single(c => c.Label == "Quick Mate").Command.Execute(null);
+        var mate = Assert.Single(asm.Mates);
+        Assert.Equal(Chamfer.Assembly.MateType.Coincident, mate.Type);
+        Assert.Equal(10, asm.PlacedBodies(b).Single().Placed.Bounds.Min.Z, 1e-6); // b now sits on a
+    }
 }

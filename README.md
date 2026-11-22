@@ -386,7 +386,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] **Standard mates**: coincident, parallel, perpendicular, tangent, concentric, lock, distance, angle
 - [x] **Advanced mates**: limit distance and angle, width, symmetric, path, linear/linear coupler *(plus slot)*
 - [x] **Mechanical mates**: gear, rack and pinion, cam, hinge, screw, universal joint, slot
-- [~] Mate references, SmartMates (drag-to-mate) *(mate references: concentric/coincident faces, applied on insert)*
+- [~] Mate references, SmartMates (drag-to-mate) *(mate references applied on insert; Quick Mate picks the obvious mate for two selected faces; drag-onto-face mating not yet)*
 - [x] Move and rotate component with collision detection *(drag in the view within the mates; numeric move/rotate, optionally stopping at collisions)*
 - [x] Interference detection, clearance verification *(interference volumes; pairs closer than a minimum gap, with their distance)*
 - [x] Exploded views and explode lines *(automatic radial explode, manual explode steps along an axis, dashed explode lines, collapse)*
