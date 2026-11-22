@@ -97,6 +97,29 @@ public sealed class RenderTests
         vm.UndoCommand.Execute(null);
         Assert.Equal(x, vm.CurrentSheet!.Views[0].X, 1e-9);
 
+        // GD&T: a position tolerance on the top edge, datum A on the bottom, a surface finish symbol.
+        var outline = vm.SheetGraphics!.Items.OfType<Chamfer.Drawing.PolylinePrimitive>()
+            .Where(p => p.Pen == Chamfer.Drawing.Pen.Visible && vm.SheetGraphics.Owners.TryGetValue(p, out var o) && o == front.Id).SelectMany(p => p.Points).ToList();
+        var (top, bottom, left, right) = (outline.Max(p => p.Y), outline.Min(p => p.Y), outline.Min(p => p.X), outline.Max(p => p.X));
+        vm.DrawingCommands.Single(c => c.Label == "Geometric Tolerance").Command.Execute(null);
+        var datums = vm.Editor!.Fields.OfType<TextField>().Single(f => f.Label == "Datums");
+        datums.Text = "A";
+        datums.Commit();
+        vm.Editor.Fields.OfType<BoolField>().Single(f => f.Label == "Diameter zone (Ø)").Value = true;
+        vm.OnSheetClick(new Geometry.Point2(right, top - 15), null, add: false);
+        vm.OnSheetClick(new Geometry.Point2(right + 12, top - 8), null, add: false);
+        vm.DrawingCommands.Single(c => c.Label == "Datum Feature").Command.Execute(null);
+        vm.OnSheetClick(new Geometry.Point2(right, bottom + 15), null, add: false);
+        vm.OnSheetClick(new Geometry.Point2(right + 16, bottom + 15), null, add: false);
+        vm.DrawingCommands.Single(c => c.Label == "Surface Finish").Command.Execute(null);
+        vm.OnSheetClick(new Geometry.Point2(left + 15, top), null, add: false);
+        sheet = vm.CurrentSheet!; // undo above reloaded the drawing
+        Assert.Single(sheet.Tolerances);
+        Assert.Equal(["A"], sheet.Tolerances[0].Datums);
+        Assert.True(sheet.Tolerances[0].Diameter);
+        Assert.Equal("A", Assert.Single(sheet.Datums).Label);
+        Assert.Single(sheet.Finishes);
+
         window.FindControl<Controls.DrawingCanvas>("Sheet")!.Fit();
         Capture(window, $"drawing-{theme}");
         vm.CloseDrawingCommand.Execute(null);

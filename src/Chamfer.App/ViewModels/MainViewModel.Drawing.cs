@@ -44,6 +44,9 @@ public sealed partial class MainViewModel
         new("Detail View", "Magnify part of the selected view", new RelayCommand(StartDetail), "⊙"),
         new("Auto Dimension", "Overall sizes and hole diameters in the selected view", new RelayCommand(AutoDimension), "↔"),
         new("Note", "Add a text note", new RelayCommand(StartNote), "✎"),
+        new("Geometric Tolerance", "Feature control frame with a leader (GD&T)", new RelayCommand(StartGeometricTolerance), "⌖"),
+        new("Datum Feature", "Datum feature symbol", new RelayCommand(StartDatum), "Ⓐ"),
+        new("Surface Finish", "Surface texture symbol with roughness", new RelayCommand(StartSurfaceFinish), "√"),
         new("BOM Table", "Bill of materials table (assembly drawings)", new RelayCommand(AddBomTable), "☰"),
         new("Auto Balloon", "Number the parts in the selected view (assembly drawings)", new RelayCommand(AutoBalloon), "①"),
         new("Add Sheet", "Add another sheet", new RelayCommand(AddSheet), "⊞"),
@@ -563,6 +566,104 @@ public sealed partial class MainViewModel
         Editor = panel;
     }
 
+    private void StartGeometricTolerance()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var t = new GeometricTolerance { Id = d.NextId("gdt") };
+        var kinds = Enum.GetValues<GeometricCharacteristic>();
+        var panel = FeatureEditor.Info("Geometric Tolerance");
+        panel.AddInfo(new ChoiceField("Characteristic", [.. kinds.Select(k => k.ToString())], Array.IndexOf(kinds, t.Characteristic), i => t.Characteristic = kinds[i]));
+        panel.AddInfo(new TextField("Tolerance", t.Tolerance, v => t.Tolerance = v.Trim()));
+        panel.AddInfo(new BoolField("Diameter zone (Ø)", t.Diameter, v => t.Diameter = v));
+        panel.AddInfo(new ChoiceField("Material condition", ["None", "MMC (M)", "LMC (L)"], 0, i => t.Condition = (MaterialCondition)i));
+        panel.AddInfo(new TextField("Datums", string.Empty, v => t.Datums = [.. v.Split([' ', ',', '|'], StringSplitOptions.RemoveEmptyEntries)]));
+        panel.AddInfo(new InfoField("Place", "Click the feature for the leader arrow, then click where the frame goes."));
+        PlaceTwoClicks((tip, at) =>
+        {
+            t.LeaderX = tip.X;
+            t.LeaderY = tip.Y;
+            t.X = at.X;
+            t.Y = at.Y;
+            sheet.Tolerances.Add(t);
+        });
+        Editor = panel;
+    }
+
+    private void StartDatum()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var used = sheet.Datums.Select(x => x.Label).ToHashSet();
+        var next = Enumerable.Range('A', 26).Select(c => ((char)c).ToString()).FirstOrDefault(l => !used.Contains(l)) ?? "A";
+        var datum = new DatumFeature { Id = d.NextId("datum"), Label = next };
+        var panel = FeatureEditor.Info("Datum Feature");
+        panel.AddInfo(new TextField("Label", datum.Label, v => datum.Label = v.Trim().ToUpperInvariant()));
+        panel.AddInfo(new InfoField("Place", "Click the feature (edge or face line), then click where the letter box goes."));
+        PlaceTwoClicks((anchor, at) =>
+        {
+            datum.AnchorX = anchor.X;
+            datum.AnchorY = anchor.Y;
+            datum.X = at.X;
+            datum.Y = at.Y;
+            sheet.Datums.Add(datum);
+        });
+        Editor = panel;
+    }
+
+    private void StartSurfaceFinish()
+    {
+        if (DrawingDoc is not { } d || CurrentSheet is not { } sheet)
+        {
+            return;
+        }
+
+        CancelEditor();
+        var finish = new SurfaceFinish { Id = d.NextId("sf") };
+        var panel = FeatureEditor.Info("Surface Finish");
+        panel.AddInfo(new TextField("Roughness", finish.Roughness, v => finish.Roughness = v.Trim()));
+        panel.AddInfo(new BoolField("Machining required", finish.MachiningRequired, v => finish.MachiningRequired = v));
+        panel.AddInfo(new InfoField("Place", "Click on the surface line to place the symbol."));
+        HintText = "Click on the surface for the surface finish symbol.";
+        _pendingSheetClick = at =>
+        {
+            SnapshotDrawing();
+            finish.X = at.X;
+            finish.Y = at.Y;
+            sheet.Finishes.Add(finish);
+            Editor = null;
+            HintText = string.Empty;
+            RefreshDrawing();
+        };
+        Editor = panel;
+    }
+
+    /// <summary>Waits for two sheet clicks (a target, then a position) and then adds the annotation.</summary>
+    private void PlaceTwoClicks(Action<Point2, Point2> place)
+    {
+        HintText = "Click the feature to point at.";
+        _pendingSheetClick = target =>
+        {
+            HintText = "Click where the annotation goes.";
+            _pendingSheetClick = at =>
+            {
+                SnapshotDrawing();
+                place(target, at);
+                Editor = null;
+                HintText = string.Empty;
+                RefreshDrawing();
+            };
+        };
+    }
+
     private void AddBomTable()
     {
         if (DrawingDoc is not { IsAssembly: true } || CurrentSheet is not { } sheet)
@@ -655,6 +756,9 @@ public sealed partial class MainViewModel
 
         sheet.Views.RemoveAll(v => views.Contains(v.Id));
         sheet.Dimensions.RemoveAll(dim => DrawingSelection.Contains(dim.Id) || views.Contains(dim.ViewId));
+        sheet.Tolerances.RemoveAll(t => DrawingSelection.Contains(t.Id));
+        sheet.Datums.RemoveAll(d => DrawingSelection.Contains(d.Id));
+        sheet.Finishes.RemoveAll(f => DrawingSelection.Contains(f.Id));
         DrawingSelection.Clear();
         RefreshDrawing();
     }

@@ -164,6 +164,12 @@ public sealed class Sheet
 
     public List<Balloon> Balloons { get; set; } = [];
 
+    public List<GeometricTolerance> Tolerances { get; set; } = [];
+
+    public List<DatumFeature> Datums { get; set; } = [];
+
+    public List<SurfaceFinish> Finishes { get; set; } = [];
+
     public (double Width, double Height) Dimensions2D
     {
         get
