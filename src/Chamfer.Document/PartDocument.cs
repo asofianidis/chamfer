@@ -295,6 +295,19 @@ public sealed class PartDocument
         }
     }
 
+    /// <summary>The model as it was just before a feature (from the rebuild cache).</summary>
+    public RebuildState StateBefore(Feature feature)
+    {
+        ArgumentNullException.ThrowIfNull(feature);
+        var i = Features.IndexOf(feature);
+        if (i <= 0)
+        {
+            return RebuildState.Initial;
+        }
+
+        return i - 1 < _cache.Count ? _cache[i - 1].State : State;
+    }
+
     /// <summary>Drops cached states so the next rebuild re-executes everything.</summary>
     public void InvalidateAll() => _cache.Clear();
 
@@ -443,8 +456,23 @@ public sealed class PartDocument
             throw new InvalidOperationException("There is nothing to export.");
         }
 
-        using var all = Modeling.Compound([.. Bodies.Select(b => b.Shape)]);
         var ext = Path.GetExtension(path).ToUpperInvariant();
+        if (ext is ".OBJ" or ".3MF")
+        {
+            var meshes = Bodies.Select(b => (b.Name, b.Shape.Tessellate(0.02, 0.2))).ToList();
+            if (ext == ".OBJ")
+            {
+                File.WriteAllText(path, MeshExport.Obj(meshes));
+            }
+            else
+            {
+                File.WriteAllBytes(path, MeshExport.ThreeMf(meshes));
+            }
+
+            return;
+        }
+
+        using var all = Modeling.Compound([.. Bodies.Select(b => b.Shape)]);
         switch (ext)
         {
             case ".STEP" or ".STP": all.WriteStep(path); break;

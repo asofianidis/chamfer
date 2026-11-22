@@ -64,6 +64,8 @@ internal static unsafe partial class Native
     [LibraryImport(Lib)] public static partial OpHandle chf_loft(int count, IntPtr* sections, int solid, int ruled);
     [LibraryImport(Lib)] public static partial OpHandle chf_rib(ShapeHandle baseShape, ShapeHandle wire, double* plane6, double thickness1, double thickness2);
     [LibraryImport(Lib)] public static partial OpHandle chf_thicken(ShapeHandle s, double thickness);
+    [LibraryImport(Lib)] public static partial OpHandle chf_offset_shape(ShapeHandle s, double offset);
+    [LibraryImport(Lib)] public static partial ShapeHandle chf_fill(ShapeHandle wire);
     [LibraryImport(Lib)] public static partial OpHandle chf_sew(int count, IntPtr* shapes, double tolerance);
     [LibraryImport(Lib)] public static partial OpHandle chf_split(ShapeHandle s, ShapeHandle tool);
     [LibraryImport(Lib)] public static partial ShapeHandle chf_section(ShapeHandle s, double* plane6);

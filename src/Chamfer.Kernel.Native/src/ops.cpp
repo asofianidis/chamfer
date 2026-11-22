@@ -14,6 +14,8 @@
 #include <Geom_Plane.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepOffsetAPI_DraftAngle.hxx>
+#include <BRepOffsetAPI_MakeFilling.hxx>
+#include <BRepOffsetAPI_MakeOffsetShape.hxx>
 #include <BRepOffsetAPI_MakePipe.hxx>
 #include <BRepOffsetAPI_MakePipeShell.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
@@ -379,6 +381,28 @@ chf_op* chf_thicken(chf_shape* s, double thickness) {
     offset.MakeOffsetShape();
     if (!offset.IsDone()) throw std::runtime_error("thicken failed");
     return chf_make_op_plain(offset.Shape());
+  });
+}
+
+chf_op* chf_offset_shape(chf_shape* s, double offset) {
+  return chf_guard<chf_op*>(nullptr, [&] {
+    requireShape(s);
+    auto algo = std::make_unique<BRepOffsetAPI_MakeOffsetShape>();
+    algo->PerformByJoin(s->shape, offset, 1e-4, BRepOffset_Skin, false, false, GeomAbs_Intersection);
+    return chf_make_op(std::move(algo), "offset");
+  });
+}
+
+chf_shape* chf_fill(chf_shape* wire) {
+  return chf_guard<chf_shape*>(nullptr, [&] {
+    requireShape(wire);
+    BRepOffsetAPI_MakeFilling fill;
+    for (TopExp_Explorer ex(wire->shape, TopAbs_EDGE); ex.More(); ex.Next()) {
+      fill.Add(TopoDS::Edge(ex.Current()), GeomAbs_C0);
+    }
+    fill.Build();
+    if (!fill.IsDone()) throw std::runtime_error("couldn't fill the boundary");
+    return new chf_shape(fill.Shape());
   });
 }
 

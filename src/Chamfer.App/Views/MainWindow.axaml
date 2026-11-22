@@ -176,7 +176,21 @@
             </StackPanel>
           </Button>
           <Border Classes="separator" />
-          <ItemsControl ItemsSource="{Binding FeatureCommands}">
+          <ItemsControl ItemsSource="{Binding CommandTabs}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <StackPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="x:String">
+                <Button Classes="tool" Content="{Binding}" FontWeight="SemiBold"
+                        Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectTabCommand}" CommandParameter="{Binding}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+          <Border Classes="separator" />
+          <ItemsControl ItemsSource="{Binding VisibleFeatureCommands}">
             <ItemsControl.ItemsPanel>
               <ItemsPanelTemplate>
                 <WrapPanel Orientation="Horizontal" />

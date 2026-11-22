@@ -7,7 +7,10 @@ namespace Chamfer.Document.Features;
 /// <summary>Sweeps a sketch profile along a path sketch.</summary>
 public sealed class SweepFeature : Feature
 {
-    public override string DefaultName => IsCut ? "Cut-Sweep" : "Sweep";
+    public override string DefaultName => IsSurface ? "Surface-Sweep" : IsCut ? "Cut-Sweep" : "Sweep";
+
+    /// <summary>Sweep the profile's curves as a surface instead of a solid.</summary>
+    public bool IsSurface { get; set; }
 
     public string ProfileSketchId { get; set; } = string.Empty;
 
@@ -26,6 +29,22 @@ public sealed class SweepFeature : Feature
         var path = ctx.Sketch(PathSketchId);
         using var wire = AdvancedShapes.Wire(path, "The path must be one connected chain of lines and arcs, or a circle.");
 
+        if (IsSurface)
+        {
+            var sheets = new List<Shape>();
+            foreach (var w in Surfaces.Wires(profile))
+            {
+                using (w)
+                {
+                    using var op = Run(() => Modeling.Sweep(w, wire), "The profile can't be swept along this path.", requireSolid: false);
+                    sheets.Add(op.Result);
+                }
+            }
+
+            Surfaces.AddBody(ctx, Surfaces.Combine(sheets), Id);
+            return;
+        }
+
         var pieces = new List<(Shape, string[])>();
         foreach (var region in ProfileShapes.Regions(profile))
         {
@@ -38,12 +57,12 @@ public sealed class SweepFeature : Feature
         AdvancedShapes.Apply(ctx, Id, pieces, IsCut, Merge);
     }
 
-    internal static Operation Run(Func<Operation> build, string message)
+    internal static Operation Run(Func<Operation> build, string message, bool requireSolid = true)
     {
         try
         {
             var op = build();
-            if (op.Result.SolidCount == 0 || !op.Result.IsValid)
+            if ((requireSolid && op.Result.SolidCount == 0) || !op.Result.IsValid)
             {
                 op.Dispose();
                 throw new FeatureException(message);

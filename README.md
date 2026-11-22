@@ -214,11 +214,13 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Feature tree | Double-click to edit. **Suppress**, **Delete** (with dependents), **Roll Here** and **Roll Forward** act on the selected feature. Errors are red, warnings amber. |
 | View | Middle-drag (or Alt+drag) rotates about the point under the cursor; Ctrl+middle-drag, right-drag or Alt+Shift+drag pans; the wheel zooms at the cursor. **F** fits. Ctrl/⌘+1 to 8 are Front, Back, Left, Right, Top, Bottom, Isometric and Normal To; arrow keys rotate 15° (with Shift, 90°). |
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
-| Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES or STL. |
+| Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES, STL, 3MF or OBJ. |
 | Sketch tools | **Trim** (click the piece to remove), **Extend**, **Fillet** and **Chamfer** (click a corner; Size sets the radius or distance), **Offset** (selected curves, by Size; Reverse flips the side), **Mirror** (selection about a selected centerline), **Linear/Circular Pattern** (Count copies), **Convert Entities** (click model edges behind the sketch) and **Convert Face** (outline of the sketch face). |
 | Advanced features | **Swept Boss/Cut**: select the profile sketch, then the path sketch. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
 | Equations | **Equations** defines global variables (`Width = 40`, `Wall = Width / 20`). Type `=Width/2` in any number box or sketch dimension to link it. |
 | Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
+| Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids) and **Thicken**. |
+| Bodies | The **Bodies** tab has **Combine** (add, subtract, common), **Split** with a plane, **Move/Copy Body**, **Delete/Keep Body** and **Appearance** (body colours). Pick bodies by clicking any of their faces. |
 
 ### Assemblies
 
@@ -343,14 +345,14 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [ ] **Boundary** Boss and Cut
 - [ ] 3D sketches
 - [ ] Curves: helix and spiral, projected, composite, curve through points, split line
-- [ ] Multibody parts: combine, intersect, split, move/copy body, delete body
+- [x] Multibody parts: combine, intersect, split, move/copy body, delete body
 - [x] **Global variables and equations**
 - [x] **Configurations**, then **design tables** (spreadsheet-driven configurations)
 - [ ] Curve-driven, sketch-driven, table-driven, fill, and variable patterns
 - [ ] Wrap, dome, flex, deform, indent
 - [ ] Cosmetic threads, thread feature
 - [ ] Library features
-- [ ] Appearances, decals, scenes
+- [~] Appearances, decals, scenes *(body colours)*
 - [ ] Section view, display states
 - [ ] Interactive feature editing via drag handles (Instant3D-style)
 
@@ -386,10 +388,10 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Associativity: drawings update when the model changes
 
 ### Phase 6: Surfacing
-- [ ] Extruded, revolved, swept, lofted, and boundary surfaces
-- [ ] Planar, offset, ruled, and filled surfaces
-- [ ] Knit (sew), trim, untrim, extend, and delete face
-- [ ] Thicken, and thickened cut
+- [~] Extruded, revolved, swept, lofted, and boundary surfaces *(extruded, revolved, swept)*
+- [~] Planar, offset, ruled, and filled surfaces *(planar, offset, filled)*
+- [~] Knit (sew), trim, untrim, extend, and delete face *(knit, forming solids from closed sets)*
+- [~] Thicken, and thickened cut *(thicken)*
 - [ ] Replace face, cut with surface
 - [ ] Surface analysis: zebra stripes, curvature, draft analysis, deviation analysis, undercut detection
 - [ ] Freeform
@@ -412,7 +414,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 ### Phase 8: Data Exchange & Interop
 - [ ] STEP AP203/AP214/AP242 import and export with colors, names, assembly structure, and PMI where possible
 - [ ] IGES, ACIS (`.sat`), Parasolid (`.x_t`, if a licensing path exists), JT
-- [ ] STL, 3MF, OBJ, glTF export (for 3D printing and visualization)
+- [~] STL, 3MF, OBJ, glTF export (for 3D printing and visualization) *(STL, 3MF, OBJ)*
 - [ ] DXF/DWG import into sketches
 - [ ] Import diagnostics and healing (gap repair, face healing)
 - [ ] FeatureWorks-style feature recognition on imported solids (stretch goal)
@@ -458,16 +460,16 @@ A high-level tracker against SolidWorks capability areas.
 |---|---|---|---|
 | Sketching | 2D/3D sketch, relations, dimensions | 1, 3 | 🟩 2D sketching complete; 3D sketches not yet |
 | Part features | Extrude, revolve, fillet, chamfer, shell, hole wizard, patterns | 2 | 🟩 Working, with a few options missing |
-| Advanced part | Sweep, loft, boundary, multibody, curves | 3 | 🟨 Sweep, loft, rib |
+| Advanced part | Sweep, loft, boundary, multibody, curves | 3 | 🟨 Sweep, loft, rib, multibody |
 | Parametrics | Equations, global variables, configurations, design tables | 3 | 🟩 Done |
 | Assemblies | Standard, advanced, and mechanical mates; exploded views | 4 | 🟨 Standard mates, BOM, interference, explode |
 | Large assemblies | Lightweight, Large Design Review | 4, 11 | ⬜ |
 | Drawings | Views, dimensions, GD&T, BOM, tables | 5 | 🟨 Views, sections, details, dimensions, export |
-| Surfacing | Surface features, knit, trim, analysis | 6 | ⬜ |
+| Surfacing | Surface features, knit, trim, analysis | 6 | 🟨 Core surfaces, knit, thicken |
 | Sheet metal | Flanges, bends, flat pattern | 7 | ⬜ |
 | Weldments | Structural members, cut lists | 7 | ⬜ |
 | Mold tools | Parting line/surface, core/cavity | 7 | ⬜ |
-| Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | 🟨 STEP/IGES in and out, STL out |
+| Data exchange | STEP, IGES, STL, 3MF, DXF/DWG | 2, 8 | 🟨 STEP/IGES in and out; STL, 3MF, OBJ out; drawing DXF |
 | Simulation | SimulationXpress-level FEA, frequency, thermal | 9 | ⬜ |
 | Motion | Motion studies, animation | 9 | ⬜ |
 | Rendering | Visualize-style photoreal rendering | 10 | ⬜ |

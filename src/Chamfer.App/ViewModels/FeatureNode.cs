@@ -65,6 +65,18 @@ public sealed partial class FeatureNode : ObservableObject
         SweepFeature => "⤳",
         LoftFeature => "⏢",
         RibFeature => "⊿",
+        SurfaceExtrudeFeature => "▤",
+        SurfaceRevolveFeature => "◐",
+        PlanarSurfaceFeature => "▭",
+        FilledSurfaceFeature => "◍",
+        OffsetSurfaceFeature => "⧈",
+        KnitFeature => "⨝",
+        ThickenFeature => "▥",
+        CombineFeature => "⊕",
+        SplitBodyFeature => "⫽",
+        MoveCopyBodyFeature => "✥",
+        DeleteBodyFeature => "✕",
+        AppearanceFeature => "◆",
         _ => "•",
     };
 }

@@ -220,7 +220,7 @@ public sealed class RebuildContext
         var targets = merge ? Bodies.Where(b => Overlaps(b.Shape.Bounds, toolBox)).ToList() : [];
         if (targets.Count == 0)
         {
-            Bodies.Add(new Body(tool, toolFaceNames, $"Body{Bodies.Count + 1}"));
+            Bodies.Add(new Body(tool, toolFaceNames, NewBodyName()));
             return;
         }
 
@@ -233,7 +233,7 @@ public sealed class RebuildContext
         }
 
         var first = targets[0];
-        Bodies[Bodies.IndexOf(first)] = new Body(current.Shape, current.FaceNames, first.Name);
+        Bodies[Bodies.IndexOf(first)] = new Body(current.Shape, current.FaceNames, first.Name, first.Color);
         foreach (var other in targets.Skip(1))
         {
             Bodies.Remove(other);
@@ -270,7 +270,7 @@ public sealed class RebuildContext
                 touched = true;
             }
 
-            Bodies[i] = new Body(result, names, body.Name);
+            Bodies[i] = new Body(result, names, body.Name, body.Color);
         }
 
         if (!touched)
@@ -286,7 +286,28 @@ public sealed class RebuildContext
         ArgumentNullException.ThrowIfNull(op);
         var names = Naming.Transfer(op, op.Result, [new Naming.Input(body.Shape, body.FaceNames, body.EdgeNames)], Feature.Id, generatedTag);
         var i = Bodies.IndexOf(body);
-        Bodies[i] = new Body(op.Result, names, body.Name);
+        Bodies[i] = new Body(op.Result, names, body.Name, body.Color);
+    }
+
+    /// <summary>Finds a body by name, or the body that owns a face reference.</summary>
+    public Body FindBody(string nameOrFace)
+    {
+        ArgumentNullException.ThrowIfNull(nameOrFace);
+        return Bodies.Find(b => b.Name == nameOrFace) ?? Bodies.Find(b => b.HasFace(nameOrFace))
+            ?? throw new FeatureException($"Body '{nameOrFace}' is missing.");
+    }
+
+    /// <summary>A body name not used yet.</summary>
+    public string NewBodyName()
+    {
+        for (var n = Bodies.Count + 1; ; n++)
+        {
+            var name = $"Body{n}";
+            if (!Bodies.Exists(b => b.Name == name))
+            {
+                return name;
+            }
+        }
     }
 
     private static bool Overlaps(Box3 a, Box3 b)

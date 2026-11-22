@@ -230,4 +230,41 @@ public class PartWorkflowTests
         Assert.Equal(40 * 20 * 10, vm.Document.MassProperties().Volume, 1e-6);
         Assert.Equal(["Default", "Thick"], vm.ConfigurationNames.ToArray());
     }
+
+    [Fact]
+    public void CombineAndColourBodiesFromTheUi()
+    {
+        var vm = BlockOnFront();
+
+        // A second, separate block overlapping the first.
+        vm.SetSelection([SelectionItem.Plane("front", "Front Plane")]);
+        vm.NewSketchCommand.Execute(null);
+        var editor = vm.Sketch!.Editor;
+        editor.BeginChange();
+        editor.Sketch.AddCornerRectangle(new Vec2(30, 0), new Vec2(60, 20));
+        editor.EndChange(solve: true);
+        vm.FeatureCommands.Single(c => c.Label == "Extruded Boss").Command.Execute(null);
+        vm.Editor!.Fields.OfType<BoolField>().Single(f => f.Label == "Merge result").Value = false;
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(2, vm.Document.Bodies.Count);
+
+        var b1 = vm.Document.Bodies[0];
+        var b2 = vm.Document.Bodies[1];
+        vm.SetSelection([SelectionItem.Face(b1, 1), SelectionItem.Face(b2, 1)]);
+        vm.SelectTabCommand.Execute("Bodies");
+        Assert.Contains(vm.VisibleFeatureCommands, c => c.Label == "Combine");
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Combine").Command.Execute(null);
+        var combine = Assert.IsType<CombineFeature>(vm.Editor!.Feature);
+        Assert.Equal(b1.Name, combine.MainBody);
+        Assert.Equal([b2.Name], combine.ToolBodies);
+        vm.AcceptEditorCommand.Execute(null);
+        var body = Assert.Single(vm.Document.Bodies);
+        Assert.Equal(60 * 20 * 10, body.Shape.MassProperties.Volume, 1e-6);
+        Assert.Null(vm.Document.RollbackIndex);
+
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Appearance").Command.Execute(null);
+        vm.Editor!.Fields.OfType<ChoiceField>().Single().Index = 1; // Red
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.Equal(0xDC2626u, vm.Document.Bodies[0].Color);
+    }
 }
