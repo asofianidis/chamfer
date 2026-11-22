@@ -64,6 +64,8 @@ public sealed class FeatureException : Exception
 [JsonDerivedType(typeof(OffsetSurfaceFeature), "offsetSurface")]
 [JsonDerivedType(typeof(KnitFeature), "knit")]
 [JsonDerivedType(typeof(ThickenFeature), "thicken")]
+[JsonDerivedType(typeof(BaseFlangeFeature), "baseFlange")]
+[JsonDerivedType(typeof(EdgeFlangeFeature), "edgeFlange")]
 public abstract class Feature
 {
     /// <summary>Stable identifier used by references and persistent names. Never shown to users.</summary>

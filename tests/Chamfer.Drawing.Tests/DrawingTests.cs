@@ -198,4 +198,26 @@ public class DrawingTests
             Assert.False(mid.X > 3.2 && mid.X < 6.8 && mid.Y > 3.2 && mid.Y < 6.8, $"hatch segment centred in the hole at {mid}");
         }
     }
+
+    [Fact]
+    public void FlatPatternDxfHasOutlineAndBendLine()
+    {
+        var doc = new PartDocument();
+        var s = new Sketch();
+        s.AddCornerRectangle(new Vec2(0, 0), new Vec2(100, 50));
+        var sf = doc.Add(new SketchFeature { Sketch = s });
+        doc.Add(new BaseFlangeFeature { SketchId = sf.Id, Thickness = 2, BendRadius = 1, KFactor = 0.5 });
+        doc.Rebuild();
+        var body = doc.Bodies[0];
+        var edge = Enumerable.Range(1, body.EdgeCount).Single(i => Vec3.Distance(body.Edge(i).Midpoint, new Vec3(50, 50, 2)) < 1e-6);
+        doc.Add(new EdgeFlangeFeature { Edges = [body.EdgeRef(edge)], Length = 20 });
+        doc.Rebuild();
+
+        var g = FlatPatternExport.Graphics(doc);
+        Assert.Equal(100 + 20, g.Width, 1e-6);
+        Assert.Equal(50 + Math.PI + 20 + 20, g.Height, 1e-6);
+        Assert.Single(g.Items.OfType<PolylinePrimitive>(), p => p.Pen == Pen.Center);
+        var dxf = Exporters.Dxf(g);
+        Assert.Contains("CENTER", dxf, StringComparison.Ordinal);
+    }
 }

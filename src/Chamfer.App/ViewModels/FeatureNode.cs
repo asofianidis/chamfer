@@ -77,6 +77,8 @@ public sealed partial class FeatureNode : ObservableObject
         MoveCopyBodyFeature => "✥",
         DeleteBodyFeature => "✕",
         AppearanceFeature => "◆",
+        BaseFlangeFeature => "▬",
+        EdgeFlangeFeature => "⌐",
         _ => "•",
     };
 }

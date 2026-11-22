@@ -21,6 +21,9 @@ public sealed record RebuildState(
     IReadOnlyDictionary<string, Plane3> Planes,
     IReadOnlyDictionary<string, FeatureTool> Tools)
 {
+    /// <summary>Sheet metal parameters and flat-pattern data, once a base flange exists.</summary>
+    public Features.SheetMetalState? SheetMetal { get; init; }
+
     public static RebuildState Initial { get; } = new([], new Dictionary<string, PlacedSketch>(),
         new Dictionary<string, Plane3>
         {
@@ -41,6 +44,7 @@ public sealed class RebuildContext
         Sketches = new Dictionary<string, PlacedSketch>(state.Sketches);
         Planes = new Dictionary<string, Plane3>(state.Planes);
         Tools = new Dictionary<string, FeatureTool>(state.Tools);
+        SheetMetal = state.SheetMetal;
     }
 
     public PartDocument Document { get; }
@@ -52,7 +56,10 @@ public sealed class RebuildContext
     public List<string> Warnings { get; } = [];
 
     internal RebuildState Capture() => new([.. Bodies], new Dictionary<string, PlacedSketch>(Sketches),
-        new Dictionary<string, Plane3>(Planes), new Dictionary<string, FeatureTool>(Tools));
+        new Dictionary<string, Plane3>(Planes), new Dictionary<string, FeatureTool>(Tools)) { SheetMetal = SheetMetal };
+
+    /// <summary>Sheet metal state; features replace it rather than mutate it.</summary>
+    public Features.SheetMetalState? SheetMetal { get; set; }
 
     public void Warn(string message) => Warnings.Add(message);
 
