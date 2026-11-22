@@ -359,6 +359,15 @@ public sealed partial class FeatureEditor : ObservableObject
                 break;
             }
 
+            case DeformFeature dfm:
+                ed.Add(new SelectionField("Point", FeatureKinds, PointItems(doc, dfm.PointId.Length > 0 ? [dfm.PointId] : []),
+                    items => Set(() => dfm.PointId = PointIds(doc, items).LastOrDefault() ?? string.Empty), max: 1));
+                ed.Add(new SelectionField("Direction", Axes, [AxisItem(dfm.Direction, doc)], items => Set(() => dfm.Direction = Last(items)?.AsAxis() ?? AxisRef.Z), max: 1));
+                ed.Add(Num("Distance", "mm", dfm, nameof(dfm.Distance)));
+                ed.Add(Num("Radius", "mm", dfm, nameof(dfm.Radius), 1e-6));
+                ed.Add(BodyField(doc, feature, "Bodies (empty = all)", dfm.Bodies, names => Set(() => dfm.Bodies = names)));
+                break;
+
             case WrapFeature wr:
                 ed.Add(new SelectionField("Sketch", FeatureKinds, SketchItems(doc, [wr.SketchId]), items => Set(() => wr.SketchId = Last(items)?.FeatureId ?? string.Empty), max: 1));
                 ed.Add(new SelectionField("Cylindrical face", Faces, wr.Face is { } wf ? [new SelectionItem(SelectionKind.Face, wf, Label: $"Face <{wf.Name}>")] : [],

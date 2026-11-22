@@ -373,7 +373,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] **Global variables and equations**
 - [x] **Configurations**, then **design tables** (spreadsheet-driven configurations)
 - [~] Curve-driven, sketch-driven, table-driven, fill, and variable patterns *(curve-driven with alignment, sketch-driven, table-driven, fill with square or staggered grid)*
-- [~] Wrap, dome, flex, deform, indent *(wrap (emboss/deboss onto cylinders), dome, flex (twisting, tapering, stretching), indent with clearance; deform not yet)*
+- [x] Wrap, dome, flex, deform, indent *(wrap onto cylinders, dome, flex (twisting, tapering, stretching), point deform, indent with clearance)*
 - [x] Cosmetic threads, thread feature *(cosmetic threads on shafts and holes, shown in drawings and the 3D view; modelled ISO metric threads, external and internal)*
 - [x] Library features *(save sketches and the features on them; insert onto any face or plane)*
 - [~] Appearances, decals, scenes *(body colours)*
