@@ -390,7 +390,31 @@ public class FeatureTests
         }
         finally
         {
-            dir.Delete(recursive: true);
+            DeleteQuietly(dir);
+        }
+    }
+
+    /// <summary>
+    /// Removes a temporary folder, retrying briefly: a virus scanner can hold a file it just
+    /// saw written for a moment, which isn't the test's concern.
+    /// </summary>
+    private static void DeleteQuietly(DirectoryInfo dir)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            try
+            {
+                dir.Delete(recursive: true);
+                return;
+            }
+            catch (IOException)
+            {
+                Thread.Sleep(100);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                Thread.Sleep(100);
+            }
         }
     }
 
