@@ -475,3 +475,118 @@ public sealed class SplitLineFeature : Feature
     }
 }
 
+/// <summary>What a surface edit does to the chosen surface body's faces.</summary>
+public enum SurfaceEdit
+{
+    /// <summary>Cut it with a plane (or a flat face) and keep one side.</summary>
+    Trim,
+
+    /// <summary>Fill its faces' holes back in (and grow curved faces to their full surface).</summary>
+    Untrim,
+
+    /// <summary>Grow its flat faces outward by a distance all round.</summary>
+    Extend,
+}
+
+/// <summary>Trim, untrim or extend a surface body.</summary>
+public sealed class SurfaceEditFeature : Feature
+{
+    public override string DefaultName => Operation switch
+    {
+        SurfaceEdit.Trim => "Surface-Trim",
+        SurfaceEdit.Untrim => "Surface-Untrim",
+        _ => "Surface-Extend",
+    };
+
+    public string Body { get; set; } = string.Empty;
+
+    public SurfaceEdit Operation { get; set; }
+
+    /// <summary>For trimming: the plane or flat face to cut with.</summary>
+    public PlaneRef Tool { get; set; } = PlaneRef.Front;
+
+    /// <summary>For trimming: keep the side the tool's normal points away from.</summary>
+    public bool KeepOtherSide { get; set; }
+
+    /// <summary>For extending.</summary>
+    public double Distance { get; set; } = 5;
+
+    public override IEnumerable<string> Dependencies => Tool.PlaneId is { } id && id is not ("front" or "top" or "right") ? [id] : [];
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var body = ctx.FindBody(Body);
+        if (!body.IsSurface)
+        {
+            throw new FeatureException("Pick a surface body.");
+        }
+
+        Shape result;
+        switch (Operation)
+        {
+            case SurfaceEdit.Trim:
+            {
+                var plane = ctx.ResolvePlane(Tool);
+                using var tool = Modeling.PlaneFace(plane, (body.Shape.Bounds.Diagonal * 2) + 10);
+                using var split = Modeling.Split(body.Shape, tool);
+                var keep = new List<Shape>();
+                for (var i = 1; i <= split.Result.FaceCount; i++)
+                {
+                    var face = split.Result.Sub(TopoKind.Face, i);
+                    var side = Vec3.Dot(split.Result.Face(i).Centroid - plane.Origin, plane.Normal);
+                    if (KeepOtherSide ? side < 0 : side > 0)
+                    {
+                        keep.Add(face);
+                    }
+                    else
+                    {
+                        face.Dispose();
+                    }
+                }
+
+                if (keep.Count == 0)
+                {
+                    throw new FeatureException("Nothing of the surface is on that side of the plane.");
+                }
+
+                using var sewn = Modeling.Sew(keep);
+                result = sewn.Result;
+                foreach (var k in keep)
+                {
+                    k.Dispose();
+                }
+
+                break;
+            }
+
+            case SurfaceEdit.Untrim:
+            case SurfaceEdit.Extend:
+            {
+                var faces = new List<Shape>();
+                try
+                {
+                    for (var i = 1; i <= body.Shape.FaceCount; i++)
+                    {
+                        using var face = body.Shape.Sub(TopoKind.Face, i);
+                        faces.Add(Operation == SurfaceEdit.Untrim ? Modeling.UntrimFace(face, natural: true) : Modeling.ExtendFace(face, Distance));
+                    }
+                }
+                catch (KernelException ex)
+                {
+                    throw new FeatureException(ex.Message);
+                }
+
+                result = faces.Count == 1 ? faces[0] : Modeling.Compound(faces);
+                break;
+            }
+
+            default:
+                throw new FeatureException("Unknown surface edit.");
+        }
+
+        var names = Naming.Finish(result, new string?[result.FaceCount], Id);
+        ctx.Bodies[ctx.Bodies.IndexOf(body)] = new Body(result, names, body.Name, body.Color);
+    }
+}
+

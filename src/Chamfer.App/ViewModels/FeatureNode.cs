@@ -111,6 +111,7 @@ public sealed partial class FeatureNode : ObservableObject
         WrapFeature => "⌒",
         FlexFeature => "≀",
         DeformFeature => "◒",
+        SurfaceEditFeature => "✂",
         ToolingSplitFeature => "⊟",
         DimpleFeature => "◉",
         DeleteFaceFeature => "⌫",

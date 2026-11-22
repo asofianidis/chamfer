@@ -309,6 +309,14 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Through all (project onto every face in line)", sl.ThroughAll, v => Set(() => sl.ThroughAll = v)));
                 break;
 
+            case SurfaceEditFeature se2:
+                ed.Add(BodyField(doc, feature, "Surface body", se2.Body.Length > 0 ? [se2.Body] : [], names => Set(() => se2.Body = names.FirstOrDefault() ?? string.Empty), 1));
+                ed.Add(new ChoiceField("Operation", ["Trim", "Untrim", "Extend"], (int)se2.Operation, i => Set(() => se2.Operation = (SurfaceEdit)i)));
+                ed.Add(new SelectionField("Trim with plane or face", Planes, [PlaneItem(doc, se2.Tool)], items => Set(() => se2.Tool = Last(items)?.AsPlane() ?? PlaneRef.Front), max: 1));
+                ed.Add(new BoolField("Keep the other side", se2.KeepOtherSide, v => Set(() => se2.KeepOtherSide = v)));
+                ed.Add(Num("Extend by", "mm", se2, nameof(se2.Distance), 1e-6));
+                break;
+
             case RuledSurfaceFeature rs:
                 ed.Add(new SelectionField("Edges", [SelectionKind.Edge], Refs(rs.Edges, SelectionKind.Edge), items => Set(() => rs.Edges = [.. items.Select(i => i.Ref!)])));
                 ed.Add(Num("Distance", "mm", rs, nameof(rs.Distance), 1e-6));
