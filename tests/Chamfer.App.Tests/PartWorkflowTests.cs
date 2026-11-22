@@ -577,4 +577,22 @@ public class PartWorkflowTests
         vm.AcceptEditorCommand.Execute(null);
         Assert.Equal(volume * 4, vm.Document.MassProperties().Volume, 1e-6);
     }
+
+    [Fact]
+    public void Sketch3DFromTheUi()
+    {
+        var vm = new MainViewModel();
+        vm.FeatureCommands.Single(c => c.Label == "3D Sketch").Command.Execute(null);
+        var s3 = Assert.IsType<Sketch3DFeature>(vm.Editor!.Feature);
+        var points = vm.Editor.Fields.OfType<TextField>().Single();
+        points.Text = "0,0,0 | @10,0,0 | @0,10,10";
+        points.Commit();
+        Assert.Equal(3, s3.Points.Count);
+        points.Text = "nonsense";
+        points.Commit();
+        Assert.NotNull(vm.Editor.Message);
+        Assert.Equal(3, s3.Points.Count);
+        vm.AcceptEditorCommand.Execute(null);
+        Assert.True(vm.Document.State.Curves.ContainsKey(s3.Id));
+    }
 }

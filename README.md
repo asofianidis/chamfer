@@ -220,7 +220,7 @@ The tests use [Microsoft.Testing.Platform](https://aka.ms/dotnet-test-mtp) (opte
 | Evaluate | **Mass Properties** uses the part material (pick it under the tree). **Measure** shows sizes and the minimum distance between two selected faces or edges. |
 | Files | Parts save as `.chprt`. **Import** brings in STEP or IGES as a body; **Export** writes STEP, IGES, STL, 3MF or OBJ. |
 | Sketch tools | **Trim** (click the piece to remove), **Extend**, **Fillet** and **Chamfer** (click a corner; Size sets the radius or distance), **Offset** (selected curves, by Size; Reverse flips the side), **Mirror** (selection about a selected centerline), **Linear/Circular Pattern** (Count copies), **Convert Entities** (click model edges behind the sketch), **Convert Face** (outline of the sketch face) and **Import DXF** (lines, arcs, circles and polylines from a DXF file, converted to mm). |
-| Advanced features | **Helix** on a sketch circle (pitch, height, handedness) is a sweep path for springs. **Thread** models an ISO metric thread on a selected cylindrical face (pitch defaults to coarse). **Swept Boss/Cut**: select the profile sketch, then the path sketch or helix. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
+| Advanced features | **Helix** on a sketch circle (pitch, height, handedness) is a sweep path for springs. **3D Sketch** is a polyline or spline through typed points (x,y,z, or @dx,dy,dz relative), also usable as a sweep path. **Thread** models an ISO metric thread on a selected cylindrical face (pitch defaults to coarse). **Swept Boss/Cut**: select the profile sketch, then the path sketch, helix or 3D sketch. **Lofted Boss/Cut**: select profile sketches in order. **Rib**: an open sketch line between walls. Extrude also offers **Up To Surface**, **Offset From Surface**, a draft angle and thin walls. |
 | Equations | **Equations** defines global variables (`Width = 40`, `Wall = Width / 20`). Type `=Width/2` in any number box or sketch dimension to link it. |
 | Configurations | **Configurations** adds variants that override variables and suppression; switch them above the tree. Design tables import and export as CSV (`Configuration, Width, $STATE@Cut-Extrude1`). |
 | Surfaces | The **Surfaces** tab has extruded, revolved, planar, filled, swept and offset surfaces, plus **Knit** (sews surfaces, and closed ones become solids), **Thicken** and **Cut With Surface** (removes the material on one side of a surface body or plane). |
@@ -356,7 +356,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] **Swept** Boss and Cut (with guide curves, twist) *(profile along a path with sharp or smooth corners; guide curves and twist not yet)*
 - [~] **Lofted** Boss and Cut (guide curves, centerline, start/end constraints) *(smooth or ruled through any number of profiles; guides and end constraints not yet)*
 - [ ] **Boundary** Boss and Cut
-- [ ] 3D sketches
+- [~] 3D sketches *(polylines and splines through typed points, absolute or relative; usable as sweep paths)*
 - [~] Curves: helix and spiral, projected, composite, curve through points, split line *(helix, usable as a sweep path)*
 - [x] Multibody parts: combine, intersect, split, move/copy body, delete body
 - [x] **Global variables and equations**

@@ -144,3 +144,79 @@ public sealed class ThreadFeature : Feature
         }
     }
 }
+
+/// <summary>A point of a 3D sketch.</summary>
+public sealed record Point3D(double X, double Y, double Z)
+{
+    public Vec3 ToVec3() => new(X, Y, Z);
+}
+
+/// <summary>
+/// A 3D sketch: a polyline or spline through points in space, for sweep paths, routing
+/// and wireframes. The result is a curve, like a helix.
+/// </summary>
+public sealed class Sketch3DFeature : Feature
+{
+    public override string DefaultName => "3DSketch";
+
+    public List<Point3D> Points { get; set; } = [];
+
+    /// <summary>A smooth spline through the points instead of straight segments.</summary>
+    public bool Spline { get; set; }
+
+    public bool Closed { get; set; }
+
+    public override void Execute(RebuildContext ctx)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var pts = Points.Select(p => p.ToVec3()).ToList();
+        for (var i = pts.Count - 1; i > 0; i--)
+        {
+            if (Vec3.Distance(pts[i], pts[i - 1]) < 1e-9)
+            {
+                pts.RemoveAt(i);
+            }
+        }
+
+        if (pts.Count < 2)
+        {
+            throw new FeatureException("A 3D sketch needs at least two different points.");
+        }
+
+        if (Closed && pts.Count < 3)
+        {
+            throw new FeatureException("A closed 3D sketch needs at least three points.");
+        }
+
+        ctx.Curves[Id] = Modeling.Wire3D(pts, Spline, Closed);
+    }
+
+    /// <summary>
+    /// Parses points written as "x,y,z" separated by '|', ';' or new lines. A point starting with '@'
+    /// is relative to the previous one, e.g. "0,0,0 | @50,0,0 | @0,0,30".
+    /// </summary>
+    public static List<Point3D> Parse(string text)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        var list = new List<Point3D>();
+        foreach (var raw in text.Split(['|', ';', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var relative = raw.StartsWith('@');
+            var parts = raw.TrimStart('@').Split([',', ' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length != 3)
+            {
+                throw new FormatException($"\"{raw}\" isn't a point; write x,y,z.");
+            }
+
+            var v = parts.Select(s => double.Parse(s,System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+            var p = relative && list.Count > 0 ? new Point3D(list[^1].X + v[0], list[^1].Y + v[1], list[^1].Z + v[2]) : new Point3D(v[0], v[1], v[2]);
+            list.Add(p);
+        }
+
+        return list;
+    }
+
+    public static string Format(IEnumerable<Point3D> points) =>
+        string.Join(" | ", points.Select(p => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{p.X},{p.Y},{p.Z}")));
+}
+

@@ -323,6 +323,24 @@ public sealed partial class FeatureEditor : ObservableObject
                 ed.Add(new BoolField("Bend the other way", ef.Reverse, v => Set(() => ef.Reverse = v)));
                 break;
 
+            case Sketch3DFeature s3:
+                ed.Add(new TextField("Points (x,y,z | @dx,dy,dz ...)", Sketch3DFeature.Format(s3.Points), text =>
+                {
+                    try
+                    {
+                        var pts = Sketch3DFeature.Parse(text);
+                        Set(() => s3.Points = pts);
+                    }
+                    catch (FormatException ex)
+                    {
+                        ed.Message = ex.Message;
+                    }
+                }));
+                ed.Add(new BoolField("Spline (smooth)", s3.Spline, v => Set(() => s3.Spline = v)));
+                ed.Add(new BoolField("Closed", s3.Closed, v => Set(() => s3.Closed = v)));
+                ed.Add(new InfoField("Use", "Pick this 3D sketch as a sweep path. '@' makes a point relative to the previous one."));
+                break;
+
             case HelixFeature hx:
                 ed.Add(Num("Pitch", "mm", hx, nameof(hx.Pitch), 1e-6));
                 ed.Add(Num("Height", "mm", hx, nameof(hx.Height), 1e-6));
@@ -551,7 +569,7 @@ public sealed partial class FeatureEditor : ObservableObject
     public static bool EditRolledBack(Feature f) => f is CombineFeature or KnitFeature or ThickenFeature or DeleteBodyFeature;
 
     private static IEnumerable<SelectionItem> SketchItems(PartDocument doc, IEnumerable<string> ids) =>
-        ids.Select(doc.Find).Where(f => f is SketchFeature or HelixFeature).Select(f => SelectionItem.ForFeature(f!));
+        ids.Select(doc.Find).Where(f => f is SketchFeature or HelixFeature or Sketch3DFeature).Select(f => SelectionItem.ForFeature(f!));
 
     private static SelectionItem? Last(IReadOnlyList<SelectionItem> items) => items.Count > 0 ? items[^1] : null;
 
