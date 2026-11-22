@@ -445,7 +445,7 @@ public sealed class PartDocument
     }
 
     private static string Fingerprint(Feature f, string previous, bool suppressed) =>
-        $"{previous.GetHashCode(StringComparison.Ordinal):x8}:{suppressed}:{JsonSerializer.Serialize(f, Options)}";
+        $"{previous.GetHashCode(StringComparison.Ordinal):x8}:{suppressed}:{f.CacheKey ?? JsonSerializer.Serialize(f, Options)}";
 
     // ------------------------------------------------------------ persistence
 

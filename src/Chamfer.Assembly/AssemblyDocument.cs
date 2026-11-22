@@ -158,9 +158,69 @@ public sealed partial class AssemblyDocument
     /// <summary>Loads a part by path. Defaults to reading <c>.chprt</c> files from disk.</summary>
     public Func<string, PartDocument> PartLoader { get; set; }
 
+    /// <summary>Loads a subassembly by path. Defaults to reading <c>.chasm</c> files from disk.</summary>
+    public Func<string, AssemblyDocument> AssemblyLoader { get; set; }
+
+    private readonly Dictionary<string, AssemblyDocument> _subAssemblies = [];
+
+    /// <summary>Subassemblies being loaded on this thread, to refuse one that contains itself.</summary>
+    [ThreadStatic]
+    private static HashSet<string>? _loading;
+
     public AssemblyDocument()
     {
         PartLoader = path => Toolbox.IsToolboxPath(path) ? Toolbox.Create(path) : PartDocument.Load(File.ReadAllText(Resolve(path)));
+        AssemblyLoader = path =>
+        {
+            var full = Resolve(path);
+            return Load(File.ReadAllText(full), System.IO.Path.GetDirectoryName(full));
+        };
+    }
+
+    /// <summary>Registers an in-memory subassembly under a path (for new subassemblies and tests).</summary>
+    public void RegisterSubAssembly(string path, AssemblyDocument sub)
+    {
+        ArgumentNullException.ThrowIfNull(sub);
+        _subAssemblies[path] = sub;
+        _parts.Remove(path);
+    }
+
+    /// <summary>The subassembly a component instances, or null when it's a part.</summary>
+    public AssemblyDocument? SubAssemblyOf(Component component)
+    {
+        ArgumentNullException.ThrowIfNull(component);
+        if (!SubAssemblies.IsAssemblyPath(component.Path))
+        {
+            return null;
+        }
+
+        PartOf(component);
+        return _subAssemblies.GetValueOrDefault(component.Path);
+    }
+
+    private PartDocument LoadSubAssembly(string path)
+    {
+        var key = Resolve(path);
+        _loading ??= [];
+        if (!_loading.Add(key))
+        {
+            throw new InvalidOperationException($"The assembly {System.IO.Path.GetFileName(path)} contains itself.");
+        }
+
+        try
+        {
+            if (!_subAssemblies.TryGetValue(path, out var sub))
+            {
+                sub = AssemblyLoader(path);
+                _subAssemblies[path] = sub;
+            }
+
+            return SubAssemblies.StandIn(sub);
+        }
+        finally
+        {
+            _loading.Remove(key);
+        }
     }
 
     public string Resolve(string path) =>
@@ -180,7 +240,7 @@ public sealed partial class AssemblyDocument
         ArgumentNullException.ThrowIfNull(component);
         if (!_parts.TryGetValue(component.Path, out var part))
         {
-            part = PartLoader(component.Path);
+            part = SubAssemblies.IsAssemblyPath(component.Path) ? LoadSubAssembly(component.Path) : PartLoader(component.Path);
             _parts[component.Path] = part;
         }
 
@@ -198,11 +258,19 @@ public sealed partial class AssemblyDocument
         return part;
     }
 
+    /// <summary>Rebuilds one component path's part or subassembly stand-in on next use (after it was edited).</summary>
+    public void Refresh(string path)
+    {
+        _parts.Remove(path);
+        _placed.Clear();
+    }
+
     /// <summary>Forgets cached parts so they're reloaded (after a part file changed).</summary>
     public void ReloadParts()
     {
         _parts.Clear();
         _placed.Clear();
+        _subAssemblies.Clear();
     }
 
     public Component? Find(string id) => Components.Find(c => c.Id == id);

@@ -122,7 +122,7 @@ public sealed partial class MainViewModel
             return;
         }
 
-        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Insert Component", FileTypeFilter = [PartFileType] });
+        var files = await StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "Insert Component", FileTypeFilter = [PartFileType, AssemblyFileType] });
         if (files is not [var file] || file.TryGetLocalPath() is not { } path)
         {
             return;
@@ -528,6 +528,22 @@ public sealed partial class MainViewModel
         }
 
         CancelEditor();
+        if (asm.SubAssemblyOf(c) is { } sub)
+        {
+            // Edit the subassembly in place; returning rebuilds it in the parent.
+            _returnTo = (asm, FilePath);
+            _returnToSub = c.Path;
+            AssemblyDoc = sub;
+            FilePath = Path.IsPathRooted(c.Path) ? c.Path : asm.Resolve(c.Path);
+            _undo.Clear();
+            _redo.Clear();
+            SetSelection([]);
+            RaiseModeChanged();
+            RebuildAndRefresh();
+            FitAction?.Invoke();
+            return;
+        }
+
         var part = asm.PartOf(c);
         _returnTo = (asm, FilePath);
         AssemblyDoc = null;
@@ -555,6 +571,12 @@ public sealed partial class MainViewModel
         }
 
         CancelEditor();
+        if (_returnToSub is { } subPath)
+        {
+            back.Doc.Refresh(subPath);
+            _returnToSub = null;
+        }
+
         AssemblyDoc = back.Doc;
         FilePath = back.Path;
         _returnTo = null;
@@ -565,6 +587,9 @@ public sealed partial class MainViewModel
         RaiseModeChanged();
         RebuildAndRefresh();
     }
+
+    /// <summary>The subassembly path being edited in place, when returning goes to its parent.</summary>
+    private string? _returnToSub;
 
     // ------------------------------------------------------------- refresh
 
@@ -579,7 +604,12 @@ public sealed partial class MainViewModel
         foreach (var c in asm.Components)
         {
             var label = $"{(c.Fixed ? "(f) " : string.Empty)}{c.Name}{(c.Configuration is { } cfg ? $" [{cfg}]" : string.Empty)}";
-            Tree.Add(new FeatureNode(label, "⬚", tag: c) { Status = c.Suppressed ? FeatureStatus.Suppressed : FeatureStatus.Ok });
+            var sub = c.Suppressed ? null : SafeSubAssembly(asm, c);
+            Tree.Add(new FeatureNode(label, sub is null ? "⬚" : "◫", tag: c) { Status = c.Suppressed ? FeatureStatus.Suppressed : FeatureStatus.Ok });
+            foreach (var child in sub?.Components ?? [])
+            {
+                Tree.Add(new FeatureNode(child.Name, SubAssemblies.IsAssemblyPath(child.Path) ? "◫" : "⬚", indent: 1));
+            }
         }
 
         if (asm.Mates.Count > 0)
@@ -657,6 +687,19 @@ public sealed partial class MainViewModel
         _dirty = false;
         DiscardRecovery();
         RefreshAssembly();
+    }
+
+    /// <summary>A component's subassembly, or null (also when it can't be loaded; the error shows elsewhere).</summary>
+    private static AssemblyDocument? SafeSubAssembly(AssemblyDocument asm, Component c)
+    {
+        try
+        {
+            return asm.SubAssemblyOf(c);
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or System.Text.Json.JsonException or NotSupportedException)
+        {
+            return null;
+        }
     }
 
     private void LoadAssembly(string path, string text)

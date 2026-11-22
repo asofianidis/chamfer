@@ -1200,4 +1200,39 @@ public class PartWorkflowTests
         Assert.Equal("1/16 NPT", hole.Size);
         Assert.Equal(0.25 * 25.4, hole.Diameter, 1e-9);
     }
+
+    [Fact]
+    public void SubassemblyInsertEditAndReturn()
+    {
+        var dir = Directory.CreateTempSubdirectory("chamfer-subui-");
+        try
+        {
+            // A subassembly of two toolbox screws, on disk.
+            var sub = new Chamfer.Assembly.AssemblyDocument();
+            sub.AddComponent(new Chamfer.Document.FastenerSpec(Chamfer.Document.FastenerKind.SocketHeadCapScrew, "M6", 20).Path);
+            sub.AddComponent(new Chamfer.Document.FastenerSpec(Chamfer.Document.FastenerKind.HexNut, "M6", 0).Path,
+                Chamfer.Geometry.Transform3.Translation(new Chamfer.Geometry.Vec3(30, 0, 0)));
+            var subPath = Path.Combine(dir.FullName, "pair.chasm");
+            File.WriteAllText(subPath, sub.Save());
+
+            var vm = new MainViewModel();
+            vm.NewAssemblyCommand.Execute(null);
+            var c = vm.InsertPart(subPath);
+            Assert.Equal(2, vm.AssemblyDoc!.PartOf(c).Bodies.Count);
+            Assert.Contains(vm.Tree, n => n.Glyph == "◫");
+            Assert.Equal(2, vm.Tree.Count(n => n.Indent.Left > 0 && n.Tag is null && n.Glyph == "⬚"));
+
+            // Edit it in place: add a washer, then go back up.
+            vm.SetSelection([new SelectionItem(SelectionKind.Feature, FeatureId: c.Id, Label: c.Name, ComponentId: c.Id)]);
+            vm.AssemblyCommands.Single(x => x.Label == "Open Part").Command.Execute(null);
+            Assert.Equal(2, vm.AssemblyDoc!.Components.Count);
+            vm.InsertPart(new Chamfer.Document.FastenerSpec(Chamfer.Document.FastenerKind.Washer, "M6", 0).Path);
+            vm.ReturnToAssemblyCommand.Execute(null);
+            Assert.Equal(3, vm.AssemblyDoc!.PartOf(c).Bodies.Count);
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
 }

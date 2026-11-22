@@ -381,7 +381,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [~] Interactive feature editing via drag handles (Instant3D-style) *(drag the arrow to set an extrusion's depth)*
 
 ### Phase 4: Assemblies
-- [~] Assembly document (`.chasm`), insert components, subassemblies *(subassemblies not yet)*
+- [x] Assembly document (`.chasm`), insert components, subassemblies *(rigid subassemblies: mate to their faces, one BOM line, edit in place, nested Pack and Go)*
 - [x] Assembly solver for 3D mate constraints *(Levenberg–Marquardt over component placements, with DOF from the Jacobian rank and conflict reporting)*
 - [x] **Standard mates**: coincident, parallel, perpendicular, tangent, concentric, lock, distance, angle
 - [~] **Advanced mates**: limit distance and angle, width, symmetric, path, linear/linear coupler *(limit distance/angle, width, symmetric, slot, linear coupler)*

@@ -356,4 +356,68 @@ public class AssemblyTests
         var thetaB = Math.Atan2(Vec3.Dot(Vec3.Cross(ref0, turned), axis), Vec3.Dot(ref0, turned));
         Assert.Equal(Math.Atan(Math.Tan(0.6) * Math.Cos(Math.PI / 6)), Math.Abs(thetaB), 1e-4);
     }
+
+    [Fact]
+    public void SubassembliesActAsOneRigidComponent()
+    {
+        // A hinge subassembly: a plate with a pin standing in its hole.
+        var sub = new AssemblyDocument();
+        var plate = Block(40, 40, 10, holeRadius: 5);
+        var pin = Pin(5, 30);
+        sub.RegisterPart("plate.chprt", plate);
+        sub.RegisterPart("pin.chprt", pin);
+        var p = sub.AddComponent("plate.chprt");
+        p.Fixed = true;
+        var q = sub.AddComponent("pin.chprt", Transform3.Translation(new Vec3(60, 0, 0)));
+        var hinge = sub.AddMate(MateType.Hinge,
+            new MateRef(p.Id, FaceWhere(plate, f => f.Surface == SurfaceKind.Cylinder)),
+            new MateRef(q.Id, FaceWhere(pin, f => f.Surface == SurfaceKind.Cylinder)));
+        hinge.C = new MateRef(p.Id, FaceWhere(plate, f => f.Normal.Z > 0.99));
+        hinge.D = new MateRef(q.Id, FaceWhere(pin, f => f.Normal.Z < -0.99));
+
+        // The top assembly: a base, and the subassembly sitting on it by the plate's bottom face.
+        var top = new AssemblyDocument();
+        var baseBlock = Block(100, 100, 20);
+        top.RegisterPart("base.chprt", baseBlock);
+        top.RegisterSubAssembly("hinge.chasm", sub);
+        var b = top.AddComponent("base.chprt");
+        b.Fixed = true;
+        var h = top.AddComponent("hinge.chasm", Transform3.Translation(new Vec3(10, 10, 50)));
+        var standIn = top.PartOf(h);
+        Assert.Equal(2, standIn.Bodies.Count);
+        Assert.Equal(plate.MassProperties().Mass + pin.MassProperties().Mass, standIn.MassProperties().Mass, 1e-9);
+        Assert.Same(sub, top.SubAssemblyOf(h));
+
+        var plateBottom = FaceWhere(standIn, f => f.Normal.Z < -0.99);
+        Assert.StartsWith(p.Id + "/", plateBottom.Name, StringComparison.Ordinal);
+        top.AddMate(MateType.Coincident, new MateRef(b.Id, FaceWhere(baseBlock, f => f.Normal.Z > 0.99)), new MateRef(h.Id, plateBottom));
+        Assert.True(top.Solve().Converged);
+        Assert.Equal(20, top.PlacedBodies(h).Min(x => x.Placed.Bounds.Min.Z), 1e-6);
+
+        // One BOM line for the subassembly; Pack and Go copies everything, nested.
+        var bom = AssemblyTools.BillOfMaterials(top);
+        Assert.Equal(2, bom.Count);
+        Assert.Contains(bom, l => l.PartName == "hinge");
+        var dir = Directory.CreateTempSubdirectory("chamfer-sub-");
+        try
+        {
+            var packed = PackAndGo.Run(top, "Top", dir.FullName);
+            Assert.Equal(5, packed.Files.Count); // top, hinge, base, plate, pin
+            var reopened = AssemblyDocument.Load(File.ReadAllText(packed.AssemblyPath), dir.FullName);
+            var hingeAgain = reopened.Components.Single(c => SubAssemblies.IsAssemblyPath(c.Path));
+            Assert.Equal(2, reopened.PartOf(hingeAgain).Bodies.Count);
+
+            // An assembly that contains itself is refused.
+            var loop = new AssemblyDocument();
+            loop.Components.Add(new Component { Id = "c1", Name = "loop<1>", Path = "loop.chasm" });
+            File.WriteAllText(Path.Combine(dir.FullName, "loop.chasm"), loop.Save());
+            var outer = new AssemblyDocument { Directory = dir.FullName };
+            var looped = outer.AddComponent("loop.chasm");
+            Assert.Throws<InvalidOperationException>(() => outer.PartOf(looped));
+        }
+        finally
+        {
+            dir.Delete(recursive: true);
+        }
+    }
 }
