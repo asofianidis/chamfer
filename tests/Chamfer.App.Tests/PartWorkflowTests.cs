@@ -1003,4 +1003,15 @@ public class PartWorkflowTests
         sketch.ExplodeBlockCommand.Execute(null);
         Assert.Single(editor.Sketch.Blocks);
     }
+
+    [Fact]
+    public void UpdateCheckComparesReleaseTags()
+    {
+        var current = new Version(1, 2, 0);
+        Assert.Equal((true, new Version(1, 3, 0)), MainViewModel.CompareRelease(current, "{\"tag_name\": \"v1.3.0\"}"));
+        Assert.Equal((false, new Version(1, 2, 0)), MainViewModel.CompareRelease(current, "{\"tag_name\": \"v1.2\"}"));
+        Assert.Equal((true, new Version(2, 0, 0)), MainViewModel.CompareRelease(current, "{\"tag_name\": \"2.0.0-beta.1\"}"));
+        Assert.Equal((false, (Version?)null), MainViewModel.CompareRelease(current, "{\"message\": \"Not Found\"}"));
+        Assert.Equal((false, (Version?)null), MainViewModel.CompareRelease(current, "not json"));
+    }
 }

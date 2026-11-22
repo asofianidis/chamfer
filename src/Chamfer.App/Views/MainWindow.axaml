@@ -106,6 +106,7 @@
           <Button Classes="tool" Content="Save" Command="{Binding SaveCommand}" ToolTip.Tip="Save (Ctrl+S)" />
           <Button Classes="tool" Content="Save As" Command="{Binding SaveAsCommand}" />
           <Button Classes="tool" Content="Vault" Command="{Binding ShowVaultCommand}" ToolTip.Tip="Check out, check in, revisions and where-used" />
+          <Button Classes="tool" Content="Updates" Command="{Binding CheckForUpdatesCommand}" ToolTip.Tip="Check GitHub for a newer release" />
           <Button Classes="tool" Content="Import" Command="{Binding ImportCommand}" ToolTip.Tip="Import a STEP or IGES file as a body" />
           <Button Classes="tool" Content="Export" Command="{Binding ExportCommand}" ToolTip.Tip="Export STEP, IGES or STL" />
           <Border Classes="separator" />
