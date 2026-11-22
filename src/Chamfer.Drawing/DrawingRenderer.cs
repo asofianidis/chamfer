@@ -797,7 +797,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             DimensionKind.Diameter => "⌀",
             DimensionKind.Radius => "R",
             _ => string.Empty,
-        } + Units.Format(v, doc.LengthUnit) + (d.Tolerance ?? string.Empty));
+        } + Units.Format(v, doc.LengthUnit) + FitText(d, v) + (d.Tolerance ?? string.Empty));
         const double textHeight = 3.5;
 
         if (d.Kind is DimensionKind.Diameter or DimensionKind.Radius)
@@ -838,7 +838,7 @@ public sealed class DrawingRenderer(DrawingDocument doc)
             }
 
             var ordinate = (across ? Math.Abs(b.X - a.X) : Math.Abs(b.Y - a.Y)) / vg.Scale;
-            var text = d.Text ?? (Units.Format(ordinate, doc.LengthUnit) + (d.Tolerance ?? string.Empty));
+            var text = d.Text ?? (Units.Format(ordinate, doc.LengthUnit) + FitText(d, ordinate) + (d.Tolerance ?? string.Empty));
             if (across)
             {
                 g.Text(end + new Point2(0, d.Offset < 0 ? -1 - textHeight : 1), text, textHeight, TextAnchor.Center, owner: owner);
@@ -917,6 +917,12 @@ public sealed class DrawingRenderer(DrawingDocument doc)
 
         g.Text(textAt, Label(value), textHeight, anchor, angle, owner);
     }
+
+    /// <summary>" H7" or " H7 (+0.015/0)" for a dimension with a fit.</summary>
+    private static string FitText(DrawingDimension d, double size) =>
+        d.Fit is { Length: > 0 } fit
+            ? " " + fit + (d.ShowLimits && Fits.LimitsText(size, fit) is { } limits ? $" ({limits})" : string.Empty)
+            : string.Empty;
 
     /// <summary>Item numbers by component id: one number per distinct part and configuration, in BOM order.</summary>
     public IReadOnlyDictionary<string, int> ItemNumbers()

@@ -207,6 +207,48 @@ public class DrawingTests
     }
 
     [Fact]
+    public void IsoFitsGiveStandardLimits()
+    {
+        (double, double)? Mm(double upper, double lower) => (upper / 1000, lower / 1000);
+        void Check(string zone, double size, double upper, double lower)
+        {
+            var d = Fits.Deviations(size, zone);
+            Assert.NotNull(d);
+            Assert.Equal(Mm(upper, lower)!.Value.Item1, d.Value.Upper, 1e-9);
+            Assert.Equal(Mm(upper, lower)!.Value.Item2, d.Value.Lower, 1e-9);
+        }
+
+        // ISO 286-2 values (micrometres) for a 10 mm and a 50 mm size.
+        Check("H7", 10, 15, 0);
+        Check("g6", 10, -5, -14);
+        Check("k6", 10, 10, 1);
+        Check("p6", 10, 24, 15);
+        Check("N7", 10, -4, -19);
+        Check("K7", 10, 5, -10);
+        Check("P7", 10, -9, -24);
+        Check("js6", 10, 4.5, -4.5);
+        Check("H8", 50, 39, 0);
+        Check("f7", 50, -25, -50);
+        Check("F8", 50, 64, 25);
+        Assert.Null(Fits.Deviations(10, "Q7"));
+        Assert.Null(Fits.Deviations(600, "H7"));
+        Assert.Equal("+0.015/0  −0.005/−0.014", Fits.LimitsText(10, "H7/g6"));
+
+        // On a drawing: the diameter of the 20 mm hole reads "⌀20 H7 (+0.021/0)".
+        var (part, _) = Part();
+        var drawing = Drawing(part);
+        var sheet = drawing.Sheets[0];
+        var front = drawing.Add(sheet, ViewKind.Front, 150, 150);
+        var body = part.Bodies[0];
+        var hole = Enumerable.Range(1, body.EdgeCount).First(i => body.Edge(i).Curve == CurveKind.Circle);
+        var dim = drawing.AddDimension(sheet, front, DimensionKind.Diameter, new DimensionAnchor(body.EdgeRef(hole), DimensionAnchor.Center, body.Edge(hole).CenterOrDirection));
+        dim.Fit = "H7";
+        dim.ShowLimits = true;
+        var g = new DrawingRenderer(drawing).Render(sheet);
+        Assert.Contains(g.Items.OfType<TextPrimitive>(), t => t.Text == "⌀20 H7 (+0.021/0)");
+    }
+
+    [Fact]
     public void DimensionsFollowTheModel()
     {
         var (part, width) = Part();

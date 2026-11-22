@@ -482,6 +482,34 @@ public sealed class RenderTests
         }, TestContext.Current.CancellationToken);
     }
 
+    [Fact]
+    public async Task DimensionPropertiesSetAFit()
+    {
+        await Session.Value.Dispatch(() =>
+        {
+            var (window, vm) = Open("light");
+            vm.LoadFile("plate.chprt", PlateWithHole().Save());
+            vm.NewDrawingCommand.Execute(null);
+            var sheet = vm.CurrentSheet!;
+            var front = sheet.Views[0];
+            vm.OnSheetClick(new Geometry.Point2(front.X, front.Y), front.Id, add: false);
+            vm.DrawingCommands.Single(c => c.Label == "Auto Dimension").Command.Execute(null);
+            var diameter = sheet.Dimensions.Single(x => x.Kind == Chamfer.Drawing.DimensionKind.Diameter);
+            vm.DrawingSelection.Clear();
+            vm.DrawingSelection.Add(diameter.Id);
+            vm.DrawingCommands.Single(c => c.Label == "Dimension Properties").Command.Execute(null);
+            vm.Editor!.Fields.OfType<ChoiceField>().Single().Index = 1; // H7
+            vm.Editor.Fields.OfType<TextField>().Single(f => f.Label.StartsWith("Tolerance", StringComparison.Ordinal)).Text = " A";
+            vm.AcceptEditorCommand.Execute(null);
+            Assert.Equal("H7", diameter.Fit);
+            Assert.Equal("A", diameter.Tolerance);
+            Assert.Contains(vm.SheetGraphics!.Items.OfType<Chamfer.Drawing.TextPrimitive>(), t => t.Text.EndsWith(" H7A", StringComparison.Ordinal));
+            vm.UndoCommand.Execute(null);
+            Assert.Null(vm.CurrentSheet!.Dimensions.Single(x => x.Kind == Chamfer.Drawing.DimensionKind.Diameter).Fit);
+            window.Close();
+        }, TestContext.Current.CancellationToken);
+    }
+
     private static (MainWindow Window, MainViewModel Vm) Open(string theme)
     {
         Application.Current!.RequestedThemeVariant = theme == "dark" ? ThemeVariant.Dark : ThemeVariant.Light;
