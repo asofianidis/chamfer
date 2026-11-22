@@ -1,3 +1,4 @@
+using Chamfer.Document.Features;
 using Chamfer.App.Part;
 using Chamfer.Assembly;
 using Chamfer.Sketching;
@@ -88,6 +89,21 @@ public sealed partial class MainViewModel
         panel.AddField(new NumberField("Height (rectangle)", "mm", () => height, v =>
         {
             height = v;
+            Preview();
+        }, 1e-3));
+        panel.AddField(new ChoiceField("Hole style (circles)", ["Plain", "Counterbore", "Countersink"], 0, i =>
+        {
+            cut.HoleStyle = i switch { 1 => HoleType.Counterbore, 2 => HoleType.Countersink, _ => HoleType.Simple };
+            Preview();
+        }));
+        panel.AddField(new NumberField("Counterbore / countersink diameter", "mm", () => cut.CounterDiameter, v =>
+        {
+            cut.CounterDiameter = v;
+            Preview();
+        }, 1e-3));
+        panel.AddField(new NumberField("Counterbore depth", "mm", () => cut.CounterboreDepth, v =>
+        {
+            cut.CounterboreDepth = v;
             Preview();
         }, 1e-3));
         panel.AddField(new BoolField("Through all", true, v =>

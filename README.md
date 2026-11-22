@@ -392,7 +392,7 @@ Legend: `[ ]` not started · `[~]` in progress · `[x]` done
 - [x] Exploded views and explode lines *(automatic radial explode, manual explode steps along an axis, dashed explode lines, collapse)*
 - [~] Component patterns, mirror components *(linear and circular component patterns; mirror as an opposite-hand copy or a turned-over symmetric part)*
 - [~] In-context (top-down) design with external references *(sketch on another component's face into a new or existing part, kept up to date as the source changes or moves; lock and break references)*
-- [~] Assembly features: cuts and holes *(assembly cuts: circle or rectangle profiles, through all or to a depth, per component)*
+- [x] Assembly features: cuts and holes *(assembly cuts and holes: circle or rectangle profiles, plain, counterbored or countersunk, through all or to a depth, per component)*
 - [x] Bill of Materials data model
 - [~] Large-assembly mode: lightweight components, LOD, instancing, frustum culling *(instanced component meshes, frustum culling)*
 - [x] Pack and Go *(copy an assembly and its parts to one folder with prefix/suffix, optional zip)*

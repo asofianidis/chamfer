@@ -526,4 +526,25 @@ public class AssemblyTests
         var axis = f.Transform.Apply(Vec3.Zero);
         Assert.Equal(23, Math.Sqrt(((axis.X - 5) * (axis.X - 5)) + (axis.Y * axis.Y)), 0.05);
     }
+
+    [Fact]
+    public void AssemblyHolesWithCounterboresAndCountersinks()
+    {
+        // Two stacked plates; an assembly hole of radius 3 through both, counterbored 10 wide and 4 deep from the top.
+        var asm = new AssemblyDocument();
+        asm.RegisterPart("plate.chprt", Block(40, 40, 10));
+        var lower = asm.AddComponent("plate.chprt");
+        var upper = asm.AddComponent("plate.chprt", Transform3.Translation(new Vec3(0, 0, 10)));
+        var hole = new Sketch();
+        hole.AddCircle(new Vec2(20, 20), 3);
+        var cut = asm.AddCut(new AssemblyCut { PlaneId = "front", PlaneOffset = 20, Sketch = hole, ThroughAll = true, Reverse = true, HoleStyle = HoleType.Counterbore, CounterDiameter = 10, CounterboreDepth = 4 });
+        double Volume(Component c) => asm.PlacedBodies(c).Sum(p => p.Placed.MassProperties.Volume);
+        Assert.Equal(16000 - (Math.PI * 9 * 10) - (Math.PI * (25 - 9) * 4), Volume(upper), 1e-3); // the counterbore is in the upper plate
+        Assert.Equal(16000 - (Math.PI * 9 * 10), Volume(lower), 1e-3);
+
+        // A 90 degree countersink instead: a cone from radius 5 down to 3, 2 deep.
+        cut.HoleStyle = HoleType.Countersink;
+        var cone = Math.PI * 2 / 3 * ((25) + (15) + (9));
+        Assert.Equal(16000 - (Math.PI * 9 * 10) - (cone - (Math.PI * 9 * 2)), Volume(upper), 1e-3);
+    }
 }

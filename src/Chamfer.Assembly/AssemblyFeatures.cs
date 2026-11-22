@@ -48,6 +48,17 @@ public sealed class AssemblyCut
     /// <summary>Components to cut; empty cuts all of them.</summary>
     public List<string> Components { get; set; } = [];
 
+    /// <summary>Holes: circles in the sketch get a counterbore or countersink at the sketch plane.</summary>
+    public HoleType HoleStyle { get; set; } = HoleType.Simple;
+
+    /// <summary>Counterbore or countersink diameter at the surface.</summary>
+    public double CounterDiameter { get; set; } = 11;
+
+    public double CounterboreDepth { get; set; } = 6;
+
+    /// <summary>Included countersink angle, degrees.</summary>
+    public double CountersinkAngle { get; set; } = 90;
+
     public Plane3 Plane => (PlaneId switch
     {
         "top" => Plane3.Top,
@@ -59,18 +70,66 @@ public sealed class AssemblyCut
     public Shape Tool(Box3 assemblyBounds)
     {
         var plane = Plane;
+        Shape cut;
         if (ThroughAll)
         {
             var reach = assemblyBounds.IsEmpty ? 1000 : (assemblyBounds.Diagonal * 2) + 10;
-            return SketchSolids.Extrude(plane, Sketch, -reach, reach);
+            cut = SketchSolids.Extrude(plane, Sketch, -reach, reach);
+        }
+        else
+        {
+            cut = Reverse ? SketchSolids.Extrude(plane, Sketch, -Depth, 0) : SketchSolids.Extrude(plane, Sketch, 0, Depth);
         }
 
-        return Reverse ? SketchSolids.Extrude(plane, Sketch, -Depth, 0) : SketchSolids.Extrude(plane, Sketch, 0, Depth);
+        if (HoleStyle is not (HoleType.Counterbore or HoleType.Countersink))
+        {
+            return cut;
+        }
+
+        // Each circle's counterbore or countersink, from the sketch plane in the cut's direction.
+        var dir = plane.Normal * (Reverse ? -1 : 1);
+        foreach (var circle in Sketch.Entities.OfType<Chamfer.Sketching.Entities.SketchCircle>().Where(c => !c.IsConstruction))
+        {
+            var center = plane.ToWorld(circle.Center.Position.X, circle.Center.Position.Y);
+            var at = new Plane3(center, plane.Normal, plane.XDirection);
+            var big = CounterDiameter / 2;
+            if (big <= circle.Radius)
+            {
+                throw new InvalidOperationException("The counterbore or countersink must be wider than the hole.");
+            }
+
+            Shape extra;
+            using (var top = Modeling.Face(at, [[ProfileSegment.Circle(0, 0, big)]]))
+            {
+                if (HoleStyle == HoleType.Counterbore)
+                {
+                    using var bore = Modeling.Extrude(top, dir * CounterboreDepth);
+                    extra = bore.Result;
+                }
+                else
+                {
+                    var sink = (big - circle.Radius) / Math.Tan(CountersinkAngle * Math.PI / 360);
+                    using var bottom = Modeling.Face(new Plane3(center + (dir * sink), plane.Normal, plane.XDirection), [[ProfileSegment.Circle(0, 0, circle.Radius)]]);
+                    using var cone = Modeling.Loft([top, bottom], solid: true, ruled: true);
+                    extra = cone.Result;
+                }
+            }
+
+            using (extra)
+            using (var fuse = Modeling.Boolean(cut, extra, BooleanKind.Fuse))
+            {
+                cut.Dispose();
+                cut = fuse.Result;
+            }
+        }
+
+        return cut;
     }
 
     /// <summary>A fingerprint of everything that changes the result.</summary>
     public string Fingerprint() =>
-        $"{Suppressed}|{PlaneId}|{PlaneOffset}|{Depth}|{ThroughAll}|{Reverse}|{string.Join(',', Components)}|{SketchSerializer.Serialize(Sketch).GetHashCode(StringComparison.Ordinal)}";
+        $"{Suppressed}|{PlaneId}|{PlaneOffset}|{Depth}|{ThroughAll}|{Reverse}|{string.Join(',', Components)}|{HoleStyle}|{CounterDiameter}|{CounterboreDepth}|{CountersinkAngle}|" +
+        $"{SketchSerializer.Serialize(Sketch).GetHashCode(StringComparison.Ordinal)}";
 }
 
 public sealed partial class AssemblyDocument
