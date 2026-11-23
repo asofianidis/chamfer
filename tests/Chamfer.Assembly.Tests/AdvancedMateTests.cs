@@ -446,7 +446,8 @@ public class AdvancedMateTests
         }
     }
 
-    private static bool Expected(Exception ex) => ex is System.Text.Json.JsonException or NotSupportedException or FormatException;
+    // A corrupted part path fails like any missing file (IOException), which callers report.
+    private static bool Expected(Exception ex) => ex is System.Text.Json.JsonException or NotSupportedException or FormatException or IOException;
 
     [Fact]
     public void MutatedAssembliesLoadOrFailCleanly()
