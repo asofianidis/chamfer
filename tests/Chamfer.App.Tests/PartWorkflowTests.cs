@@ -1501,4 +1501,31 @@ public class PartWorkflowTests
         Assert.Equal(Chamfer.Assembly.MateType.Coincident, mate.Type);
         Assert.Equal(10, asm.PlacedBodies(b).Single().Placed.Bounds.Min.Z, 1e-6); // b now sits on a
     }
+
+    [Fact]
+    public void FilletAndShellHaveDragHandles()
+    {
+        var vm = BlockOnFront(40, 20, 10);
+        var body = vm.Document.Bodies[0];
+        var edge = Enumerable.Range(1, body.EdgeCount).First(i => body.Edge(i).Curve == Chamfer.Kernel.Occt.CurveKind.Line);
+        vm.SetSelection([SelectionItem.Edge(body, edge)]);
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Fillet").Command.Execute(null);
+        vm.BuildScene();
+        var (tip, dir) = vm.ActiveHandle!.Value;
+
+        // Drag the arrow 2 mm further out along itself: the radius goes up by 2.
+        var start = ((FilletFeature)vm.Editor!.Feature!).Radius;
+        var target = tip + (dir * 2);
+        var side = dir.AnyPerpendicular().Normalized();
+        vm.DragHandle(target + (side * 50), side * -1);
+        Assert.Equal(start + 2, ((FilletFeature)vm.Editor.Feature!).Radius, 1e-3);
+        vm.AcceptEditorCommand.Execute(null);
+
+        // A shell, opened on the top face: its handle points into the part.
+        var top = Enumerable.Range(1, vm.Document.Bodies[0].FaceCount).First(i => vm.Document.Bodies[0].Face(i).Normal.Z > 0.99 && vm.Document.Bodies[0].Face(i).Surface == Chamfer.Kernel.Occt.SurfaceKind.Plane);
+        vm.SetSelection([SelectionItem.Face(vm.Document.Bodies[0], top)]);
+        vm.VisibleFeatureCommands.Single(c => c.Label == "Shell").Command.Execute(null);
+        vm.BuildScene();
+        Assert.True(vm.ActiveHandle!.Value.Direction.Z < -0.99);
+    }
 }
